@@ -1,0 +1,12 @@
+{
+  "name": "swiftui",
+  "description": "SwiftUI patterns and critique for iOS, macOS, and visionOS apps",
+  "version": "1.0.0",
+  "license": "MIT",
+  "author": {
+    "name": "John Kozaris"
+  },
+  "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
+  "repository": "https://github.com/johnkozaris/jko-claude-plugins",
+  "keywords": ["swift", "swiftui", "ios", "macos", "visionos", "apple", "design", "accessibility", "performance", "liquid-glass"]
+}

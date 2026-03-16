@@ -1,0 +1,12 @@
+{
+  "name": "esp32-cpp",
+  "description": "ESP32 firmware review for all variants, FreeRTOS, ESP-IDF/PlatformIO, peripherals, and memory",
+  "version": "1.0.0",
+  "license": "MIT",
+  "author": {
+    "name": "John Kozaris"
+  },
+  "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
+  "repository": "https://github.com/johnkozaris/jko-claude-plugins",
+  "keywords": ["esp32", "esp-idf", "platformio", "freertos", "embedded", "c++", "firmware", "iot", "rtos", "peripherals", "debugging", "memory", "esp32-s3", "esp32-c3", "esp32-c6", "esp32-p4"]
+}

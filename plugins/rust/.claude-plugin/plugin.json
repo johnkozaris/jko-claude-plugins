@@ -1,0 +1,12 @@
+{
+  "name": "rust",
+  "description": "Rust code critique, architecture guidance, and idiomatic pattern enforcement",
+  "version": "1.0.0",
+  "license": "MIT",
+  "author": {
+    "name": "John Kozaris"
+  },
+  "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
+  "repository": "https://github.com/johnkozaris/jko-claude-plugins",
+  "keywords": ["rust", "architecture", "critique", "patterns", "ownership", "async", "unsafe", "performance", "clippy", "traits", "error-handling", "concurrency"]
+}

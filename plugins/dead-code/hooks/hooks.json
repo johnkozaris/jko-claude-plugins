@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Quickly check: does the code just written or edited introduce any obvious dead code? Look for: (1) unused imports added, (2) commented-out code blocks, (3) debug artifacts (console.log, print, dbg!), (4) unused variables. If you find any, mention it briefly. If the code is clean, say nothing. Do NOT do a full scan -- just check the specific changes."
+          }
+        ]
+      }
+    ]
+  }
+}

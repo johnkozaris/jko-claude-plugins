@@ -1,0 +1,22 @@
+# Claude Code local files
+.claude/*.local.md
+.claude/memory/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Node (if any plugin uses it)
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+.venv/

@@ -1,0 +1,11 @@
+[
+  {
+    "type": "prompt",
+    "event": "PostToolUse",
+    "matcher": {
+      "tool_name": "Edit|Write",
+      "file_glob": "**/*.swift"
+    },
+    "prompt": "Quickly check the just-edited Swift code for these deprecated APIs: (1) foregroundColor() -> use foregroundStyle(), (2) NavigationView -> use NavigationStack/NavigationSplitView, (3) ObservableObject/@Published/@StateObject/@ObservedObject -> use @Observable, (4) cornerRadius() -> use clipShape(.rect(cornerRadius:)), (5) NavigationLink(destination:) -> use navigationDestination(for:), (6) GeometryReader for simple sizing -> use containerRelativeFrame(), (7) DispatchQueue/GCD -> use async/await. If the code is clean, say nothing. If you find deprecated patterns, briefly note the replacement."
+  }
+]
