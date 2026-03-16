@@ -9,8 +9,6 @@
   <img src="https://img.shields.io/badge/Claude_Code-plugin_marketplace-8A2BE2" alt="Claude Code Plugin Marketplace">
 </p>
 
----
-
 These are the guidelines and patterns I use across my projects. They help Claude review code, catch mistakes, and stay consistent with how I actually want things built. Each plugin covers a stack I work in.
 
 ## Plugins
@@ -45,15 +43,45 @@ claude --plugin-dir /path/to/jko-claude-plugins/plugins/rust
 
 ## Commands
 
-**Rust:** `/rust-critique` `/rust-harden` `/rust-types` `/rust-polish` `/rust-teach`
+### Rust
 
-**ESP32:** `/esp-harden` `/esp-debug` `/esp-optimize` `/esp-teach`
+| Command | What it does |
+|---------|-------------|
+| `/rust-critique` | Full code review for soundness, ownership, error handling, types, async, performance |
+| `/rust-harden` | Replace `unwrap` with proper errors, add SAFETY comments to unsafe, validate inputs |
+| `/rust-types` | Replace primitives with newtypes, booleans with enums, make illegal states unrepresentable |
+| `/rust-polish` | Pre-merge cleanup: dead code, doc comments, clippy, debug artifacts |
+| `/rust-teach` | One-time: scans your project and writes Rust conventions to CLAUDE.md |
 
-**Python:** `/py-critique` `/py-harden` `/py-structure`
+### ESP32
 
-**SwiftUI:** `/swift-critique`
+| Command | What it does |
+|---------|-------------|
+| `/esp-harden` | Scan firmware for field failures, crashes, memory issues, and security problems |
+| `/esp-debug` | Help debug crashes, hangs, and peripheral issues |
+| `/esp-optimize` | Optimize for performance, memory, power, or binary size |
+| `/esp-teach` | One-time: discover hardware, find datasheets, persist context to CLAUDE.md |
 
-**Dead Code:** `/dead-code-scan` `/dead-code-clean`
+### Python
+
+| Command | What it does |
+|---------|-------------|
+| `/py-critique` | Architecture review: SOLID compliance, layer boundaries, anti-patterns, design quality |
+| `/py-harden` | Run the full anti-pattern catalog (AP-01 through AP-22) and fix what it finds |
+| `/py-structure` | Check project layout, file sizes, module splitting, hexagonal architecture compliance |
+
+### SwiftUI
+
+| Command | What it does |
+|---------|-------------|
+| `/swift-critique` | Review SwiftUI code for patterns, design, accessibility, and performance |
+
+### Dead Code
+
+| Command | What it does |
+|---------|-------------|
+| `/dead-code-scan` | Read-only scan for unused imports, functions, classes, duplicates |
+| `/dead-code-clean` | Actually remove the dead code it finds |
 
 ## How it works
 
