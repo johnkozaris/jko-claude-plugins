@@ -1,16 +1,4 @@
 {
-  "description": "Check edited Python files for critical anti-patterns",
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "A Python file was just edited. Quickly check the change for these critical patterns (do NOT re-read the full file, just evaluate the change you just made):\n\n1. AP-09: Blocking calls in async (time.sleep, requests.*, subprocess.run, open() in async function)\n2. AP-11: Bare except (except: or except Exception: pass)\n3. AP-12: Mutable default argument (def f(x=[]) or def f(x={}))\n4. AP-05: Potential N+1 (accessing .relationship in a loop without eager loading)\n5. AP-14: Global mutable state (module-level dict/list being mutated)\n6. AS-04: Deprecated API (datetime.utcnow(), pkg_resources, collections.OrderedDict)\n7. AS-06: Hardcoded credentials or URLs in source code\n\nIf any are found, warn briefly with the pattern ID. If none found, say nothing (do NOT output 'no issues found'). Keep any warning to 1-2 lines maximum."
-          }
-        ]
-      }
-    ]
-  }
+  "description": "Python backend hooks (reserved for future command-based hooks)",
+  "hooks": {}
 }
