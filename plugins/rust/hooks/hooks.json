@@ -1,17 +1,4 @@
 {
-  "description": "Auto-run cargo check after editing Rust files",
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"$(cargo locate-project --workspace --message-format plain 2>/dev/null | xargs dirname 2>/dev/null || echo .)\" && cargo check --message-format short 2>&1 | head -20",
-            "timeout": 60
-          }
-        ]
-      }
-    ]
-  }
+  "description": "Rust hooks (reserved for future command-based hooks)",
+  "hooks": {}
 }

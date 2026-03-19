@@ -1,16 +1,4 @@
 {
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/check-esp32-patterns.sh",
-            "timeout": 15
-          }
-        ]
-      }
-    ]
-  }
+  "description": "ESP32 C++ hooks (reserved for future command-based hooks)",
+  "hooks": {}
 }
