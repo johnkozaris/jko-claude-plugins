@@ -1,43 +1,96 @@
 {
   "name": "jko-claude-plugins",
-  "metadata": {
-    "description": "Plugins for Rust, ESP32 C++, Python backend, SwiftUI, and dead code detection",
-    "version": "1.0.0",
-    "pluginRoot": "./plugins"
-  },
   "owner": {
     "name": "John Kozaris"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for Rust, ESP32 C++, Python backend, .NET backend, SwiftUI, and dead code detection",
+    "version": "1.0.0"
   },
   "plugins": [
     {
       "name": "rust",
       "source": "./plugins/rust",
       "description": "Rust code critique, architecture guidance, and idiomatic pattern enforcement",
-      "version": "1.0.0"
+      "category": "development",
+      "tags": [
+        "rust",
+        "architecture",
+        "review",
+        "patterns",
+        "critique"
+      ]
     },
     {
       "name": "esp32-cpp",
       "source": "./plugins/esp32-cpp",
       "description": "ESP32 firmware review covering FreeRTOS, memory, peripherals, and all chip variants",
-      "version": "1.0.0"
+      "category": "development",
+      "tags": [
+        "esp32",
+        "embedded",
+        "c++",
+        "freertos",
+        "firmware",
+        "iot"
+      ]
     },
     {
       "name": "python-backend",
       "source": "./plugins/python-backend",
       "description": "Python backend architecture for Litestar and FastAPI with SQLAlchemy and SOLID patterns",
-      "version": "1.0.0"
+      "category": "development",
+      "tags": [
+        "python",
+        "litestar",
+        "fastapi",
+        "sqlalchemy",
+        "backend",
+        "api"
+      ]
+    },
+    {
+      "name": "dotnet-backend",
+      "source": "./plugins/dotnet-backend",
+      "description": "Pure .NET 10 backend architecture for Kestrel-hosted REST and SignalR services with DI, data access, and SOLID review",
+      "version": "1.0.2",
+      "category": "development",
+      "tags": [
+        "dotnet",
+        "dotnet10",
+        "csharp",
+        "kestrel",
+        "backend",
+        "signalr",
+        "efcore",
+        "architecture"
+      ]
     },
     {
       "name": "swiftui",
       "source": "./plugins/swiftui",
       "description": "SwiftUI patterns and critique for iOS, macOS, and visionOS apps",
-      "version": "1.0.0"
+      "category": "development",
+      "tags": [
+        "swift",
+        "swiftui",
+        "ios",
+        "macos",
+        "visionos",
+        "apple"
+      ]
     },
     {
       "name": "dead-code",
       "source": "./plugins/dead-code",
       "description": "Find and remove dead code, unused imports, and duplicates across any language",
-      "version": "1.0.0"
+      "category": "development",
+      "tags": [
+        "dead-code",
+        "cleanup",
+        "refactoring",
+        "code-quality"
+      ]
     }
   ]
 }
