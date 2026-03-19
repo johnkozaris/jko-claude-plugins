@@ -1,0 +1,4 @@
+{
+  "description": "Dotnet backend hooks (reserved for future command-based hooks)",
+  "hooks": {}
+}

@@ -1,0 +1,14 @@
+{
+  "name": "dotnet-backend",
+  "description": "Pure .NET 10 backend architecture for Kestrel-hosted REST and SignalR services with DI, data access, and SOLID review",
+  "version": "1.0.2",
+  "license": "MIT",
+  "author": {
+    "name": "John Kozaris"
+  },
+  "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
+  "repository": "https://github.com/johnkozaris/jko-claude-plugins",
+  "keywords": ["dotnet", "dotnet10", "csharp", "kestrel", "backend", "rest", "signalr", "efcore", "solid", "clean-architecture", "dependency-injection", "apphost", "aspire", "architecture", "review"],
+  "skills": "./skills",
+  "commands": "./commands"
+}
