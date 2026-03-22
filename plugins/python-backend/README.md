@@ -37,7 +37,7 @@ The `python-backend-expert` skill activates automatically when working with Pyth
 
 ## Hook
 
-PostToolUse prompt on `.py` file edits checks for high-impact anti-patterns (N+1 queries, blocking in async, bare except, mutable defaults, global mutable state).
+No active runtime hooks. `hooks/hooks.json` is reserved for future hook-based checks.
 
 ## References
 

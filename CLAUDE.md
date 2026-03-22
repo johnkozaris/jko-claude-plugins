@@ -1,17 +1,19 @@
 # jko-claude-plugins
 
-Claude Code plugin marketplace with specialized skills and commands.
+Multi-CLI plugin marketplace with specialized skills and commands.
 
 ## Project Structure
 
 ```
 myClaudeSkills/
-├── .claude-plugin/marketplace.json    # Marketplace manifest
+├── .github/plugin/marketplace.json    # GitHub Copilot CLI marketplace manifest
+├── .claude-plugin/marketplace.json    # Claude Code marketplace manifest
 ├── plugins/
 │   ├── swiftui/                       # SwiftUI expert plugin
 │   ├── rust/                          # Rust expert plugin
 │   ├── esp32-cpp/                     # ESP32 C++ firmware plugin
 │   ├── python-backend/                # Python backend plugin
+│   ├── dotnet-backend/                # .NET backend plugin
 │   └── dead-code/                     # Dead code detection plugin
 ```
 
@@ -33,6 +35,8 @@ claude --plugin-dir /Users/john/Repos/myClaudeSkills/plugins/<plugin-name>
 ## Conventions
 
 - Plugin names: kebab-case
+- Keep GitHub Copilot CLI component paths in `.github/plugin/plugin.json`; when both manifest styles exist, Copilot reads the `.github/plugin/*` manifests.
+- Keep `.claude-plugin/plugin.json` metadata-only unless Claude needs non-default paths; Claude Code can use default discovery for `skills/`, `commands/`, and `hooks/` without duplicating those component paths.
 - One type per file in skills
 - Skills: lean SKILL.md (1,500-2,000 words), detailed references/ on-demand
 - Commands: instructions FOR Claude, not messages to user

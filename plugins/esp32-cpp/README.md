@@ -38,7 +38,7 @@ The `esp32-expert` skill activates automatically when working with ESP32 firmwar
 
 ## Hook
 
-Runs pattern checks on C/C++ file edits to catch dangerous anti-patterns (missing IRAM_ATTR, blocking in ISR, delay() misuse, hardcoded credentials).
+No active runtime hooks. `hooks/hooks.json` is reserved for future hook-based checks.
 
 ## References
 

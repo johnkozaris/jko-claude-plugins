@@ -4,8 +4,8 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/plugins-5-orange" alt="Plugins: 5">
-  <img src="https://img.shields.io/badge/commands-15-green" alt="Commands: 15">
+  <img src="https://img.shields.io/badge/plugins-6-orange" alt="Plugins: 6">
+  <img src="https://img.shields.io/badge/commands-19-green" alt="Commands: 19">
 </p>
 
 These are the guidelines and patterns I use across my projects. They help coding agents review code, catch mistakes, and stay consistent with how I actually want things built. Each plugin covers a stack I work in.
@@ -28,6 +28,7 @@ Skills use the shared [Agent Skills specification](https://developers.openai.com
 | **[rust](plugins/rust/)** | `rust` | 5 | Ownership, async, unsafe, error handling, type design, anti-patterns |
 | **[esp32-cpp](plugins/esp32-cpp/)** | `esp32` | 4 | FreeRTOS, ESP-IDF/PlatformIO, peripherals, memory, all ESP32 variants |
 | **[python-backend](plugins/python-backend/)** | `python-backend` | 3 | Litestar, FastAPI, SQLAlchemy, hexagonal architecture, async patterns |
+| **[dotnet-backend](plugins/dotnet-backend/)** | `dotnet-backend` | 4 | Pure .NET 10 backend review for Kestrel hosting, REST, SignalR, EF Core, and DI |
 | **[swiftui](plugins/swiftui/)** | `swiftui` | 1 | iOS/macOS/visionOS patterns, Liquid Glass, accessibility |
 | **[dead-code](plugins/dead-code/)** | `dead-code` | 2 | Unused imports, functions, classes, duplicates, any language |
 
@@ -37,14 +38,15 @@ Skills use the shared [Agent Skills specification](https://developers.openai.com
 
 ```bash
 # Add the marketplace
-/plugin marketplace add johnkozaris/jko-claude-plugins
+claude plugin marketplace add johnkozaris/jko-claude-plugins
 
 # Install whichever plugins you want
-/plugin install rust@jko-claude-plugins
-/plugin install esp32-cpp@jko-claude-plugins
-/plugin install python-backend@jko-claude-plugins
-/plugin install swiftui@jko-claude-plugins
-/plugin install dead-code@jko-claude-plugins
+claude plugin install rust@jko-claude-plugins
+claude plugin install esp32-cpp@jko-claude-plugins
+claude plugin install python-backend@jko-claude-plugins
+claude plugin install dotnet-backend@jko-claude-plugins
+claude plugin install swiftui@jko-claude-plugins
+claude plugin install dead-code@jko-claude-plugins
 ```
 
 Or try one without installing:
@@ -57,23 +59,24 @@ claude --plugin-dir /path/to/jko-claude-plugins/plugins/rust
 
 ```bash
 # Add the marketplace
-/plugin marketplace add johnkozaris/jko-claude-plugins
+copilot plugin marketplace add johnkozaris/jko-claude-plugins
 
 # Install a plugin
-/plugin install rust@jko-claude-plugins
+copilot plugin install rust@jko-claude-plugins
 ```
 
 ### OpenAI Codex CLI
 
-Codex installs skills directly — no marketplace needed.
+Codex installs skills directly — no plugin marketplace.
 
 ```bash
-# Inside Codex, use the built-in skill installer
-$skill-installer --repo johnkozaris/jko-claude-plugins --path plugins/rust/skills/rust-expert
-$skill-installer --repo johnkozaris/jko-claude-plugins --path plugins/esp32-cpp/skills/esp32-expert
-$skill-installer --repo johnkozaris/jko-claude-plugins --path plugins/python-backend/skills/python-backend-expert
-$skill-installer --repo johnkozaris/jko-claude-plugins --path plugins/swiftui/skills/swiftui-expert
-$skill-installer --repo johnkozaris/jko-claude-plugins --path plugins/dead-code/skills/dead-code-expert
+# Inside Codex, install a skill directory from GitHub
+$skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/rust/skills/rust-expert
+$skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/esp32-cpp/skills/esp32-expert
+$skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/python-backend/skills/python-backend-expert
+$skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/dotnet-backend/skills/dotnet-backend-expert
+$skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/swiftui/skills/swiftui-expert
+$skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/dead-code/skills/dead-code-expert
 ```
 
 ### OpenCode
@@ -88,9 +91,23 @@ npx skills add johnkozaris/jko-claude-plugins --full-depth
 cp -r plugins/rust/skills/rust-expert ~/.config/opencode/skills/rust-expert
 ```
 
+Use the shell commands above from your terminal. Inside Claude Code and Copilot CLI, the interactive `/plugin ...` equivalents work too.
+
+## Discovery model
+
+The repo uses one shared skill directory per plugin and thin CLI-specific packaging around it.
+
+| Tool | What it auto-discovers in a working repo | How install/discovery works here |
+|------|------------------------------------------|----------------------------------|
+| **Claude Code** | `.claude/skills/`, nested `.claude/skills/`, `.claude/commands/`, `.claude/agents/` | Install the marketplace or load a plugin with `claude --plugin-dir ...`. Claude uses `.claude-plugin/marketplace.json` at the repo root. |
+| **GitHub Copilot CLI** | `.github/skills/`, `.claude/skills/`, `.github/agents/`, `.claude/agents/`, `.github/hooks/` | Install the marketplace or a plugin with `copilot plugin ...`. Copilot uses `.github/plugin/marketplace.json` and prefers `.github/plugin/plugin.json` when both manifest styles exist. |
+| **OpenAI Codex CLI** | `.agents/skills/` from the current directory up to repo root, `~/.agents/skills/`, `/etc/codex/skills/` | Install individual skill directories with `$skill-installer` or copy them into a scanned `.agents/skills/` location. There is no Codex plugin marketplace layer here. |
+
+The important part is that all three tools discover the **skill directory**, not arbitrary `plugins/**/skills/**` paths. A skill can safely contain `references/`, `scripts/`, `assets/`, and other supporting files next to `SKILL.md`, but the parent skill directory still has to be reached through that tool's discovery or installation mechanism.
+
 ## Commands
 
-Commands are available in Claude Code and Copilot CLI. Codex and OpenCode get the skills and references but not slash commands.
+Claude Code and Copilot CLI can load the plugin command adapters in `commands/`. Codex and OpenCode consume the skill directories and their supporting files, not the plugin command layer.
 
 ### Rust
 
@@ -119,6 +136,15 @@ Commands are available in Claude Code and Copilot CLI. Codex and OpenCode get th
 | `/py-harden` | Run the full anti-pattern catalog (AP-01 through AP-22) and fix what it finds |
 | `/py-structure` | Check project layout, file sizes, module splitting, hexagonal architecture compliance |
 
+### .NET
+
+| Command | What it does |
+|---------|-------------|
+| `/dotnet-critique` | Full backend architecture review for Kestrel-hosted REST and SignalR services |
+| `/dotnet-harden` | Scan for high-impact backend anti-patterns like sync-over-async and fragile state |
+| `/dotnet-structure` | Check solution layout, boundaries, and oversized files |
+| `/dotnet-teach` | One-time: scan a backend and persist conventions to `CLAUDE.md` |
+
 ### SwiftUI
 
 | Command | What it does |
@@ -134,9 +160,9 @@ Commands are available in Claude Code and Copilot CLI. Codex and OpenCode get th
 
 ## How it works
 
-Each plugin has a SKILL.md that tells the agent what to look for and a bunch of reference files with the actual patterns, anti-patterns, and examples. The agent only loads the references it needs for the current task so it doesn't waste context.
+Each plugin has a `SKILL.md` that tells the agent what to look for and a `references/` directory with the actual patterns, anti-patterns, and examples. The agent only loads the supporting files it needs for the current task, so it does not waste context.
 
-Hooks run automatically on file saves. `cargo check` after editing `.rs` files, flagging common mistakes in Python/C++ edits, that kind of thing.
+Hook config files are scaffolded in the plugin directories, but this repo does not currently ship active runtime hooks.
 
 ### Cross-tool compatibility
 

@@ -8,8 +8,18 @@
   },
   "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
   "repository": "https://github.com/johnkozaris/jko-claude-plugins",
-  "keywords": ["dead-code", "unused", "cleanup", "simplify", "duplicate", "DRY", "imports", "refactoring", "lint", "code-quality"],
-  "skills": ["./skills/dead-code-expert"],
-  "hooks": "hooks.json",
+  "keywords": [
+    "dead-code",
+    "unused",
+    "cleanup",
+    "simplify",
+    "duplicate",
+    "DRY",
+    "imports",
+    "refactoring",
+    "lint",
+    "code-quality"
+  ],
+  "skills": "./skills",
   "commands": "./commands"
 }

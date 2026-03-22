@@ -39,7 +39,7 @@ The `rust-expert` skill activates automatically when working with Rust code. It 
 
 ## Hook
 
-Automatically runs `cargo check` after editing `.rs` files to catch compiler errors immediately.
+No active runtime hooks. `hooks/hooks.json` is reserved for future hook-based checks.
 
 ## References
 

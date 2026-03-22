@@ -8,8 +8,18 @@
   },
   "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
   "repository": "https://github.com/johnkozaris/jko-claude-plugins",
-  "keywords": ["swift", "swiftui", "ios", "macos", "visionos", "apple", "design", "accessibility", "performance", "liquid-glass"],
-  "skills": ["./skills/swiftui-expert"],
-  "hooks": "hooks.json",
+  "keywords": [
+    "swift",
+    "swiftui",
+    "ios",
+    "macos",
+    "visionos",
+    "apple",
+    "design",
+    "accessibility",
+    "performance",
+    "liquid-glass"
+  ],
+  "skills": "./skills",
   "commands": "./commands"
 }

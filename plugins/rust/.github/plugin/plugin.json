@@ -8,8 +8,20 @@
   },
   "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
   "repository": "https://github.com/johnkozaris/jko-claude-plugins",
-  "keywords": ["rust", "architecture", "critique", "patterns", "ownership", "async", "unsafe", "performance", "clippy", "traits", "error-handling", "concurrency"],
-  "skills": ["./skills/rust-expert"],
-  "hooks": "hooks.json",
+  "keywords": [
+    "rust",
+    "architecture",
+    "critique",
+    "patterns",
+    "ownership",
+    "async",
+    "unsafe",
+    "performance",
+    "clippy",
+    "traits",
+    "error-handling",
+    "concurrency"
+  ],
+  "skills": "./skills",
   "commands": "./commands"
 }

@@ -8,5 +8,21 @@
   },
   "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
   "repository": "https://github.com/johnkozaris/jko-claude-plugins",
-  "keywords": ["python", "litestar", "fastapi", "sqlalchemy", "advanced-alchemy", "solid", "hexagonal", "clean-architecture", "repository-pattern", "dependency-injection", "async", "pydantic", "backend", "api", "orm"]
+  "keywords": [
+    "python",
+    "litestar",
+    "fastapi",
+    "sqlalchemy",
+    "advanced-alchemy",
+    "solid",
+    "hexagonal",
+    "clean-architecture",
+    "repository-pattern",
+    "dependency-injection",
+    "async",
+    "pydantic",
+    "backend",
+    "api",
+    "orm"
+  ]
 }

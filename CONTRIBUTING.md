@@ -30,12 +30,23 @@ Every plugin in this marketplace follows strict quality guidelines:
 Before submitting, validate your plugin:
 
 ```bash
+# Validate marketplace and plugin manifests
+python3 scripts/check_plugin_manifests.py
+
 # Load plugin in a session and test commands
 claude --plugin-dir ./plugins/<your-plugin>
 
 # Run the plugin validator agent (if you have the plugin-dev plugin installed)
 # /validate-plugin
 ```
+
+To enable the checked-in pre-commit hook for this repository:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+After that, `git commit` will automatically run the manifest validator before each commit.
 
 ## Conventions
 
