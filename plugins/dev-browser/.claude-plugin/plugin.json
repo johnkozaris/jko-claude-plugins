@@ -1,0 +1,24 @@
+{
+  "name": "dev-browser",
+  "description": "Browser automation via dev-browser CLI — navigate, click, fill forms, scrape data, take screenshots, test web apps",
+  "version": "1.0.0",
+  "license": "MIT",
+  "author": {
+    "name": "John Kozaris"
+  },
+  "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
+  "repository": "https://github.com/johnkozaris/jko-claude-plugins",
+  "keywords": [
+    "browser",
+    "automation",
+    "web",
+    "scraping",
+    "testing",
+    "screenshot",
+    "headless",
+    "playwright",
+    "forms",
+    "navigation",
+    "dev-browser"
+  ]
+}

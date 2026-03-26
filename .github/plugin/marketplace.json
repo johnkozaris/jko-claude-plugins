@@ -96,6 +96,22 @@
         "refactoring",
         "code-quality"
       ]
+    },
+    {
+      "name": "dev-browser",
+      "source": "./plugins/dev-browser",
+      "description": "Browser automation via dev-browser CLI — navigate, click, fill forms, scrape data, take screenshots, test web apps",
+      "version": "1.0.0",
+      "category": "tools",
+      "tags": [
+        "browser",
+        "automation",
+        "web",
+        "scraping",
+        "testing",
+        "screenshot",
+        "playwright"
+      ]
     }
   ]
 }
