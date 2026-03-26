@@ -119,8 +119,8 @@ Then use the `Read` tool on the screenshot path to visually inspect the page sta
 - Infinite loop in the script
 
 **Recovery:**
-1. Increase timeout: `--timeout 60` or `--timeout 120`.
-2. Break the script into smaller steps.
+1. Break the script into smaller steps (preferred — fix the root cause).
+2. Only increase timeout if the operation is genuinely slow (large data extraction).
 3. Add short timeouts to individual operations:
    ```javascript
    await page.waitForSelector(".result", { timeout: 5000 });

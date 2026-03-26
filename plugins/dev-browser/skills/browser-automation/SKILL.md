@@ -25,19 +25,56 @@ in a QuickJS WASM sandbox (not Node.js) with Playwright Page API access plus dev
 extensions (notably `snapshotForAI()`). Pages persist between script runs via named handles,
 enabling incremental multi-step workflows.
 
-## Quick Start
+## Bootstrap: Always Do This First
 
-Check if dev-browser is available:
-
-```bash
-dev-browser status
-```
-
-If not installed, install it:
+**Before your first dev-browser command in any session, read the help output.** The
+SessionStart hook caches it automatically at `~/.dev-browser/help-cache.txt` (also
+available via `$DEV_BROWSER_HELP` env var). It contains the full LLM USAGE GUIDE with
+correct, version-accurate patterns, sandbox constraints, and API reference.
 
 ```bash
-npm install -g dev-browser && dev-browser install
+# Read the cached help (populated by SessionStart hook — no network call needed)
+cat ~/.dev-browser/help-cache.txt
 ```
+
+If the cache file is missing or stale, regenerate it: `dev-browser --help > ~/.dev-browser/help-cache.txt`
+
+The ~250 lines of help are cheaper than a single failed script cycle. Read them every time.
+
+**The help aligns with this skill on most patterns.** In particular, the help says "Use
+short timeouts (--timeout 10)" — follow that. If any help example uses `--timeout 30` or
+higher for a simple action, ignore it and use `--timeout 10`. The Calling Conventions
+below always take precedence over help examples.
+
+## Calling Conventions (How to Invoke dev-browser from Claude Code)
+
+These rules govern how you call dev-browser from the Bash tool. Violating them causes
+timeouts, dead time, and cascading failures.
+
+1. **Run dev-browser synchronously (foreground).** You need the output immediately to
+   decide the next step. Do NOT set `run_in_background: true`. Do NOT prefix with `sleep`.
+
+2. **dev-browser `--timeout` is the only timeout that matters.** When running foreground,
+   the Bash tool simply waits for dev-browser to finish and returns stdout. Set
+   `--timeout 10` on dev-browser for most scripts. Set the Bash tool `timeout: 30000`
+   (30s) as a generous safety net — it should never fire during normal operation.
+
+3. **NEVER `sleep`.** Not before dev-browser commands (Claude's processing time provides
+   natural 3-5s pacing). Not to poll output files (run foreground instead). Not between
+   retries (fix the root cause instead). For within-script pacing, use
+   `page.waitForTimeout()` inside the dev-browser script.
+
+4. **`--timeout 10` is the default.** Most actions take 2-5 seconds. If a script times out
+   at 10s, the selector is wrong — fix the selector, don't increase the timeout.
+
+5. **Replay working patterns exactly.** If `page.getByRole('textbox').nth(2)` worked, use
+   it again. Do not switch to `[ref=eN]` locators, `text=` selectors, or `fill()` on
+   elements where `keyboard.type()` worked.
+
+6. **One action per script.** Do not combine `snapshotForAI()` + interaction in a single
+   script — the snapshot alone can take 3-5 seconds. Either: discover in one script,
+   interact in the next with stable selectors; or skip snapshot and use `getByRole()` /
+   `evaluate()` directly.
 
 ## Core Concepts
 
@@ -57,87 +94,147 @@ EOF
 
 ### The One-Action-Per-Script Rule
 
-Write small, focused scripts. Each script should do ONE thing: navigate, click, fill, or
-read. End each script by logging the state needed for the next decision. This approach
-uses fewer tokens and recovers better from errors than long multi-step scripts.
+Each script should do ONE thing: navigate, click, fill, or read. End each script by
+logging the state needed for the next decision. If step 3 of 5 fails in a multi-step
+script, you lose all context and must restart. Small scripts make failures easy to diagnose.
 
 ### Named Pages (Stateful Sessions)
 
 Named pages persist across script runs within the same `--browser` instance:
 
 ```bash
-# Script 1: Navigate (page persists after script ends)
-dev-browser --headless <<'EOF'
+# Script 1: Navigate
+dev-browser --headless --timeout 10 <<'EOF'
 const page = await browser.getPage("shop");
 await page.goto("https://store.example.com");
 console.log(JSON.stringify({ url: page.url(), title: await page.title() }));
 EOF
 
 # Script 2: Interact with the SAME page (no re-navigation needed)
-dev-browser --headless <<'EOF'
+dev-browser --headless --timeout 10 <<'EOF'
 const page = await browser.getPage("shop");
 await page.click('button:text("Add to Cart")');
 console.log("Item added");
 EOF
 ```
 
-Use descriptive names: `"login"`, `"dashboard"`, `"checkout"` — not `"page1"`.
-
 ### Choosing a Mode
 
 | Mode | Flag | When to use |
 |------|------|-------------|
-| **Connect** | `--connect` | **Default choice.** Attaches to user's Chrome (auto-discovers ports 9222-9229). Real fingerprint, bypasses bot detection, has user's cookies/auth. Launch Chrome with `--remote-debugging-port=9222` if not running. |
-| **Headless** | `--headless` | Only for localhost, internal sites, or when user explicitly requests headless. No visible window. |
-| **Headed** | *(no flag)* | When the user needs to watch the browser visually. |
+| **Connect** | `--connect` | **External sites.** Attaches to user's Chrome. Real fingerprint, bypasses bot detection, has user's cookies/auth. |
+| **Headed** | *(no flag)* | **Localhost/internal sites.** Launches bundled Chromium with a visible window. Profiles persist in `~/.dev-browser/browsers/{name}/`. |
+| **Headless** | `--headless` | CI/scripted jobs only, or when user explicitly requests no window. |
 
-**Prefer `--connect` over `--headless` for almost all browsing.** Headless Chromium has a
-recognizable fingerprint that Cloudflare and similar services detect and block. Connect
-mode uses the user's real Chrome, which passes bot detection automatically. Reserve
-`--headless` only for localhost, internal sites, or when the user explicitly requests it.
+**CRITICAL: Bundled Chromium is blocked by Google sign-in** (and other strict bot detection).
+Google shows "This browser or app may not be secure." For Google services (Gmail, Sheets,
+Drive, YouTube) you MUST use `--connect` mode with real Chrome.
 
-To launch Chrome with remote debugging and connect (do this automatically when needed):
+### Avoiding Rate Limits and Bot Detection (Google, Cloudflare, etc.)
+
+Even in `--connect` mode with real Chrome, **behavioral patterns** trigger bot detection.
+Google and other services flag rapid-fire automated interactions — rapid page loads,
+instant clicks, many requests with zero delay. The fix is pacing and human-like patterns.
+
+**Pacing comes from within scripts, not from shell `sleep`.** Claude's own processing time
+between tool calls (reading output, deciding, formulating the next call) provides 3-5
+seconds of natural delay. Do NOT add `sleep` between dev-browser commands — that
+contradicts the "never sleep" calling convention. Instead, add `waitForTimeout()` INSIDE
+scripts to simulate human reading time:
+```javascript
+await page.goto("https://mail.google.com");
+await page.waitForTimeout(1500);  // simulate reading the page
+await page.click('tr:first-child');
+await page.waitForTimeout(1000);  // simulate reading the email
+```
+
+**Batch reads, minimize round trips.** Instead of 5 scripts each reading one piece of data,
+write one script that extracts everything in a single `page.evaluate()`. Fewer connections
+= fewer detection signals.
+
+**Click links for in-site navigation** rather than `page.goto()` — clicking is more
+human-like than direct URL jumps.
+
+**If already blocked:** Stop. Do not retry in a loop — that escalates the block. Wait a
+few minutes. The user may need to solve a CAPTCHA manually in the browser.
+
+### Launching Chrome for Connect Mode (Chrome 136+)
+
+Chrome 136+ silently ignores `--remote-debugging-port` on the default profile. You MUST
+use `--user-data-dir` and kill existing Chrome processes first.
+
 ```bash
-# Launch Chrome with debugging (runs in background, does not block)
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 &
+# Kill, launch, verify — all three steps, every time. Do not improvise.
+killall -9 "Google Chrome" 2>/dev/null; sleep 2
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=9222 \
+  --user-data-dir="$HOME/.chrome-debug-profile" \
+  &>/dev/null &
+sleep 4
+curl -s http://127.0.0.1:9222/json/version | head -1
+```
 
-# Then connect (auto-discovers on ports 9222-9229)
-dev-browser --connect <<'EOF'
-const page = await browser.getPage("main");
-await page.goto("https://example.com");
-console.log(await page.title());
+If curl returns `{`, proceed. If empty, repeat the kill+launch. Common causes of failure:
+- Background Chrome process survived — check `ps aux | grep Chrome`, kill stragglers
+- Missing `--user-data-dir` — Chrome 136+ silently ignores the port without it
+- Used `kill` instead of `kill -9` — Chrome traps signals
+
+`~/.chrome-debug-profile` is the **standard debug profile**. Always reuse this exact path
+so previous logins are preserved.
+
+### Page Discovery Discipline
+
+**Every new script starts from zero knowledge of the page.** Even if you interacted with
+the same site seconds ago, the DOM may have changed. Follow this order:
+
+1. **Discover first, interact second.** Run a lightweight `page.evaluate()` to explore the
+   DOM structure before attempting to interact. Never guess selectors.
+
+2. **Use `page.evaluate()` for DOM questions, not screenshots.** A one-line evaluate
+   (`document.querySelector('h2')?.textContent`) answers a DOM question instantly.
+   Screenshots cost 3 round trips (take → save → Read tool) and only show visual layout.
+   Use screenshots only when you need to see visual state (styling, layout, regressions).
+
+3. **When selectors return wrong data, explore — don't screenshot.** Wrong data means the
+   selectors don't match the current DOM. Run another quick evaluate to inspect what
+   elements actually exist.
+
+4. **Discover selectors at runtime, never hardcode third-party selectors.** Heavy web apps
+   use obfuscated class names that change between deployments. Inspect structural patterns
+   (ARIA roles, `data-*` attributes, tag hierarchy) rather than class names.
+
+### Tab Management in Connect Mode
+
+When connecting to a user's Chrome, find the right tab, connect by ID, and bring it to
+the foreground:
+
+```bash
+dev-browser --connect --timeout 10 <<'EOF'
+const pages = await browser.listPages();
+const target = pages.find(p => p.url.includes("example.com"));
+const page = await browser.getPage(target.id);
+await page.bringToFront();
+console.log(JSON.stringify({ url: page.url(), title: await page.title() }));
 EOF
 ```
 
-If Chrome is already running without debugging, ask the user to restart it with the flag,
-or to enable debugging via `chrome://inspect/#remote-debugging`.
+**Always call `page.bringToFront()`** — without it, interactions happen on a background tab
+and the user sees nothing. Watch for duplicate tabs of the same site.
 
-### Choosing an Approach for Unknown vs Known Pages
+### Opening New Tabs from a Connected Page
 
-**Unknown page (first visit):** Use `snapshotForAI()` to discover the page structure, then
-interact based on the ARIA accessibility tree output:
-
-```bash
-dev-browser --headless <<'EOF'
-const page = await browser.getPage("main");
-await page.goto("https://unknown-site.com");
-const snap = await page.snapshotForAI();
-console.log(snap.full);
-EOF
+```javascript
+await page.evaluate(() => { window.open("https://example.com", "_blank"); });
+await page.waitForTimeout(3000);
+const updated = await browser.listPages();
+const newTab = updated.find(p => p.url.includes("example.com"));
 ```
-
-**Known page (selectors already known):** Skip the snapshot. Use direct Playwright selectors
-for speed — `page.click()`, `page.fill()`, `page.locator()`.
-
-**Visual inspection needed:** Use `screenshot()` when layout, styling, or visual regressions
-matter. `snapshotForAI()` returns structure, not appearance.
 
 ### fill() vs type()
 
-- **`fill(selector, value)`** — Clears the field and sets the value instantly. Use for
-  standard inputs where the final value matters.
-- **`type(selector, text)`** — Types character by character with optional delay. Use for
-  autocomplete inputs, search-as-you-type fields, or inputs that react to keystrokes.
+- **`fill(selector, value)`** — Clears and sets instantly. Standard inputs.
+- **`type(selector, text)`** — Types character by character. Autocomplete fields, canvas
+  inputs, search-as-you-type. Use `{ delay: 5 }` for reliability.
 
 ### Output Patterns
 
@@ -147,15 +244,20 @@ Always log structured JSON so the output is parseable:
 console.log(JSON.stringify({ url: page.url(), title: await page.title(), status: "done" }));
 ```
 
-- `console.log()` / `console.info()` → stdout (captured by Claude)
-- `console.warn()` / `console.error()` → stderr
+### Stale Refs and snapshotForAI() Budget
 
-### Timeout Control
+ARIA `[ref=eN]` identifiers from `snapshotForAI()` are valid **only within the same
+script run**. For cross-script targeting, use stable selectors:
+- `page.getByRole('button', { name: 'Submit' })` — ARIA role + accessible name
+- `page.getByLabel('Email')` — form labels
+- `page.getByRole('textbox').nth(N)` — positional role selectors
+- `page.locator('input[name="email"]')` — CSS selectors
 
-Default timeout is 30 seconds. Adjust with `--timeout`:
-- `--timeout 10` — fast failure for simple checks
-- `--timeout 60` — slow pages, large data extraction
-- `--timeout 120` — multi-page pagination loops
+**Do not combine `snapshotForAI()` with interactions in a short-timeout script.**
+`snapshotForAI()` can take 3-5 seconds on complex pages, eating most of a `--timeout 10`
+budget. Either: (a) use snapshot in a read-only discovery script, then interact in the
+next script using stable selectors, or (b) skip snapshot entirely and use `getByRole()`
+/ `evaluate()` for discovery and interaction in one script.
 
 ### Browser Instances
 
@@ -178,10 +280,10 @@ named pages). Default name is `"default"`.
 | Method | Description |
 |--------|-------------|
 | `page.goto(url, options?)` | Navigate to URL |
-| `page.snapshotForAI(options?)` | ARIA accessibility tree → `{full, incremental?}` *(dev-browser extension)* |
+| `page.snapshotForAI(options?)` | ARIA accessibility tree → `{full, incremental?}` |
 | `page.click(selector)` | Click element |
 | `page.fill(selector, value)` | Clear and fill text input |
-| `page.type(selector, text)` | Type character by character (for autocomplete) |
+| `page.type(selector, text)` | Type character by character |
 | `page.press(selector, key)` | Press key (Enter, Tab, Escape) |
 | `page.selectOption(selector, value)` | Select dropdown option |
 | `page.check(selector)` / `uncheck()` | Toggle checkbox |
@@ -189,16 +291,13 @@ named pages). Default name is `"default"`.
 | `page.getByLabel(text)` | Find form element by its label |
 | `page.locator(selector)` | Create locator for chained actions |
 | `page.waitForSelector(selector)` | Wait for element to appear |
-| `page.waitForURL(pattern)` | Wait for navigation (supports globs: `**/dashboard`) |
-| `page.waitForResponse(url)` | Wait for a specific network response |
-| `page.$$eval(selector, fn)` | Run function on all matching elements |
+| `page.waitForURL(pattern)` | Wait for navigation (supports globs) |
+| `page.evaluate(fn, args?)` | Run plain JS in browser context |
 | `page.screenshot(options?)` | Capture screenshot buffer |
-| `page.textContent(selector)` | Get text content of element |
+| `page.bringToFront()` | Bring tab to foreground |
+| `page.keyboard.type(text, opts?)` | Type via keyboard (for canvas apps) |
+| `page.keyboard.press(key)` | Press a key |
 | `page.setViewportSize({w, h})` | Set browser viewport dimensions |
-
-Note: `page.evaluate(fn, args?)` runs **plain JavaScript** in the browser context. Use it
-for DOM access (`document`, `window`) not available in the sandbox. Pass data via the second
-argument; return values must be JSON-serializable. No TypeScript syntax inside evaluate.
 
 ### File I/O (sandboxed to `~/.dev-browser/tmp/`)
 
@@ -208,75 +307,39 @@ argument; return values must be JSON-serializable. No TypeScript syntax inside e
 | `writeFile(name, data)` | Write string to temp file, returns path |
 | `readFile(name)` | Read temp file as UTF-8 |
 
-For the complete API with all parameters and return types, consult
-**`references/api-reference.md`**.
+For the complete API, consult **`references/api-reference.md`**.
 
-## Common Workflows
+## Canvas-Based Web Apps (Google Sheets, Figma, etc.)
 
-### Login to a Site
+Canvas-rendered UIs have no DOM nodes to select. Use **keyboard navigation** and
+**role-based selectors** for toolbar elements.
 
-```bash
-dev-browser --headless <<'EOF'
-const page = await browser.getPage("login");
-await page.goto("https://app.example.com/login");
-await page.fill('input[name="email"]', 'user@example.com');
-await page.fill('input[name="password"]', 'password123');
-await page.click('button[type="submit"]');
-await page.waitForURL("**/dashboard");
-console.log(JSON.stringify({ url: page.url(), title: await page.title() }));
-EOF
-```
-
-### Take a Screenshot
-
-```bash
-dev-browser --headless <<'EOF'
-const page = await browser.getPage("main");
-await page.goto("https://example.com");
-const path = await saveScreenshot(await page.screenshot(), "capture.png");
-console.log(path);
-EOF
-```
-
-Then use `Read` tool on the returned path to view the image.
-
-### Extract Data to File (Large Pages)
-
-When page content is too large for the context window, extract to a file and use Read/Grep:
-
-```bash
-dev-browser --headless --timeout 60 <<'EOF'
-const page = await browser.getPage("data");
-await page.goto("https://example.com/large-table");
-await page.waitForSelector("table");
-const rows = await page.$$eval("table tbody tr", trs =>
-  trs.map(tr => Array.from(tr.cells).map(c => c.textContent?.trim() ?? ""))
-);
-const path = await writeFile("extracted.json", JSON.stringify(rows, null, 2));
-console.log(path);
-EOF
-```
-
-Then: `Read` the file at the returned path, or `Grep` it for specific data.
-
-For detailed workflow patterns covering forms, tabs, pagination, popups, cookie banners,
-iframes, keyboard control, and connect mode, consult **`references/workflow-patterns.md`**.
+**Google Sheets pattern:**
+- Navigate to cells via the Name Box: `page.getByRole('textbox').nth(2)` → click → `Meta+a`
+  → type cell ref (e.g., `A1`) → `Enter`
+- Type cell content with `page.keyboard.type(text, { delay: 5 })` — `fill()` does not work
+- `Tab` = next column, `Enter` = next row
+- Dismiss popups/sidebars first — they steal focus:
+  ```javascript
+  await page.getByRole('button', { name: 'Got it' }).click().catch(() => {});
+  await page.getByRole('button', { name: 'Close' }).click().catch(() => {});
+  ```
 
 ## Decision Tree
 
-1. **Need to interact with a webpage?** → Use dev-browser
-2. **First time on this page?** → `snapshotForAI()` to discover structure
-3. **Know the selectors?** → Direct Playwright calls (skip snapshot)
-4. **Need authenticated session?** → `--connect` to attach to user's Chrome
-5. **Page too large for context?** → `$$eval` to extract specific data → `writeFile()` → Read/Grep
-6. **Need visual state?** → `screenshot()` + `saveScreenshot()`
-7. **Multiple isolated sessions?** → `--browser name1`, `--browser name2`
-8. **Page has iframes?** → `page.frameLocator()` — see `references/workflow-patterns.md`
-9. **Page shows dialog/alert?** → `page.on("dialog", ...)` — see `references/workflow-patterns.md`
-10. **Link opens new tab/popup?** → `page.waitForEvent("popup")` — see `references/workflow-patterns.md`
-11. **Cookie consent banner blocking?** → Dismiss first — see `references/workflow-patterns.md`
-12. **External website?** → Prefer `--connect` mode (bypasses bot detection automatically)
-13. **Error occurred?** → Reconnect to same named page, screenshot for debug — see `references/error-recovery.md`
+1. **Run `dev-browser --help` yet this session?** → No? Read it first.
+2. **Google service or strict bot detection?** → MUST use `--connect` with real Chrome
+3. **External website?** → Prefer `--connect`; fall back to headed
+4. **Localhost or internal?** → Headed mode (no flags)
+5. **First visit to this page?** → Discover structure with `evaluate()` or `snapshotForAI()`
+6. **Heavy/complex SPA?** → Use `evaluate()` with targeted selectors, not `snapshotForAI()`
+7. **Canvas-based app?** → Keyboard navigation + role selectors
+8. **User expects to see the browser?** → `page.bringToFront()`
+9. **Multiple tabs of same site?** → `browser.listPages()` to find the right one
+10. **Selector returning wrong data?** → Explore DOM with `evaluate()`, don't screenshot
+11. **Need visual state?** → `screenshot()` + `saveScreenshot()` + Read tool
+12. **Popup/sidebar stealing focus?** → Dismiss first with `.click().catch(() => {})`
+13. **Error occurred?** → Reconnect to same named page, explore with `evaluate()`
 
 ## Sandbox Limitations
 
@@ -285,13 +348,10 @@ Scripts run in QuickJS WASM, **NOT Node.js**. The following are unavailable:
 - `fetch`, `WebSocket` — no direct network (use `page.goto()` instead)
 - `fs`, `path`, `process`, `os` — no host access (use `writeFile`/`readFile`)
 - `document`, `window` — not in sandbox scope (use `page.evaluate()` for DOM APIs)
-- Playwright tracing, video recording, HAR routing — stubbed, throw at runtime
 
 Inside `page.evaluate()`, write **plain JavaScript only** — no TypeScript syntax.
 
 ## Additional Resources
-
-### Reference Files
 
 For detailed documentation, consult these on demand:
 - **`references/api-reference.md`** — Complete browser.*, page.*, file I/O API with types
