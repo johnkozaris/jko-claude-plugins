@@ -731,9 +731,9 @@ cookies, and extensions. This bypasses most bot detection (Cloudflare, Akamai, e
 automatically — dev-browser still navigates and controls the page, but through a real
 browser that does not look like automation.
 
-Headless Chromium has a recognizable fingerprint that many sites detect and block. Reserve
-`--headless` for local development servers, known-safe internal sites, and sites that do
-not use bot detection.
+Headless managed Chromium has a recognizable fingerprint that many sites detect and
+block. Reserve `--headless` for local development servers, known-safe internal sites,
+CI-style scripted jobs, and sites that do not use bot detection.
 
 ### Connect mode handles most cases automatically
 

@@ -18,8 +18,12 @@ dev-browser install
 
 This plugin depends on the `dev-browser` CLI contract, not a specific checkout path.
 Make sure `dev-browser` resolves on `PATH`, or set `DEV_BROWSER_BIN` to the absolute
-path of the CLI wrapper/binary. The SessionStart hook exports `DEV_BROWSER_BIN` and
-caches `dev-browser --help` at `DEV_BROWSER_HELP` for the skill to read.
+path of the CLI wrapper/binary, then run `dev-browser install` once to provision the
+embedded runtime the CLI expects.
+
+The SessionStart hook exports `DEV_BROWSER_BIN`, `DEV_BROWSER_RUNTIME_STATUS`,
+`DEV_BROWSER_RUNTIME_READY`, and `DEV_BROWSER_INSTALL_NEEDED`, and caches
+`dev-browser --help` at `DEV_BROWSER_HELP` for the skill to read.
 
 ## Skills
 
@@ -50,16 +54,16 @@ Auto-triggers when the task involves web interaction. Provides:
 
 ## Hooks
 
-- **SessionStart:** Detects dev-browser installation, sets `DEV_BROWSER_AVAILABLE` env var.
+- **SessionStart:** Detects the CLI, exports availability/runtime env vars, and caches help output.
 - **SessionEnd:** Stops the dev-browser daemon to free resources.
 
 ## Modes
 
 | Mode | Flag | Use case |
 |------|------|----------|
-| Headless | `--headless` | Default. No visible browser window. |
+| Headed | *(no flag)* | Default managed mode. Launches a visible Chrome session. |
+| Headless | `--headless` | Opt-in managed mode. No visible browser window; uses the installed headless runtime. |
 | Connect | `--connect` | Attach to your running Chrome (authenticated sessions). |
-| Headed | *(no flag)* | Watch the browser visually. |
 
 ## License
 

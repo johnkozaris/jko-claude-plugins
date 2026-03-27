@@ -20,7 +20,7 @@ allowed-tools:
 3. Navigate and snapshot:
 
 ```bash
-dev-browser --headless <<'EOF'
+dev-browser --headless --timeout 10 <<'EOF'
 const page = await browser.getPage("browse");
 await page.goto("URL_HERE");
 await page.waitForLoadState("networkidle");
@@ -39,7 +39,7 @@ Replace `URL_HERE` with the actual URL from `$1` (with protocol prefix added if 
 4. If the snapshot output exceeds ~200 lines, re-run with a depth limit:
 
 ```bash
-dev-browser --headless <<'EOF'
+dev-browser --headless --timeout 10 <<'EOF'
 const page = await browser.getPage("browse");
 const snap = await page.snapshotForAI({ depth: 3 });
 console.log(snap.full);
@@ -54,7 +54,14 @@ EOF
 6. The named page `"browse"` persists — offer to interact further
    (click links, fill forms, take screenshots, extract data).
 
-## If dev-browser is not installed
+## If dev-browser is unavailable or not ready
 
-Install or build the `dev-browser` CLI, make sure `dev-browser` resolves on `PATH`
-(or set `DEV_BROWSER_BIN`), then run: `dev-browser install`
+If `DEV_BROWSER_AVAILABLE=false`, install or build the `dev-browser` CLI and make
+sure it resolves on `PATH` (or set `DEV_BROWSER_BIN`).
+
+If `DEV_BROWSER_INSTALL_NEEDED=true` or the CLI says embedded dependencies are
+missing, run:
+
+```bash
+dev-browser install
+```

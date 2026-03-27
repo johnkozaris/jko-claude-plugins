@@ -20,8 +20,8 @@ dev-browser [OPTIONS] [COMMAND]
 | Command | Description |
 |---------|-------------|
 | `run <FILE>` | Execute a JavaScript file |
-| `install` | Download Playwright Chromium |
-| `install-skill` | Install the dev-browser skill to `~/.claude/skills/` |
+| `install` | Install the embedded Patchright runtime and headless Chromium |
+| `install-skill` | Interactively install the embedded dev-browser skill into supported agent skill directories |
 | `browsers` | List all managed browser instances with status and pages |
 | `status` | Show daemon PID, uptime, socket path |
 | `stop` | Stop daemon and all managed browsers |
@@ -96,7 +96,7 @@ Close and deregister a named page.
 
 ### Page Object (Playwright Page API)
 
-Pages returned by `browser.getPage()` and `browser.newPage()` are full Playwright 1.52.0
+Pages returned by `browser.getPage()` and `browser.newPage()` are full Playwright 1.58.2
 Page objects exposed through the QuickJS sandbox bridge. All async methods return Promises.
 
 #### Navigation
@@ -169,6 +169,14 @@ On a Locator, it returns the same `{full, incremental?}` shape — always access
 | `isVisible` | `isVisible(selector: string)` | `Promise<boolean>` | Check visibility |
 | `isEnabled` | `isEnabled(selector: string)` | `Promise<boolean>` | Check if enabled |
 | `isChecked` | `isChecked(selector: string)` | `Promise<boolean>` | Check if checked |
+
+#### Inspection Helpers
+
+| Method | Signature | Returns | Description |
+|--------|-----------|---------|-------------|
+| `consoleMessages` | `consoleMessages(options?: {filter?: 'all'\|'sinceNavigation'})` | `Promise<ConsoleMessage[]>` | Read buffered browser console messages |
+| `pageErrors` | `pageErrors(options?: {filter?: 'all'\|'sinceNavigation'})` | `Promise<Error[]>` | Read buffered uncaught page errors |
+| `requests` | `requests()` | `Promise<Request[]>` | Read tracked network requests for the current page |
 
 #### JavaScript in Browser Context
 
@@ -387,3 +395,6 @@ The QuickJS WASM sandbox explicitly does **not** provide:
 | `DEV_BROWSER_HOME/daemon.pid` | Daemon process ID |
 | `DEV_BROWSER_HOME/browsers/{name}/browser-profile/` | Persistent browser profile per instance |
 | `DEV_BROWSER_HOME/tmp/` | Sandboxed file I/O directory |
+
+`dev-browser install` must be run at least once so the embedded runtime under
+`DEV_BROWSER_HOME` is available.

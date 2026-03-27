@@ -200,8 +200,10 @@ EOF
 - Expired certificate
 
 **Recovery:**
-The daemon-managed browser uses `ignoreHTTPSErrors: true` by default for headless mode.
-For connect mode, launch Chrome with `--ignore-certificate-errors` flag.
+Pass `--ignore-https-errors` when launching a daemon-managed browser against a
+self-signed localhost or staging certificate. In `--connect` mode, configure the
+external Chrome session yourself (for example by launching it with
+`--ignore-certificate-errors` if that is acceptable for the test).
 
 ### F-10: Empty Snapshot
 

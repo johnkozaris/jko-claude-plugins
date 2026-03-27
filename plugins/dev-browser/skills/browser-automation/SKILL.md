@@ -37,14 +37,21 @@ version-accurate patterns, sandbox constraints, and API reference.
 cat "$DEV_BROWSER_HELP"
 ```
 
-If the cache file is missing or stale, regenerate it: `dev-browser --help > "$DEV_BROWSER_HELP"`
+If the cache file is missing or stale, regenerate it:
+`"${DEV_BROWSER_BIN:-dev-browser}" --help > "$DEV_BROWSER_HELP"`
 
-If the hook reports `DEV_BROWSER_AVAILABLE=false`, install or build the CLI, ensure
-`dev-browser` resolves on `PATH` (or set `DEV_BROWSER_BIN`), then run:
+If the hook reports `DEV_BROWSER_AVAILABLE=false`, install or build the CLI and ensure
+`dev-browser` resolves on `PATH` (or set `DEV_BROWSER_BIN`).
+
+If the hook reports `DEV_BROWSER_INSTALL_NEEDED=true` or
+`DEV_BROWSER_RUNTIME_STATUS=install-required`, run:
 
 ```bash
 dev-browser install
 ```
+
+CLI detection alone is not enough — `dev-browser install` must have been run at least
+once so the embedded daemon runtime is present.
 
 The ~250 lines of help are cheaper than a single failed script cycle. Read them every time.
 
