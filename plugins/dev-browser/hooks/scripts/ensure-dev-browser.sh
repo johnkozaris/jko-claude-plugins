@@ -1,57 +1,55 @@
 #!/bin/bash
-# SessionStart hook: detect dev-browser installation, report availability,
+# SessionStart hook: detect the dev-browser CLI, report availability,
 # and cache the help output so the skill always has version-accurate patterns.
-#
-# Search order:
-# 1. Local patched repo at ~/Repos/dev-browser/dev-browser (preferred)
-# 2. Global install (command -v dev-browser)
-# 3. Plugin data directory
 
 set -euo pipefail
 
 ENV_FILE="${CLAUDE_ENV_FILE:-}"
-HELP_CACHE="$HOME/.dev-browser/help-cache.txt"
-LOCAL_REPO="$HOME/Repos/dev-browser"
+PLUGIN_DATA="${CLAUDE_PLUGIN_DATA:-}"
+BIN_OVERRIDE="${DEV_BROWSER_BIN:-}"
+
+if [ -n "$PLUGIN_DATA" ]; then
+  HELP_CACHE="$PLUGIN_DATA/help-cache.txt"
+else
+  HELP_CACHE="$HOME/.cache/dev-browser-plugin/help-cache.txt"
+fi
 
 found() {
   local bin="$1"
   local version="$2"
-  local source="$3"
   mkdir -p "$(dirname "$HELP_CACHE")"
   "$bin" --help > "$HELP_CACHE" 2>/dev/null || true
   if [ -n "$ENV_FILE" ]; then
     {
       echo "export DEV_BROWSER_AVAILABLE=true"
-      echo "export DEV_BROWSER_VERSION=$version"
-      echo "export DEV_BROWSER_BIN=$bin"
-      echo "export DEV_BROWSER_HELP=$HELP_CACHE"
-    } >> "$ENV_FILE"
+      printf 'export DEV_BROWSER_VERSION=%q\n' "$version"
+      printf 'export DEV_BROWSER_BIN=%q\n' "$bin"
+      printf 'export DEV_BROWSER_HELP=%q\n' "$HELP_CACHE"
+      printf "export PATH=%q:\$PATH\n" "$(dirname "$bin")"
+    } >>"$ENV_FILE"
   fi
-  echo "dev-browser $version ready ($source). Help cached at $HELP_CACHE"
+  echo "dev-browser $version ready (CLI detected). Help cached at $HELP_CACHE"
   exit 0
 }
 
-# 1. Check local patched repo
-if [ -x "$LOCAL_REPO/dev-browser" ]; then
-  found "$LOCAL_REPO/dev-browser" "patched" "local repo"
+# Check explicit binary override first.
+if [ -n "$BIN_OVERRIDE" ] && [ -x "$BIN_OVERRIDE" ]; then
+  VERSION=$("$BIN_OVERRIDE" --version 2>/dev/null || echo "unknown")
+  found "$BIN_OVERRIDE" "$VERSION"
 fi
 
-# 2. Check global install
-if command -v dev-browser &>/dev/null; then
-  VERSION=$(dev-browser --version 2>/dev/null || echo "unknown")
-  found "dev-browser" "$VERSION" "global"
+# Then fall back to PATH discovery.
+if command -v dev-browser >/dev/null 2>&1; then
+  RESOLVED_BIN="$(command -v dev-browser)"
+  VERSION=$("$RESOLVED_BIN" --version 2>/dev/null || echo "unknown")
+  found "$RESOLVED_BIN" "$VERSION"
 fi
 
-# 3. Check plugin data directory
-PLUGIN_DATA="${CLAUDE_PLUGIN_DATA:-}"
-if [ -n "$PLUGIN_DATA" ] && [ -x "$PLUGIN_DATA/node_modules/.bin/dev-browser" ]; then
-  VERSION=$("$PLUGIN_DATA/node_modules/.bin/dev-browser" --version 2>/dev/null || echo "unknown")
-  found "$PLUGIN_DATA/node_modules/.bin/dev-browser" "$VERSION" "plugin data"
-fi
-
-# Not found
 if [ -n "$ENV_FILE" ]; then
-  echo "export DEV_BROWSER_AVAILABLE=false" >> "$ENV_FILE"
+  {
+    echo "export DEV_BROWSER_AVAILABLE=false"
+    printf 'export DEV_BROWSER_HELP=%q\n' "$HELP_CACHE"
+  } >>"$ENV_FILE"
 fi
 
-echo "dev-browser is not installed. Run: cd ~/Repos/dev-browser && ./setup.sh"
+echo "dev-browser CLI not found. Install or build it, make sure 'dev-browser' is on PATH (or set DEV_BROWSER_BIN), then run: dev-browser install"

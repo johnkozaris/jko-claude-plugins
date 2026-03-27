@@ -28,16 +28,23 @@ enabling incremental multi-step workflows.
 ## Bootstrap: Always Do This First
 
 **Before your first dev-browser command in any session, read the help output.** The
-SessionStart hook caches it automatically at `~/.dev-browser/help-cache.txt` (also
-available via `$DEV_BROWSER_HELP` env var). It contains the full LLM USAGE GUIDE with
-correct, version-accurate patterns, sandbox constraints, and API reference.
+SessionStart hook resolves `DEV_BROWSER_BIN` or `dev-browser` on `PATH` and caches help
+at `$DEV_BROWSER_HELP`. It contains the full LLM USAGE GUIDE with correct,
+version-accurate patterns, sandbox constraints, and API reference.
 
 ```bash
 # Read the cached help (populated by SessionStart hook — no network call needed)
-cat ~/.dev-browser/help-cache.txt
+cat "$DEV_BROWSER_HELP"
 ```
 
-If the cache file is missing or stale, regenerate it: `dev-browser --help > ~/.dev-browser/help-cache.txt`
+If the cache file is missing or stale, regenerate it: `dev-browser --help > "$DEV_BROWSER_HELP"`
+
+If the hook reports `DEV_BROWSER_AVAILABLE=false`, install or build the CLI, ensure
+`dev-browser` resolves on `PATH` (or set `DEV_BROWSER_BIN`), then run:
+
+```bash
+dev-browser install
+```
 
 The ~250 lines of help are cheaper than a single failed script cycle. Read them every time.
 
@@ -81,7 +88,8 @@ timeouts, dead time, and cascading failures.
 ### Script Execution Model
 
 Send scripts via Bash heredoc. Each script runs in an isolated QuickJS sandbox with these
-globals: `browser`, `console`, `saveScreenshot`, `writeFile`, `readFile`, `setTimeout`.
+globals: `browser`, `console`, `saveScreenshot`, `writeFile`, `readFile`, `resolveFilePath`,
+`deleteFile`, `setTimeout`.
 
 ```bash
 dev-browser [--headless] [--connect [URL]] [--browser NAME] [--timeout SECONDS] <<'EOF'
@@ -123,10 +131,10 @@ EOF
 | Mode | Flag | When to use |
 |------|------|-------------|
 | **Connect** | `--connect` | **External sites.** Attaches to user's Chrome. Real fingerprint, bypasses bot detection, has user's cookies/auth. |
-| **Headed** | *(no flag)* | **Localhost/internal sites.** Launches bundled Chromium with a visible window. Profiles persist in `~/.dev-browser/browsers/{name}/`. |
-| **Headless** | `--headless` | CI/scripted jobs only, or when user explicitly requests no window. |
+| **Headed** | *(no flag)* | **Localhost/internal sites.** Launches a visible managed browser. Profiles persist under the active `DEV_BROWSER_HOME`. |
+| **Headless** | `--headless` | CI/scripted jobs only, or when user explicitly requests no window. Uses whatever managed headless browser runtime the installed CLI provisions. |
 
-**CRITICAL: Bundled Chromium is blocked by Google sign-in** (and other strict bot detection).
+**CRITICAL: Managed automation browsers are blocked by Google sign-in** (and other strict bot detection).
 Google shows "This browser or app may not be secure." For Google services (Gmail, Sheets,
 Drive, YouTube) you MUST use `--connect` mode with real Chrome.
 
@@ -161,23 +169,21 @@ few minutes. The user may need to solve a CAPTCHA manually in the browser.
 ### Launching Chrome for Connect Mode (Chrome 136+)
 
 Chrome 136+ silently ignores `--remote-debugging-port` on the default profile. You MUST
-use `--user-data-dir` and kill existing Chrome processes first.
+use `--user-data-dir` with a dedicated debug profile.
 
 ```bash
-# Kill, launch, verify — all three steps, every time. Do not improvise.
-killall -9 "Google Chrome" 2>/dev/null; sleep 2
+# Launch Chrome with a dedicated debug profile.
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
   --remote-debugging-port=9222 \
   --user-data-dir="$HOME/.chrome-debug-profile" \
-  &>/dev/null &
-sleep 4
-curl -s http://127.0.0.1:9222/json/version | head -1
+  >/tmp/dev-browser-chrome-debug.log 2>&1 &
 ```
 
-If curl returns `{`, proceed. If empty, repeat the kill+launch. Common causes of failure:
-- Background Chrome process survived — check `ps aux | grep Chrome`, kill stragglers
+Then verify with `curl -s http://127.0.0.1:9222/json/version | head -1`. If the
+endpoint is still unavailable, identify any stale debug Chrome PID with `ps` and stop
+that specific PID via `kill <PID>` before relaunching. Common causes of failure:
 - Missing `--user-data-dir` — Chrome 136+ silently ignores the port without it
-- Used `kill` instead of `kill -9` — Chrome traps signals
+- A stale debug-profile Chrome instance is still bound to the port
 
 `~/.chrome-debug-profile` is the **standard debug profile**. Always reuse this exact path
 so previous logins are preserved.
@@ -299,7 +305,7 @@ named pages). Default name is `"default"`.
 | `page.keyboard.press(key)` | Press a key |
 | `page.setViewportSize({w, h})` | Set browser viewport dimensions |
 
-### File I/O (sandboxed to `~/.dev-browser/tmp/`)
+### File I/O (sandboxed to the temp dir under `DEV_BROWSER_HOME`)
 
 | Function | Description |
 |----------|-------------|

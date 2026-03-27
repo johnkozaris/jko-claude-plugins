@@ -56,4 +56,5 @@ EOF
 
 ## If dev-browser is not installed
 
-Offer to install it: `npm install -g dev-browser && dev-browser install`
+Install or build the `dev-browser` CLI, make sure `dev-browser` resolves on `PATH`
+(or set `DEV_BROWSER_BIN`), then run: `dev-browser install`

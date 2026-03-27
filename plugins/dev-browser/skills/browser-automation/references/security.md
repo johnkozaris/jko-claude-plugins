@@ -6,7 +6,8 @@ Guidelines for safe browser automation with dev-browser.
 
 dev-browser scripts run in a QuickJS WASM sandbox (not Node.js):
 
-- **No filesystem access** — only `writeFile`/`readFile` to `~/.dev-browser/tmp/` with
+- **No filesystem access** — only temp-dir helpers under `DEV_BROWSER_HOME/tmp/`
+  with
   path traversal prevention, symlink rejection, null byte filtering.
 - **No network access** — no `fetch`, `WebSocket`, or sockets from the sandbox.
   Network access is only through Playwright's browser control.

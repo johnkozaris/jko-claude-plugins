@@ -302,7 +302,8 @@ const snap = await page.locator("main").snapshotForAI();
 
 ### File I/O
 
-All file operations are restricted to `~/.dev-browser/tmp/`. Security enforcements:
+All file operations are restricted to the temp directory under `DEV_BROWSER_HOME`.
+Security enforcements:
 no path traversal (`..`), no symlinks, no absolute paths, null byte filtering, 0o600 permissions.
 
 #### saveScreenshot(buffer, name)
@@ -355,12 +356,12 @@ The QuickJS WASM sandbox explicitly does **not** provide:
 
 | Feature | Alternative |
 |---------|-------------|
-| `require()` / `import()` | Not available. All API is via globals. |
+| `require()` | Not available. All API is via globals. |
+| Dynamic `import()` | Only relative modules loaded from temp files under `DEV_BROWSER_HOME/tmp/` |
 | `fetch` / `XMLHttpRequest` | Use `page.goto()` to load URLs in the browser |
 | `fs` / `path` / `os` / `process` | Use `writeFile()` / `readFile()` for temp I/O |
 | `document` / `window` | Available inside `page.evaluate()` only |
 | `Buffer` constructor | Polyfilled. `page.screenshot()` returns Buffer. |
-| Playwright tracing | Stubbed — throws at runtime |
 | Playwright video recording | Stubbed — throws at runtime |
 | `browserType.connect()` | Disabled. Browser ownership stays on host side. |
 | `browserType.launchPersistentContext()` | Disabled. Use `--browser NAME` instead. |
@@ -374,7 +375,7 @@ The QuickJS WASM sandbox explicitly does **not** provide:
 | Memory | 512 MB (QuickJS heap) |
 | Timeout | `--timeout` flag (default 30s) |
 | Concurrent scripts | 1 per `--browser` name (serialized via lock) |
-| Temp files | `~/.dev-browser/tmp/` only |
+| Temp files | `DEV_BROWSER_HOME/tmp/` only |
 
 ---
 
@@ -382,7 +383,7 @@ The QuickJS WASM sandbox explicitly does **not** provide:
 
 | Path | Description |
 |------|-------------|
-| `~/.dev-browser/daemon.sock` | Unix domain socket (macOS/Linux) |
-| `~/.dev-browser/daemon.pid` | Daemon process ID |
-| `~/.dev-browser/browsers/{name}/chromium-profile/` | Persistent browser profile per instance |
-| `~/.dev-browser/tmp/` | Sandboxed file I/O directory |
+| `DEV_BROWSER_HOME/daemon.sock` | Unix domain socket (macOS/Linux) |
+| `DEV_BROWSER_HOME/daemon.pid` | Daemon process ID |
+| `DEV_BROWSER_HOME/browsers/{name}/browser-profile/` | Persistent browser profile per instance |
+| `DEV_BROWSER_HOME/tmp/` | Sandboxed file I/O directory |

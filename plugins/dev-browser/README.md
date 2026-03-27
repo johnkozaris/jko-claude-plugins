@@ -1,6 +1,6 @@
 # dev-browser Plugin
 
-Browser automation plugin for Claude Code, powered by [dev-browser](https://github.com/SawyerHood/dev-browser).
+Browser automation plugin for Claude Code, powered by the `dev-browser` CLI.
 
 ## What It Does
 
@@ -13,11 +13,13 @@ The skill auto-triggers when Claude detects a task requiring browser interaction
 ## Prerequisites
 
 ```bash
-npm install -g dev-browser
-dev-browser install          # downloads Chromium
+dev-browser install
 ```
 
-The plugin's SessionStart hook detects whether dev-browser is installed and tells Claude how to install it if missing.
+This plugin depends on the `dev-browser` CLI contract, not a specific checkout path.
+Make sure `dev-browser` resolves on `PATH`, or set `DEV_BROWSER_BIN` to the absolute
+path of the CLI wrapper/binary. The SessionStart hook exports `DEV_BROWSER_BIN` and
+caches `dev-browser --help` at `DEV_BROWSER_HELP` for the skill to read.
 
 ## Skills
 
