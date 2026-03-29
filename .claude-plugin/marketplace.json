@@ -4,7 +4,7 @@
     "name": "John Kozaris"
   },
   "metadata": {
-    "description": "Claude Code plugins for Rust, ESP32 C++, Python backend, .NET backend, SwiftUI, and dead code detection",
+    "description": "Claude Code plugins for Rust, ESP32 C++, Python backend, .NET backend, SwiftUI, dead code detection, and web browser automation",
     "version": "1.0.0"
   },
   "plugins": [
@@ -98,19 +98,19 @@
       ]
     },
     {
-      "name": "dev-browser",
-      "source": "./plugins/dev-browser",
-      "description": "Browser automation via dev-browser CLI — navigate, click, fill forms, scrape data, take screenshots, test web apps",
-      "version": "1.0.0",
+      "name": "web-interact",
+      "source": "./plugins/web-interact",
+      "description": "Browser automation — discover interactive elements, click, type, fill forms, screenshots, automate web apps",
+      "version": "2.0.0",
       "category": "tools",
       "tags": [
         "browser",
         "automation",
         "web",
+        "interaction",
         "scraping",
         "testing",
-        "screenshot",
-        "playwright"
+        "screenshot"
       ]
     }
   ]

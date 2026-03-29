@@ -1,12 +1,12 @@
 # Security Considerations
 
-Guidelines for safe browser automation with dev-browser.
+Guidelines for safe browser automation with web-interact.
 
 ## Sandbox Guarantees
 
-dev-browser scripts run in a QuickJS WASM sandbox (not Node.js):
+web-interact scripts run in a QuickJS WASM sandbox (not Node.js):
 
-- **No filesystem access** — only temp-dir helpers under `DEV_BROWSER_HOME/tmp/`
+- **No filesystem access** — only temp-dir helpers under `WEB_INTERACT_HOME/tmp/`
   with
   path traversal prevention, symlink rejection, null byte filtering.
 - **No network access** — no `fetch`, `WebSocket`, or sockets from the sandbox.
@@ -16,7 +16,7 @@ dev-browser scripts run in a QuickJS WASM sandbox (not Node.js):
 - **Browser ownership locked** — `browserType.connect()` and `launchPersistentContext()`
   are disabled in the sandbox.
 
-Pre-approving `Bash(dev-browser *)` is safe from a **host filesystem/process** perspective.
+Pre-approving `Bash(web-interact *)` is safe from a **host filesystem/process** perspective.
 However, the browser process itself has network and local access (see below).
 
 ## Prompt Injection from Page Content
@@ -57,7 +57,7 @@ The QuickJS sandbox is secure, but the **browser itself** has broader access:
 - **Browser-context network access:** Code inside `page.evaluate()` runs in the browser's
   JavaScript context, which has full `fetch()` and `XMLHttpRequest` access. A malicious
   page could exfiltrate data via its own scripts. This is inherent to any browser — not
-  specific to dev-browser.
+  specific to web-interact.
 - **Connect mode inherits user state:** When using `--connect`, the browser has all the
   user's cookies, saved passwords, and extension state. Extracted page content may contain
   session tokens or personal data.
@@ -69,7 +69,7 @@ The QuickJS sandbox is secure, but the **browser itself** has broader access:
   user's already-authenticated browser — no credential handling needed.
 - **Session persistence:** Named pages within a `--browser` instance retain cookies
   and localStorage across scripts. After login, subsequent scripts are authenticated.
-- **Start fresh:** Use a different `--browser` name, or run `dev-browser stop`.
+- **Start fresh:** Use a different `--browser` name, or run `web-interact stop`.
 
 ## Output Size Management
 
@@ -86,10 +86,10 @@ Browser instances consume memory. Clean up when done:
 
 ```bash
 # Close a specific page
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 await browser.closePage("finished-task");
 EOF
 
 # Stop everything
-dev-browser stop
+web-interact stop
 ```

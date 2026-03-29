@@ -20,10 +20,17 @@ myClaudeSkills/
 ## Installing This Marketplace
 
 ```bash
-# Register as a marketplace
+# Register as a marketplace for local development
 claude plugin marketplace add /Users/john/Repos/myClaudeSkills
 
-# Then install any plugin
+# Then install any plugin from the local checkout
+claude plugin install <plugin-name>@jko-claude-plugins
+```
+
+After publishing or updating the GitHub-hosted marketplace, end users should use:
+
+```bash
+claude plugin marketplace add johnkozaris/jko-claude-plugins
 claude plugin install <plugin-name>@jko-claude-plugins
 ```
 
@@ -31,6 +38,11 @@ Or load a single plugin for one session:
 ```bash
 claude --plugin-dir /Users/john/Repos/myClaudeSkills/plugins/<plugin-name>
 ```
+
+## Local Iteration
+
+- In Claude Code, run `/reload-plugins` after installing, enabling, disabling, or updating plugins in the current session.
+- In GitHub Copilot CLI, reinstall a local plugin after edits because installed plugins are cached.
 
 ## Conventions
 

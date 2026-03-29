@@ -1,9 +1,9 @@
-# dev-browser Complete API Reference
+# Web Interact — API Reference
 
 ## CLI Invocation
 
 ```
-dev-browser [OPTIONS] [COMMAND]
+web-interact [OPTIONS] [COMMAND]
 ```
 
 ### Global Flags
@@ -21,7 +21,7 @@ dev-browser [OPTIONS] [COMMAND]
 |---------|-------------|
 | `run <FILE>` | Execute a JavaScript file |
 | `install` | Install the embedded Patchright runtime and headless Chromium |
-| `install-skill` | Interactively install the embedded dev-browser skill into supported agent skill directories |
+| `install-skill` | Interactively install the embedded web-interact skill into supported agent skill directories |
 | `browsers` | List all managed browser instances with status and pages |
 | `status` | Show daemon PID, uptime, socket path |
 | `stop` | Stop daemon and all managed browsers |
@@ -31,26 +31,26 @@ dev-browser [OPTIONS] [COMMAND]
 
 ```bash
 # Heredoc (most common for AI agents)
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 await page.goto("https://example.com");
 console.log(await page.title());
 EOF
 
 # File execution
-dev-browser run script.js
+web-interact run script.js
 
 # Pipe
-echo 'console.log("hello")' | dev-browser --headless
+echo 'console.log("hello")' | web-interact --headless
 
 # Connect to existing Chrome (auto-discover)
-dev-browser --connect <<'EOF'
+web-interact --connect <<'EOF'
 const tabs = await browser.listPages();
 console.log(JSON.stringify(tabs, null, 2));
 EOF
 
 # Connect to specific endpoint
-dev-browser --connect http://localhost:9222 <<'EOF'
+web-interact --connect http://localhost:9222 <<'EOF'
 // ...
 EOF
 ```
@@ -92,6 +92,154 @@ Close and deregister a named page.
 - **Parameter:** `name: string`
 - **Returns:** `Promise<void>`
 
+#### browser.getInteractiveElements(nameOrId, options?)
+
+Return an indexed inventory of all interactive, visible elements on the page. Runs
+instantly via JS injection — no Playwright timeouts, no retry loops.
+
+- **Parameter:** `nameOrId: string` — Page name or targetId
+- **Parameter:** `options: object` (optional)
+  - `viewportOnly: boolean` (default: false) — Only elements within/near viewport
+  - `maxElements: number` (default: 200) — Cap on elements returned
+  - `maxTextLength: number` (default: 100) — Truncate text at this length
+  - `checkOcclusion: boolean` (default: false) — Filter elements hidden behind others
+- **Returns:** `Promise<{count, serialized, elements, scrollableAreas, viewport}>`
+
+**Usage pattern — discover then interact:**
+```javascript
+const result = await browser.getInteractiveElements("main", {});
+console.log(result.serialized);
+// [1] button "Submit"
+// [2] input[email] "Email" placeholder="user@example.com"
+// [3] link "Sign in" href="/login"
+// [4] select "Country" (190 options: US, UK, DE, FR, JP, ... 185 more)
+
+// Find the element you want and use its selector:
+const target = result.elements.find(e => e.name === "Submit");
+await page.click(target.selector, { timeout: 2000 });
+```
+
+**Serialization format:**
+- `[N] tag "accessible name"` — index, HTML tag, computed accessible name
+- `input[type]` — input type shown in brackets
+- `placeholder=`, `href=` — key attributes inline
+- `(N options: ...)` — select dropdown previews options
+- `(format=YYYY-MM-DD)` — date/time format hints
+- `(range 0-100 current=50)` — slider state
+- `[checked]`, `[disabled]`, `[required]` — state indicators
+
+**Detection heuristics** (12 checks): native interactive tags, ARIA roles,
+contenteditable, inline event handlers, tabindex, ARIA state properties,
+label wrappers, sized iframes, cursor:pointer fallback.
+
+**Visibility filtering**: CSS display/visibility/opacity, bounding box, off-screen
+honeypot detection, viewport bounds.
+
+**When to use**: Before any interaction with an unfamiliar page. Instead of guessing
+selectors and risking timeouts, call `getInteractiveElements` first to see what exists.
+
+**Diff detection**: On the second and subsequent calls for the same page, elements that
+are new since the last call are prefixed with `*`:
+```
+*[3] button "New Button"   ← appeared since last call
+[4] input[text] "Name"     ← was there before
+```
+
+#### browser.waitForSettled(nameOrId, options?)
+
+Wait for the page DOM to stop changing (MutationObserver-based). Useful before
+`getInteractiveElements` on pages that load content dynamically.
+
+- **Parameter:** `nameOrId: string` — Page name or targetId
+- **Parameter:** `options: object` (optional)
+  - `quietMs: number` (default: 500) — Milliseconds of no DOM mutations to consider settled
+  - `timeout: number` (default: 5000) — Max wait time in milliseconds
+- **Returns:** `Promise<{settled: boolean, elapsed: number, reason?: string}>`
+
+```javascript
+await browser.waitForSettled("main", { quietMs: 300, timeout: 3000 });
+const result = await browser.getInteractiveElements("main", {});
+```
+
+#### browser.clickElement(nameOrId, selector, action?)
+
+Click an element using its CSS selector via native DOM `click()`. Bypasses Playwright's
+actionability checks and retry loop entirely — returns instantly.
+
+- **Parameter:** `nameOrId: string` — Page name or targetId
+- **Parameter:** `selector: string` — CSS selector (from `getInteractiveElements().elements[].selector`)
+- **Parameter:** `action: string` (optional, default: `"click"`) — `"click"`, `"focus"`, or `"scrollIntoView"`
+- **Returns:** `Promise<{success: boolean, tag?: string, text?: string, error?: string}>`
+
+```javascript
+const inv = await browser.getInteractiveElements("main", {});
+const btn = inv.elements.find(e => e.name === "Submit");
+if (btn) {
+  await browser.clickElement("main", btn.selector);
+}
+```
+
+#### browser.fillElement(nameOrId, selector, value)
+
+Fill an input/textarea using its CSS selector via native DOM value setting. Uses the
+native `HTMLInputElement.prototype.value` setter to bypass React/Vue controlled component
+wrappers, then dispatches `input` and `change` events.
+
+If the selector targets a `<label>`, automatically redirects to its associated form control.
+
+- **Parameter:** `nameOrId: string` — Page name or targetId
+- **Parameter:** `selector: string` — CSS selector
+- **Parameter:** `value: string` — Value to fill
+- **Returns:** `Promise<{success: boolean, tag?: string, value?: string, error?: string}>`
+
+```javascript
+const inv = await browser.getInteractiveElements("main", {});
+const email = inv.elements.find(e => e.name === "Email");
+if (email) {
+  await browser.fillElement("main", email.selector, "user@example.com");
+}
+```
+
+#### browser.selectOption(nameOrId, selector, value)
+
+Select a dropdown option by value or visible text. Supports fuzzy matching (case-insensitive contains). Auto-redirects from `<label>` to `<select>`.
+
+- **Returns:** `{success, selectedValue, selectedText}` or `{success: false, error, available}`
+
+```javascript
+const inv = await browser.getInteractiveElements("main", {});
+const country = inv.elements.find(e => e.tag === "select");
+if (country) await browser.selectOption("main", country.selector, "United Kingdom");
+```
+
+#### browser.checkElement(nameOrId, selector, checked?)
+
+Toggle a checkbox or radio button. Pass `true` to check, `false` to uncheck, or omit to toggle. Auto-redirects from `<label>` to `<input>`.
+
+- **Returns:** `{success, type, checked}`
+
+```javascript
+const inv = await browser.getInteractiveElements("main", {});
+const agree = inv.elements.find(e => e.name === "I agree to terms");
+if (agree) await browser.checkElement("main", agree.selector, true);
+```
+
+**Complete discover-then-act pattern (zero timeout risk):**
+```javascript
+// 1. Wait for page to settle
+await browser.waitForSettled("main", { quietMs: 300 });
+
+// 2. Get inventory of interactive elements
+const inv = await browser.getInteractiveElements("main", {});
+console.log(inv.serialized); // LLM reads this
+
+// 3. Fill and click using selectors from inventory
+const name = inv.elements.find(e => e.name === "Name");
+const submit = inv.elements.find(e => e.name === "Submit");
+if (name) await browser.fillElement("main", name.selector, "John Doe");
+if (submit) await browser.clickElement("main", submit.selector);
+```
+
 ---
 
 ### Page Object (Playwright Page API)
@@ -110,14 +258,14 @@ Page objects exposed through the QuickJS sandbox bridge. All async methods retur
 | `url` | `url()` | `string` | Current URL (synchronous getter) |
 | `title` | `title()` | `Promise<string>` | Current page title |
 
-#### AI Snapshots (dev-browser extension — not standard Playwright)
+#### AI Snapshots (web-interact extension — not standard Playwright)
 
 | Method | Signature | Returns | Description |
 |--------|-----------|---------|-------------|
 | `snapshotForAI` | `snapshotForAI(options?: {track?: string, depth?: number, timeout?: number})` | `Promise<{full: string, incremental?: string}>` | ARIA accessibility tree snapshot |
 
-`snapshotForAI()` is a **dev-browser extension**, not part of the standard Playwright API.
-Standard Playwright has `locator.ariaSnapshot()` which returns a plain string. The dev-browser
+`snapshotForAI()` is a **web-interact extension**, not part of the standard Playwright API.
+Standard Playwright has `locator.ariaSnapshot()` which returns a plain string. The web-interact
 version adds tracking/incremental support and is available on both Page and Locator objects.
 On a Locator, it returns the same `{full, incremental?}` shape — always access `.full`.
 
@@ -145,17 +293,33 @@ On a Locator, it returns the same `{full, incremental?}` shape — always access
 
 | Method | Signature | Returns | Description |
 |--------|-----------|---------|-------------|
-| `click` | `click(selector: string, options?)` | `Promise<void>` | Click element |
-| `dblclick` | `dblclick(selector: string, options?)` | `Promise<void>` | Double-click |
-| `fill` | `fill(selector: string, value: string)` | `Promise<void>` | Clear and fill input |
-| `type` | `type(selector: string, text: string, options?)` | `Promise<void>` | Type character by character |
-| `press` | `press(selector: string, key: string)` | `Promise<void>` | Press key (Enter, Tab, Escape, ArrowDown, etc.) |
-| `selectOption` | `selectOption(selector: string, value: string\|string[])` | `Promise<string[]>` | Select dropdown option(s) by value |
-| `check` | `check(selector: string)` | `Promise<void>` | Check checkbox |
-| `uncheck` | `uncheck(selector: string)` | `Promise<void>` | Uncheck checkbox |
-| `hover` | `hover(selector: string, options?)` | `Promise<void>` | Hover over element |
-| `focus` | `focus(selector: string)` | `Promise<void>` | Focus element |
-| `dragAndDrop` | `dragAndDrop(source: string, target: string)` | `Promise<void>` | Drag from source to target |
+| `click` | `click(selector, options?: {timeout?, force?, position?})` | `Promise<void>` | Click element. `force` skips actionability checks. |
+| `dblclick` | `dblclick(selector, options?: {timeout?, force?})` | `Promise<void>` | Double-click |
+| `fill` | `fill(selector, value, options?: {timeout?})` | `Promise<void>` | Clear and fill input |
+| `type` | `type(selector, text, options?: {timeout?, delay?})` | `Promise<void>` | Type character by character |
+| `press` | `press(selector, key, options?: {timeout?})` | `Promise<void>` | Press key (Enter, Tab, Escape, ArrowDown, etc.) |
+| `selectOption` | `selectOption(selector, value\|values, options?: {timeout?})` | `Promise<string[]>` | Select dropdown option(s) by value |
+| `check` | `check(selector, options?: {timeout?, force?})` | `Promise<void>` | Check checkbox |
+| `uncheck` | `uncheck(selector, options?: {timeout?, force?})` | `Promise<void>` | Uncheck checkbox |
+| `hover` | `hover(selector, options?: {timeout?, force?})` | `Promise<void>` | Hover over element |
+| `focus` | `focus(selector, options?: {timeout?})` | `Promise<void>` | Focus element |
+| `dragAndDrop` | `dragAndDrop(source, target, options?: {timeout?})` | `Promise<void>` | Drag from source to target |
+
+**Per-action timeout:** All interaction methods accept `{ timeout: N }` in milliseconds.
+Use shorter values for speculative interactions — the default action timeout can exceed
+the script timeout, so a wrong selector in one action can kill the entire script:
+```javascript
+await page.click('.uncertain-selector', { timeout: 2000 });
+await page.fill('input.maybe-here', 'value', { timeout: 2000 });
+```
+If the element is not found within the timeout, the action throws a specific error that
+names the selector and the timeout — much more useful than a generic "Script timed out."
+
+**Force click:** `page.click(selector, { force: true })` bypasses Playwright's
+actionability checks (element must be visible, enabled, stable, not obscured). Use when
+an element exists in the DOM but click() hangs due to overlays or other obstructions.
+Alternative: `await page.evaluate(() => document.querySelector(sel)?.click())` for a
+native DOM click that bypasses Playwright entirely.
 
 #### Content Extraction
 
@@ -296,8 +460,13 @@ await page.locator(".item").nth(0).click();
 await page.locator(".item").first().click();
 await page.locator(".item").last().click();
 
-// Count
+// Count — returns IMMEDIATELY, no retry loop, no waiting
 const count = await page.locator(".item").count();
+// Use count() to check existence before interacting:
+const btn = page.getByRole('button', { name: 'Submit' });
+if (await btn.count() > 0) {
+  await btn.click({ timeout: 2000 });
+}
 
 // Get all text contents
 const texts = await page.locator(".item").allTextContents();
@@ -310,7 +479,7 @@ const snap = await page.locator("main").snapshotForAI();
 
 ### File I/O
 
-All file operations are restricted to the temp directory under `DEV_BROWSER_HOME`.
+All file operations are restricted to the temp directory under `WEB_INTERACT_HOME`.
 Security enforcements:
 no path traversal (`..`), no symlinks, no absolute paths, null byte filtering, 0o600 permissions.
 
@@ -365,7 +534,7 @@ The QuickJS WASM sandbox explicitly does **not** provide:
 | Feature | Alternative |
 |---------|-------------|
 | `require()` | Not available. All API is via globals. |
-| Dynamic `import()` | Only relative modules loaded from temp files under `DEV_BROWSER_HOME/tmp/` |
+| Dynamic `import()` | Only relative modules loaded from temp files under `WEB_INTERACT_HOME/tmp/` |
 | `fetch` / `XMLHttpRequest` | Use `page.goto()` to load URLs in the browser |
 | `fs` / `path` / `os` / `process` | Use `writeFile()` / `readFile()` for temp I/O |
 | `document` / `window` | Available inside `page.evaluate()` only |
@@ -383,7 +552,7 @@ The QuickJS WASM sandbox explicitly does **not** provide:
 | Memory | 512 MB (QuickJS heap) |
 | Timeout | `--timeout` flag (default 30s) |
 | Concurrent scripts | 1 per `--browser` name (serialized via lock) |
-| Temp files | `DEV_BROWSER_HOME/tmp/` only |
+| Temp files | `WEB_INTERACT_HOME/tmp/` only |
 
 ---
 
@@ -391,10 +560,10 @@ The QuickJS WASM sandbox explicitly does **not** provide:
 
 | Path | Description |
 |------|-------------|
-| `DEV_BROWSER_HOME/daemon.sock` | Unix domain socket (macOS/Linux) |
-| `DEV_BROWSER_HOME/daemon.pid` | Daemon process ID |
-| `DEV_BROWSER_HOME/browsers/{name}/browser-profile/` | Persistent browser profile per instance |
-| `DEV_BROWSER_HOME/tmp/` | Sandboxed file I/O directory |
+| `WEB_INTERACT_HOME/daemon.sock` | Unix domain socket (macOS/Linux) |
+| `WEB_INTERACT_HOME/daemon.pid` | Daemon process ID |
+| `WEB_INTERACT_HOME/browsers/{name}/browser-profile/` | Persistent browser profile per instance |
+| `WEB_INTERACT_HOME/tmp/` | Sandboxed file I/O directory |
 
-`dev-browser install` must be run at least once so the embedded runtime under
-`DEV_BROWSER_HOME` is available.
+`web-interact install` must be run at least once so the embedded runtime under
+`WEB_INTERACT_HOME` is available.

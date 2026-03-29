@@ -12,7 +12,7 @@ the one-action-per-script rule: small focused scripts that log state for the nex
 When selectors are already known, interact directly:
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("login");
 await page.goto("https://app.example.com/login");
 await page.fill('input[name="email"]', 'user@example.com');
@@ -27,7 +27,7 @@ EOF
 
 Step 1 — snapshot the login page:
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("login");
 await page.goto("https://app.example.com/login");
 const snap = await page.snapshotForAI();
@@ -37,7 +37,7 @@ EOF
 
 Step 2 — fill based on discovered ARIA roles (page persists):
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("login");
 await page.getByRole("textbox", { name: "Email" }).fill("user@example.com");
 await page.getByLabel("Password").fill("secretpass");
@@ -53,7 +53,7 @@ When the user is already logged in via their browser:
 
 Step 1 — list tabs to find the target:
 ```bash
-dev-browser --connect <<'EOF'
+web-interact --connect <<'EOF'
 const tabs = await browser.listPages();
 console.log(JSON.stringify(tabs, null, 2));
 EOF
@@ -61,7 +61,7 @@ EOF
 
 Step 2 — connect to the specific tab by targetId:
 ```bash
-dev-browser --connect <<'EOF'
+web-interact --connect <<'EOF'
 const page = await browser.getPage("TARGET_ID_FROM_STEP1");
 console.log(JSON.stringify({ url: page.url(), title: await page.title() }));
 EOF
@@ -73,7 +73,7 @@ For multi-step auth flows, handle each step separately:
 
 ```bash
 # Step 1: Enter email
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("auth");
 await page.goto("https://accounts.google.com");
 await page.fill('input[type="email"]', 'user@gmail.com');
@@ -83,7 +83,7 @@ console.log("Email submitted, password field visible");
 EOF
 
 # Step 2: Enter password
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("auth");
 await page.fill('input[type="password"]', 'password123');
 await page.click('#passwordNext');
@@ -103,7 +103,7 @@ authenticated browser session.
 ### Text Inputs, Dropdowns, Checkboxes, Radios
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("form");
 await page.goto("https://app.example.com/settings");
 
@@ -139,7 +139,7 @@ EOF
 After using `snapshotForAI()` to discover the form structure:
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("form");
 await page.getByRole("textbox", { name: "First Name" }).fill("John");
 await page.getByRole("textbox", { name: "Last Name" }).fill("Doe");
@@ -154,7 +154,7 @@ EOF
 ### File Upload
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("upload");
 await page.goto("https://app.example.com/upload");
 const fileInput = page.locator('input[type="file"]');
@@ -172,7 +172,7 @@ EOF
 ### Open Multiple Named Pages
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const search = await browser.getPage("search");
 await search.goto("https://google.com");
 
@@ -187,7 +187,7 @@ EOF
 ### Switch Between Existing Tabs (They Persist)
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const search = await browser.getPage("search");
 console.log("Search:", search.url());
 
@@ -199,7 +199,7 @@ EOF
 ### Close a Tab
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 await browser.closePage("search");
 const remaining = await browser.listPages();
 console.log(JSON.stringify(remaining, null, 2));
@@ -209,7 +209,7 @@ EOF
 ### Connect to Existing Chrome Tab by targetId
 
 ```bash
-dev-browser --connect <<'EOF'
+web-interact --connect <<'EOF'
 const tabs = await browser.listPages();
 const gmailTab = tabs.find(t => t.url.includes("mail.google.com"));
 if (gmailTab) {
@@ -229,7 +229,7 @@ EOF
 ### Extract Table Data
 
 ```bash
-dev-browser --headless --timeout 60 <<'EOF'
+web-interact --headless --timeout 60 <<'EOF'
 const page = await browser.getPage("data");
 await page.goto("https://example.com/products");
 await page.waitForSelector("table");
@@ -252,7 +252,7 @@ EOF
 ### Extract List Items
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("articles");
 await page.goto("https://example.com/blog");
 
@@ -271,7 +271,7 @@ EOF
 ### Extract All Links
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("links");
 await page.goto("https://example.com");
 
@@ -291,7 +291,7 @@ EOF
 ### Click-Based Pagination
 
 ```bash
-dev-browser --headless --timeout 120 <<'EOF'
+web-interact --headless --timeout 120 <<'EOF'
 const page = await browser.getPage("paginated");
 await page.goto("https://example.com/results");
 const allResults = [];
@@ -321,7 +321,7 @@ EOF
 ### URL-Based Pagination
 
 ```bash
-dev-browser --headless --timeout 120 <<'EOF'
+web-interact --headless --timeout 120 <<'EOF'
 const page = await browser.getPage("paginated");
 const allData = [];
 
@@ -342,7 +342,7 @@ EOF
 ### Infinite Scroll
 
 ```bash
-dev-browser --headless --timeout 60 <<'EOF'
+web-interact --headless --timeout 60 <<'EOF'
 const page = await browser.getPage("scroll");
 await page.goto("https://example.com/feed");
 
@@ -372,7 +372,7 @@ EOF
 ### Click Links and Buttons
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("nav");
 await page.goto("https://example.com");
 
@@ -386,7 +386,7 @@ EOF
 ### Back / Forward
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("nav");
 await page.goBack();
 console.log("Back to:", page.url());
@@ -398,7 +398,7 @@ EOF
 ### Wait for SPA Navigation
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("spa");
 await page.goto("https://spa-app.com");
 await page.click('a[href="/dashboard"]');
@@ -416,7 +416,7 @@ EOF
 ### Basic Screenshot
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 await page.goto("https://example.com");
 const path = await saveScreenshot(await page.screenshot(), "homepage.png");
@@ -427,7 +427,7 @@ EOF
 ### Full-Page Screenshot
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 const path = await saveScreenshot(
   await page.screenshot({ fullPage: true }),
@@ -440,7 +440,7 @@ EOF
 ### Element Screenshot
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 const path = await saveScreenshot(
   await page.locator("header").screenshot(),
@@ -464,7 +464,7 @@ On macOS:
 ### Auto-Discover Running Chrome
 
 ```bash
-dev-browser --connect <<'EOF'
+web-interact --connect <<'EOF'
 const tabs = await browser.listPages();
 console.log(JSON.stringify(tabs, null, 2));
 EOF
@@ -476,7 +476,7 @@ profile directories.
 ### Use an Authenticated Tab
 
 ```bash
-dev-browser --connect <<'EOF'
+web-interact --connect <<'EOF'
 const tabs = await browser.listPages();
 const target = tabs.find(t => t.url.includes("github.com"));
 if (target) {
@@ -494,7 +494,7 @@ EOF
 ### Type Text Character by Character
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 await page.click("#search-input");
 await page.keyboard.type("hello world", { delay: 50 });
@@ -505,7 +505,7 @@ EOF
 ### Key Combinations
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 // Ctrl+A (select all)
 await page.keyboard.down("Control");
@@ -519,7 +519,7 @@ EOF
 ### Scroll via Mouse Wheel
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 await page.mouse.wheel(0, 500); // scroll down 500px
 EOF
@@ -530,7 +530,7 @@ EOF
 ## Working with Iframes
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 await page.goto("https://example.com/with-iframe");
 
@@ -547,7 +547,7 @@ EOF
 Or use locator-based frame access:
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 const frameLocator = page.frameLocator("#my-iframe");
 await frameLocator.locator("button.submit").click();
@@ -559,7 +559,7 @@ EOF
 ## Dialog Handling
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 
 // Set up dialog handler BEFORE triggering the dialog
@@ -580,7 +580,7 @@ EOF
 Most websites show cookie consent banners that block interaction. Dismiss them first:
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 await page.goto("https://example.com");
 
@@ -608,7 +608,7 @@ EOF
 If the banner uses an iframe (common with CMP providers like OneTrust, Cookiebot):
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 try {
   const frame = page.frameLocator('[id*="consent"], [title*="cookie"]');
@@ -624,7 +624,7 @@ EOF
 When clicking a link opens a new tab (via `target="_blank"` or `window.open()`):
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 
 // Wait for popup while clicking
@@ -653,7 +653,7 @@ EOF
 
 ```bash
 # Test at mobile viewport
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("responsive");
 await page.setViewportSize({ width: 375, height: 812 });
 await page.goto("https://example.com");
@@ -662,7 +662,7 @@ console.log("Mobile screenshot taken");
 EOF
 
 # Test at desktop viewport
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("responsive");
 await page.setViewportSize({ width: 1920, height: 1080 });
 await page.goto("https://example.com");
@@ -678,7 +678,7 @@ EOF
 Check a page for JavaScript errors:
 
 ```bash
-dev-browser --headless --timeout 15 <<'EOF'
+web-interact --headless --timeout 15 <<'EOF'
 const page = await browser.getPage("debug");
 const errors = [];
 const warnings = [];
@@ -706,7 +706,7 @@ EOF
 Wait for a specific network request to complete after an action:
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("app");
 
 // Click button and wait for the API call to return
@@ -728,7 +728,7 @@ EOF
 **Always prefer `--connect` mode over `--headless` for external websites.** Connect mode
 uses the user's real Chrome browser, which has a genuine fingerprint, real browsing history,
 cookies, and extensions. This bypasses most bot detection (Cloudflare, Akamai, etc.)
-automatically — dev-browser still navigates and controls the page, but through a real
+automatically — web-interact still navigates and controls the page, but through a real
 browser that does not look like automation.
 
 Headless managed Chromium has a recognizable fingerprint that many sites detect and
@@ -739,7 +739,7 @@ CI-style scripted jobs, and sites that do not use bot detection.
 
 ```bash
 # Connect to user's Chrome and navigate — no manual intervention needed
-dev-browser --connect <<'EOF'
+web-interact --connect <<'EOF'
 const page = await browser.getPage("site");
 await page.goto("https://protected-site.com");
 // Real Chrome fingerprint → Cloudflare passes automatically
@@ -759,7 +759,7 @@ In this case:
 3. After solving, continue automation on the same named page:
 
 ```bash
-dev-browser --connect <<'EOF'
+web-interact --connect <<'EOF'
 const page = await browser.getPage("site");
 // User has solved the CAPTCHA — page is now past it
 const snap = await page.snapshotForAI();

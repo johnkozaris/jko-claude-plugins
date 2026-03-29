@@ -26,7 +26,7 @@ reasoning quality.
 Limit tree traversal to reduce output:
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 await page.goto("https://complex-dashboard.com");
 const snap = await page.snapshotForAI({ depth: 3 });
@@ -43,7 +43,7 @@ EOF
 Snapshot only the relevant part of the page:
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 await page.goto("https://example.com");
 const mainSnap = await page.locator("main").snapshotForAI();
@@ -61,7 +61,7 @@ The most important pattern for large data. Save to a temp file, then use Claude'
 native `Read` and `Grep` tools on the file:
 
 ```bash
-dev-browser --headless --timeout 60 <<'EOF'
+web-interact --headless --timeout 60 <<'EOF'
 const page = await browser.getPage("data");
 await page.goto("https://example.com/reports");
 await page.waitForSelector("table");
@@ -94,7 +94,7 @@ After this script completes:
 Extract only specific data, not everything:
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 await page.goto("https://example.com/dashboard");
 
@@ -118,7 +118,7 @@ After interacting with a page, get only what changed:
 
 ```bash
 # First: full snapshot
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("dash");
 await page.goto("https://example.com/dashboard");
 const snap = await page.snapshotForAI({ track: "dash" });
@@ -126,7 +126,7 @@ console.log(snap.full);
 EOF
 
 # After interaction: incremental diff only
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("dash");
 await page.click('button:text("Refresh")');
 await page.waitForSelector(".updated");
@@ -142,7 +142,7 @@ EOF
 When structure does not matter, just get the text:
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 await page.goto("https://example.com/article");
 const text = await page.textContent("article");
@@ -153,7 +153,7 @@ EOF
 For very long text, save to file:
 
 ```bash
-dev-browser --headless <<'EOF'
+web-interact --headless <<'EOF'
 const page = await browser.getPage("main");
 const text = await page.textContent("body");
 const path = await writeFile("page-text.txt", text);
@@ -168,7 +168,7 @@ EOF
 Collect data across multiple pages:
 
 ```bash
-dev-browser --headless --timeout 120 <<'EOF'
+web-interact --headless --timeout 120 <<'EOF'
 const page = await browser.getPage("paginated");
 const allData = [];
 
@@ -198,7 +198,7 @@ EOF
 Save raw HTML and search it offline:
 
 ```bash
-dev-browser --headless --timeout 60 <<'EOF'
+web-interact --headless --timeout 60 <<'EOF'
 const page = await browser.getPage("main");
 await page.goto("https://example.com/catalog");
 const html = await page.innerHTML("body");

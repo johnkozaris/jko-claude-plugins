@@ -1,5 +1,5 @@
 {
-  "description": "dev-browser plugin hooks: detect installation at session start, cleanup on end",
+  "description": "web-interact plugin hooks: detect CLI at session start, cleanup on end",
   "hooks": {
     "SessionStart": [
       {
@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/ensure-dev-browser.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/ensure-web-interact.sh",
             "timeout": 15
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop-dev-browser.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stop-web-interact.sh",
             "timeout": 5
           }
         ]
