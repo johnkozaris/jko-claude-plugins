@@ -1,0 +1,27 @@
+{
+  "name": "claude-mastery",
+  "description": "Master guide for building with Claude Code — battle-tested patterns for agent design, skills, prompt caching, tool design, verification, workflows, and team patterns.",
+  "version": "1.0.0",
+  "license": "MIT",
+  "author": {
+    "name": "John Kozaris"
+  },
+  "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
+  "repository": "https://github.com/johnkozaris/jko-claude-plugins",
+  "keywords": [
+    "claude-code",
+    "agent-design",
+    "skills",
+    "prompt-caching",
+    "verification",
+    "subagents",
+    "worktrees",
+    "best-practices",
+    "productivity",
+    "tool-design",
+    "context-engineering",
+    "patterns",
+    "workflows",
+    "agents"
+  ]
+}
