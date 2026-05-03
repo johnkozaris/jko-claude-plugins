@@ -1,0 +1,368 @@
+#!/usr/bin/env node
+'use strict';
+
+const { createRequire } = require('node:module');
+const path = require('node:path');
+const fs = require('node:fs');
+const { spawn, execSync } = require('node:child_process');
+
+const PROJECT = process.cwd();
+const STATE_FILE = path.join(PROJECT, '.e-cli-state.json');
+const DEFAULT_PORT = 9222;
+
+// ─── Helpers ────────────────────────────────────────────────
+
+function die(msg) {
+  console.error(`error: ${msg}`);
+  process.exit(1);
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function readState() {
+  try {
+    return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function writeState(state) {
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2) + '\n');
+}
+
+function clearState() {
+  try {
+    fs.unlinkSync(STATE_FILE);
+  } catch {}
+}
+
+function projectRequire(mod) {
+  return createRequire(path.join(PROJECT, 'package.json'))(mod);
+}
+
+function getElectronPath() {
+  try {
+    return projectRequire('electron');
+  } catch {
+    die('electron not found in project devDependencies. Install: pnpm add -D electron');
+  }
+}
+
+function getChromium() {
+  try {
+    return projectRequire('@playwright/test').chromium;
+  } catch {}
+  try {
+    return projectRequire('playwright-core').chromium;
+  } catch {}
+  die(
+    '@playwright/test or playwright-core not found. Install: pnpm add -D @playwright/test',
+  );
+}
+
+function parseOpts(args) {
+  const opts = {};
+  const pos = [];
+  for (const a of args) {
+    if (a.startsWith('--')) {
+      const eq = a.indexOf('=');
+      opts[eq > 0 ? a.slice(2, eq) : a.slice(2)] = eq > 0 ? a.slice(eq + 1) : true;
+    } else {
+      pos.push(a);
+    }
+  }
+  return { opts, pos };
+}
+
+async function waitForCDP(port, timeoutMs = 30_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/json/version`);
+      if (r.ok) return;
+    } catch {}
+    await sleep(500);
+  }
+  die(`CDP not available on port ${port} after ${timeoutMs / 1000}s`);
+}
+
+async function connect() {
+  const state = readState();
+  if (!state) die('No running app. Run: e-cli launch');
+  try {
+    process.kill(state.pid, 0);
+  } catch {
+    clearState();
+    die('App not running (stale state cleaned). Run: e-cli launch');
+  }
+  const chromium = getChromium();
+  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${state.port}`);
+  const pages = browser.contexts().flatMap((c) => c.pages());
+  const page = pages.find((p) => !p.url().includes('intel.html')) || pages[0];
+  if (!page) {
+    await browser.close();
+    die('No renderer page found');
+  }
+  return { browser, page };
+}
+
+function formatTree(node, depth = 0) {
+  if (!node) return '';
+  const pad = '  '.repeat(depth);
+  let line = `${pad}${node.role}`;
+  if (node.name) line += ` "${node.name}"`;
+  if (node.value !== undefined && node.value !== '') line += ` value="${node.value}"`;
+  if (node.checked !== undefined) line += ` checked=${node.checked}`;
+  if (node.pressed !== undefined) line += ` pressed=${node.pressed}`;
+  if (node.expanded !== undefined) line += ` expanded=${node.expanded}`;
+  if (node.disabled) line += ' disabled';
+  let out = line;
+  for (const c of node.children || []) out += '\n' + formatTree(c, depth + 1);
+  return out;
+}
+
+// ─── Commands ───────────────────────────────────────────────
+
+async function launch(args) {
+  const { opts } = parseOpts(args);
+  const port = parseInt(opts.port) || DEFAULT_PORT;
+
+  const prev = readState();
+  if (prev) {
+    try {
+      process.kill(prev.pid, 0);
+      console.log(`Already running (pid: ${prev.pid}, port: ${prev.port})`);
+      return;
+    } catch {
+      clearState();
+    }
+  }
+
+  const electronBin = getElectronPath();
+  getChromium();
+
+  const mainEntry = path.join(PROJECT, 'out', 'main', 'index.js');
+  if (!fs.existsSync(mainEntry)) {
+    console.log('Building (out/main/index.js not found)...');
+    execSync('npx electron-vite build', { cwd: PROJECT, stdio: 'inherit' });
+    if (!fs.existsSync(mainEntry)) die('Build failed — out/main/index.js not created');
+  }
+
+  console.log(`Launching on CDP port ${port}...`);
+  const child = spawn(electronBin, [`--remote-debugging-port=${port}`, mainEntry], {
+    cwd: PROJECT,
+    stdio: 'ignore',
+    detached: true,
+    env: { ...process.env, NODE_ENV: 'test' },
+  });
+  child.unref();
+
+  await waitForCDP(port);
+
+  const chromium = getChromium();
+  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+  try {
+    let page;
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      const pages = browser.contexts().flatMap((c) => c.pages());
+      page = pages.find((p) => !p.url().includes('intel.html')) || pages[0];
+      if (page) break;
+      await sleep(500);
+    }
+    if (!page) die('No renderer page appeared within 30s');
+    await page.waitForLoadState('domcontentloaded');
+  } finally {
+    await browser.close();
+  }
+
+  writeState({ pid: child.pid, port });
+  console.log(`Ready (pid: ${child.pid}, port: ${port})`);
+}
+
+async function snapshot() {
+  const { browser, page } = await connect();
+  try {
+    const tree = await page.accessibility.snapshot();
+    console.log(formatTree(tree));
+  } finally {
+    await browser.close();
+  }
+}
+
+async function screenshot(args) {
+  const { pos } = parseOpts(args);
+  const out = pos[0] || path.join(PROJECT, '.e-cli-screenshot.png');
+  const { browser, page } = await connect();
+  try {
+    await page.screenshot({ path: out });
+    console.log(out);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function click(args) {
+  const sel = args.join(' ');
+  if (!sel) die('Usage: e-cli click <selector>');
+  const { browser, page } = await connect();
+  try {
+    await page.locator(sel).click();
+    console.log(`Clicked: ${sel}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function fill(args) {
+  if (args.length < 2) die('Usage: e-cli fill <selector> <value>');
+  const sel = args[0];
+  const val = args.slice(1).join(' ');
+  const { browser, page } = await connect();
+  try {
+    await page.locator(sel).fill(val);
+    console.log(`Filled: ${sel}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function press(args) {
+  if (!args[0]) die('Usage: e-cli press <key>');
+  const { browser, page } = await connect();
+  try {
+    await page.keyboard.press(args[0]);
+    console.log(`Pressed: ${args[0]}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function hover(args) {
+  const sel = args.join(' ');
+  if (!sel) die('Usage: e-cli hover <selector>');
+  const { browser, page } = await connect();
+  try {
+    await page.locator(sel).hover();
+    console.log(`Hovered: ${sel}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function text(args) {
+  const sel = args.join(' ');
+  if (!sel) die('Usage: e-cli text <selector>');
+  const { browser, page } = await connect();
+  try {
+    const t = await page.locator(sel).textContent();
+    console.log(t);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function evalJs(args) {
+  const js = args.join(' ');
+  if (!js) die('Usage: e-cli eval <js-expression>');
+  const { browser, page } = await connect();
+  try {
+    const result = await page.evaluate(js);
+    console.log(JSON.stringify(result, null, 2));
+  } finally {
+    await browser.close();
+  }
+}
+
+async function wait(args) {
+  if (!args[0]) die('Usage: e-cli wait <selector> [timeout_ms]');
+  const timeout = parseInt(args[1]) || 10_000;
+  const { browser, page } = await connect();
+  try {
+    await page.locator(args[0]).waitFor({ state: 'visible', timeout });
+    console.log(`Visible: ${args[0]}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function close() {
+  const state = readState();
+  if (!state) {
+    console.log('Not running.');
+    return;
+  }
+  try {
+    process.kill(state.pid, 'SIGTERM');
+  } catch {}
+  clearState();
+  console.log('Closed.');
+}
+
+async function status() {
+  const state = readState();
+  if (!state) {
+    console.log('Not running.');
+    process.exit(1);
+  }
+  try {
+    process.kill(state.pid, 0);
+    console.log(`Running (pid: ${state.pid}, port: ${state.port})`);
+  } catch {
+    clearState();
+    console.log('Not running (stale state cleaned).');
+    process.exit(1);
+  }
+}
+
+// ─── Entry ──────────────────────────────────────────────────
+
+const CMDS = {
+  launch,
+  snapshot,
+  screenshot,
+  click,
+  fill,
+  press,
+  hover,
+  text,
+  eval: evalJs,
+  wait,
+  close,
+  status,
+};
+
+async function main() {
+  const [cmd, ...rest] = process.argv.slice(2);
+  if (!cmd || cmd === 'help' || cmd === '-h' || cmd === '--help') {
+    console.log(`e-cli — Electron Playwright automation
+
+Commands:
+  launch [--port=9222]     Launch Electron with CDP
+  snapshot                 Dump accessibility tree
+  screenshot [path]        Save PNG screenshot
+  click <selector>         Click element
+  fill <selector> <value>  Fill input field
+  press <key>              Keyboard press (Enter, Tab, Meta+n)
+  hover <selector>         Hover over element
+  text <selector>          Print element textContent
+  eval <js>                Evaluate JS in renderer
+  wait <sel> [timeout]     Wait for element visible
+  close                    Close running app
+  status                   Check if app is running
+
+Selectors: text=X, role=button[name=X], [data-testid=X], CSS`);
+    return;
+  }
+  const fn = CMDS[cmd];
+  if (!fn) die(`Unknown command: ${cmd}. Run: e-cli help`);
+  await fn(rest);
+}
+
+main().catch((e) => {
+  console.error(`error: ${e.message}`);
+  process.exit(1);
+});

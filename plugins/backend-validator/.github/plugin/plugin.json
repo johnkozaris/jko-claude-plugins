@@ -1,0 +1,23 @@
+{
+  "name": "backend-validator",
+  "description": "Backend API and WebSocket validation via Hurl, websocat, and oauth2c with OIDC token caching",
+  "version": "1.0.0",
+  "license": "MIT",
+  "author": { "name": "John Kozaris" },
+  "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
+  "repository": "https://github.com/johnkozaris/jko-claude-plugins",
+  "keywords": [
+    "validation",
+    "e2e",
+    "hurl",
+    "websocat",
+    "oauth2c",
+    "oidc",
+    "authentik",
+    "api-testing",
+    "websocket",
+    "backend"
+  ],
+  "skills": "./skills",
+  "commands": "./commands"
+}
