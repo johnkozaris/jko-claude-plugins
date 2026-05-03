@@ -2,22 +2,24 @@
 
 ## Property Wrapper Decision Guide
 
-| Need | Use |
-|---|---|
-| View-internal state (value types) | `@State private var` |
-| View-owned observable object | `@State private var model = MyModel()` (where MyModel is `@Observable`) |
-| Binding from parent to child | `@Binding var` (only if child MUTATES; use `let` for read-only) |
-| Create bindings to @Observable properties | `@Bindable var model` |
-| Read shared state from environment | `@Environment(MyModel.self) var model` |
-| User defaults persistence | `@AppStorage("key")` (NEVER inside `@Observable` classes) |
-| Scene-specific persistence | `@SceneStorage("key")` |
-| SwiftData queries | `@Query var items: [Item]` (only in views) |
-| Focus management | `@FocusState var field: Field?` (use Hashable enum for multi-field) |
+| Need                                      | Use                                                                     |
+| ----------------------------------------- | ----------------------------------------------------------------------- |
+| View-internal state (value types)         | `@State private var`                                                    |
+| View-owned observable object              | `@State private var model = MyModel()` (where MyModel is `@Observable`) |
+| Binding from parent to child              | `@Binding var` (only if child MUTATES; use `let` for read-only)         |
+| Create bindings to @Observable properties | `@Bindable var model`                                                   |
+| Read shared state from environment        | `@Environment(MyModel.self) var model`                                  |
+| User defaults persistence                 | `@AppStorage("key")` (NEVER inside `@Observable` classes)               |
+| Scene-specific persistence                | `@SceneStorage("key")`                                                  |
+| SwiftData queries                         | `@Query var items: [Item]` (only in views)                              |
+| Focus management                          | `@FocusState var field: Field?` (use Hashable enum for multi-field)     |
 
 ## @Observable Rules
 
+In **new Swift 6.2+ projects** with default MainActor isolation enabled (the recommended setting), no `@MainActor` annotation is needed — the class is already main-isolated. In **older projects** (or when default isolation is disabled), explicitly annotate:
+
 ```swift
-@MainActor   // Required unless project uses default MainActor isolation
+@MainActor   // Only required if project does NOT use default MainActor isolation
 @Observable
 final class MyModel {
     var name = ""           // Tracked — triggers view updates
@@ -31,6 +33,7 @@ final class MyModel {
 ```
 
 ### Ownership pattern:
+
 ```swift
 struct ParentView: View {
     @State private var model = MyModel()  // Owns the model
@@ -50,6 +53,7 @@ struct ChildView: View {
 ```
 
 ### Environment injection:
+
 ```swift
 // In parent
 ContentView()
@@ -124,6 +128,30 @@ ForEach(items) { item in ... }
 ForEach(items, id: \.name) { item in ... }
 ```
 
+## Observations Async Sequence (Swift 6.2+)
+
+When you need to react to `@Observable` changes outside of SwiftUI's body tracking — e.g. inside a `Task`, a service, or a non-View type — use the `Observations` async sequence instead of hand-rolling `withObservationTracking`:
+
+```swift
+@Observable
+@MainActor
+final class Counter {
+    var value = 0
+}
+
+let counter = Counter()
+
+Task {
+    for await snapshot in Observations({ counter.value }) {
+        print("Counter is now \(snapshot)")
+    }
+}
+```
+
+- Each iteration delivers a transactional snapshot — all synchronous mutations between `await` points are coalesced into one update.
+- Avoids redundant work and ensures observers see a consistent state.
+- Prefer this over manually wiring `AsyncStream` + `withObservationTracking` recursion.
+
 ## SwiftData
 
 - `@Query` only works inside SwiftUI views — not in `@Observable` classes.
@@ -131,6 +159,7 @@ ForEach(items, id: \.name) { item in ... }
 - `@Model` classes get `Identifiable` for free.
 
 ### SwiftData + CloudKit rules:
+
 - Never use `@Attribute(.unique)` — incompatible with CloudKit.
 - All properties must have default values or be optional.
 - All relationships must be optional.

@@ -8,9 +8,10 @@
 
 ## @MainActor
 
-- All `@Observable` classes must be `@MainActor` unless the project uses default MainActor isolation (Swift 6.2 `SE-466`).
+- In **new Swift 6.2+ projects**, the recommended setup is **default MainActor isolation enabled** (SE-466). Most code is then implicitly main-isolated — no `@MainActor` annotations needed on `@Observable` classes, view models, or app types. Reach for `@concurrent` when you actually want background work.
+- In **older projects** (default isolation disabled), all `@Observable` classes used by SwiftUI views should be `@MainActor`.
 - Use `@MainActor` over `DispatchQueue.main.async` — cleaner, compiler-verified.
-- In new projects with default MainActor isolation, you don't need explicit `@MainActor` annotations on most code.
+- Before adding `MainActor.run { }` to existing code, check the project's default isolation setting; it may already be on the main actor.
 
 ```swift
 @MainActor
@@ -151,20 +152,69 @@ func fetchUser() async throws -> User {
 - Use checked continuations (safer, detect misuse) over unsafe ones.
 - A continuation must be resumed exactly once.
 
-## Swift 6.2 Changes
+## Swift 6.2 Changes ("Approachable Concurrency")
 
-- `@concurrent` attribute for explicitly opting into concurrent execution.
-- `nonisolated(nonsending)` (SE-461) — runs on caller's actor by default.
-- Default actor isolation (SE-466) — can set project-wide default to `@MainActor`.
-- When default MainActor isolation is on, most `@MainActor` annotations become unnecessary.
+Swift 6.2 (Sep 2025) reframes concurrency around three opt-ins. For new SwiftUI apps, enable **all three** in the package manifest / build settings:
+
+- **Default actor isolation = MainActor** (SE-466) — most code lands on the main actor automatically. No more `@MainActor` annotation noise on `@Observable` classes.
+- **`nonisolated(nonsending)` by default** (SE-461) — `nonisolated async` functions now run on the caller's actor instead of jumping to the global executor. Eliminates a whole class of "why did my UI hop off main?" bugs.
+- **`@concurrent` attribute** — explicit opt-in for code that _should_ run on the cooperative pool. Use this for image decoding, JSON parsing on large payloads, etc.
+
+```swift
+// In a default-MainActor project:
+@Observable
+final class ImageStore {           // Implicitly @MainActor
+    var cached: [URL: Image] = [:]
+
+    func load(_ url: URL) async throws -> Image {
+        if let img = cached[url] { return img }
+        let data = try await fetch(url)         // Stays on main; cheap network
+        let img = try await decode(data)        // Hops to background pool
+        cached[url] = img
+        return img
+    }
+
+    @concurrent
+    nonisolated func decode(_ data: Data) async throws -> Image { ... }
+}
+```
+
+## Swift 6.3 Changes (Mar 2026)
+
+- Improved `async` debugging in LLDB (named tasks, task-context backtraces).
+- Embedded Swift parity continues to expand; not directly SwiftUI-relevant.
+- Watch for new Swift Evolution proposals tightening `Sendable` inference for closures.
+
+## Typed NotificationCenter (Swift 6.2+)
+
+Replace stringly-typed notification observers with concrete struct types. Eliminates `userInfo` casting and concurrency errors.
+
+```swift
+struct CartUpdated: NotificationCenter.MainActorMessage {
+    static let name = Notification.Name("CartUpdated")
+    let itemCount: Int
+}
+
+// Post
+NotificationCenter.default.post(CartUpdated(itemCount: 3))
+
+// Observe (in a view's .task or in an @Observable class)
+for await message in NotificationCenter.default.messages(of: CartUpdated.self) {
+    cartBadge = message.itemCount
+}
+```
+
+- Use `MainActorMessage` for UI-related notifications (delivered on main).
+- Use `AsyncMessage` when delivery actor doesn't matter.
+- Prefer this over the legacy `addObserver` + `userInfo` pattern in all new code.
 
 ## Common Anti-Patterns
 
-| Anti-Pattern | Fix |
-|---|---|
-| `DispatchQueue.main.async { }` | `@MainActor` or `MainActor.run { }` |
-| `Task.sleep(nanoseconds:)` | `Task.sleep(for:)` |
-| `Task.detached { }` everywhere | Regular `Task { }` (inherits context) |
-| Silently swallowed errors | Show alert or log meaningfully |
-| Mutable shared state without actor | Use `actor` or `@MainActor` |
+| Anti-Pattern                                | Fix                                     |
+| ------------------------------------------- | --------------------------------------- |
+| `DispatchQueue.main.async { }`              | `@MainActor` or `MainActor.run { }`     |
+| `Task.sleep(nanoseconds:)`                  | `Task.sleep(for:)`                      |
+| `Task.detached { }` everywhere              | Regular `Task { }` (inherits context)   |
+| Silently swallowed errors                   | Show alert or log meaningfully          |
+| Mutable shared state without actor          | Use `actor` or `@MainActor`             |
 | `MainActor.run()` when already on MainActor | Check project's default isolation first |

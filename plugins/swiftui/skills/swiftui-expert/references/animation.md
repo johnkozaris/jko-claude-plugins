@@ -19,7 +19,7 @@ Button("Toggle") {
 }
 ```
 
-Always provide `value:` with `.animation()`. The variant without `value:` is deprecated and animates too broadly.
+Always provide `value:` with `.animation()`. Never use the `animation(_ animation: Animation?)` variant without a value — it animates too broadly and is strongly discouraged.
 
 Implicit animations override explicit ones (later in view tree wins).
 
@@ -27,12 +27,12 @@ Implicit animations override explicit ones (later in view tree wins).
 
 Springs feel natural. Use them as defaults:
 
-| Style | Use Case |
-|---|---|
-| `.smooth` | Subtle, professional transitions |
-| `.bouncy` | Playful, attention-grabbing |
-| `.snappy` | Quick, responsive |
-| `.spring(duration:bounce:)` | Custom control |
+| Style                       | Use Case                         |
+| --------------------------- | -------------------------------- |
+| `.smooth`                   | Subtle, professional transitions |
+| `.bouncy`                   | Playful, attention-grabbing      |
+| `.snappy`                   | Quick, responsive                |
+| `.spring(duration:bounce:)` | Custom control                   |
 
 Springs never end abruptly — they asymptotically approach the target. Non-bouncy springs are used throughout iOS (app launches, sheet presentations, navigation).
 
@@ -177,6 +177,50 @@ Image(systemName: "wifi")
 Image(systemName: "heart")
     .symbolEffect(.bounce, value: likeCount)
 ```
+
+## Metal Shaders (iOS 17+)
+
+SwiftUI exposes three modifiers that pipe view content through a Metal fragment shader. Shaders live in a `.metal` file and are referenced through `ShaderLibrary`.
+
+| Modifier                                          | Use Case                                                                       |
+| ------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `.colorEffect(_:isEnabled:)`                      | Per-pixel color transformation. Cheap.                                         |
+| `.distortionEffect(_:maxSampleOffset:isEnabled:)` | Warps geometry by sampling neighboring pixels. Must declare `maxSampleOffset`. |
+| `.layerEffect(_:maxSampleOffset:isEnabled:)`      | Full sampler access — most powerful, most expensive.                           |
+
+### Driving a shader with time
+
+Pair with `TimelineView(.animation)` to feed a continuously updating `time` parameter:
+
+```swift
+TimelineView(.animation) { context in
+    Image(.banner)
+        .colorEffect(
+            ShaderLibrary.rainbow(.float(context.date.timeIntervalSinceReferenceDate))
+        )
+}
+```
+
+### Argument passing
+
+`ShaderLibrary` uses dynamic member lookup. Pass arguments using `Shader.Argument`:
+
+- `.float(...)`, `.float2(...)`, `.float3(...)`, `.float4(...)` for scalars/vectors
+- `.color(...)` for colors
+- `.image(Image(...))` for sampling another image
+- `.boundingRect` for the view's bounds (auto-supplied)
+
+### Performance rules
+
+- Shaders run on the GPU — cheap to scale, but every frame re-evaluates `body` if you bind to time.
+- Wrap the `TimelineView` tightly around the affected view, not whole screens.
+- `.layerEffect` is expensive; prefer `.colorEffect` when per-pixel color is enough.
+- Always provide a real `maxSampleOffset` for `.distortionEffect` / `.layerEffect` — over-estimating wastes texture bandwidth, under-estimating causes sampling artifacts.
+- Combine with `.drawingGroup()` only when SwiftUI's compositor is the bottleneck — shader effects already rasterize.
+
+### Liquid Glass interplay
+
+Shader effects sit _underneath_ `.glassEffect()`. To produce custom glass-like materials on iOS 25 and earlier, a `.layerEffect` with a refraction shader is the canonical fallback (see r/SwiftUI shader showcases).
 
 ## Performance
 
