@@ -21,6 +21,25 @@ For token-based backends:
 
 If auth is complicated enough to need many exceptions, the boundary is probably muddy.
 
+## Cookie Auth on API Endpoints (.NET 10 behavior change)
+
+In .NET 10, cookie authentication on endpoints carrying `IApiEndpointMetadata` returns **401/403 instead of redirecting** to a login or access-denied URL. The metadata is auto-applied to:
+
+- `[ApiController]` endpoints
+- Minimal API endpoints that read or write JSON
+- endpoints using `TypedResults` return types
+- SignalR endpoints
+
+This is the long-requested fix for "my JSON API redirects to /Login when the cookie expires." Review code that overrode `OnRedirectToLogin` / `OnRedirectToAccessDenied` as a workaround — those overrides are likely no longer needed.
+
+## WebAuthn / Passkeys
+
+ASP.NET Core Identity now ships first-class WebAuthn (FIDO2 / passkeys) support. For backends that own user credentials directly:
+
+- treat passkeys as the modern default; do not build new password-only flows
+- the Blazor Web App template includes passkey management; the same APIs are usable from any ASP.NET Core Identity backend
+- passkeys are phishing-resistant; password resets and shared-secret recovery flows should be reconsidered when passkeys are present
+
 ## CORS
 
 CORS is a backend concern when browser clients call the service.
@@ -54,10 +73,10 @@ Health checks should tell operators something useful, not just return 200 foreve
 
 ## Smells
 
-| Smell | Signal | Fix |
-|---|---|---|
-| Auth leakage | services or handlers parse tokens manually | keep auth at the boundary |
-| Permissive CORS by default | `AllowAnyOrigin` on a public backend without justification | restrict origins and methods |
-| No abuse posture | public endpoints have no rate limits or throttling story | add explicit rate limiting |
-| Fake health checks | readiness always returns healthy regardless of dependencies | check real critical dependencies |
-| Ungraceful shutdown | workers or connections drop without ownership or drain semantics | wire graceful stop behavior deliberately |
+| Smell                      | Signal                                                           | Fix                                      |
+| -------------------------- | ---------------------------------------------------------------- | ---------------------------------------- |
+| Auth leakage               | services or handlers parse tokens manually                       | keep auth at the boundary                |
+| Permissive CORS by default | `AllowAnyOrigin` on a public backend without justification       | restrict origins and methods             |
+| No abuse posture           | public endpoints have no rate limits or throttling story         | add explicit rate limiting               |
+| Fake health checks         | readiness always returns healthy regardless of dependencies      | check real critical dependencies         |
+| Ungraceful shutdown        | workers or connections drop without ownership or drain semantics | wire graceful stop behavior deliberately |

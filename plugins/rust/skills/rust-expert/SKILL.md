@@ -15,26 +15,29 @@ Before fixing any issue, trace through the layers:
 
 When a compiler error appears, reframe it as a design question:
 
-| Error | Don't Just Say | Ask Instead |
-|---|---|---|
-| E0382 (value moved) | "Clone it" | Who should own this data? |
-| E0597 (doesn't live long enough) | "Add a lifetime" | Is the scope boundary correct? |
-| E0277 (trait not satisfied) | "Add the bound" | Is this the right abstraction? |
-| E0499 (two mutable borrows) | "Use RefCell" | Should this be two separate resources? |
-| "future is not Send" | "Wrap in Arc" | Does this state need to cross threads? |
+| Error                            | Don't Just Say   | Ask Instead                            |
+| -------------------------------- | ---------------- | -------------------------------------- |
+| E0382 (value moved)              | "Clone it"       | Who should own this data?              |
+| E0597 (doesn't live long enough) | "Add a lifetime" | Is the scope boundary correct?         |
+| E0277 (trait not satisfied)      | "Add the bound"  | Is this the right abstraction?         |
+| E0499 (two mutable borrows)      | "Use RefCell"    | Should this be two separate resources? |
+| "future is not Send"             | "Wrap in Arc"    | Does this state need to cross threads? |
 
 ## Ownership & Borrowing
-→ *Consult [ownership reference](references/ownership.md) for borrowing rules, Cow, smart pointers.*
+
+→ _Consult [ownership reference](references/ownership.md) for borrowing rules, Cow, smart pointers._
 
 **DO**: Default to borrowing (`&T`). Move to owned only when the callee must store the value.
 **DO**: Use `&str` and `&[T]` in function parameters — not `&String` or `&Vec<T>`.
 **DO**: Use `Cow<'_, str>` when a function conditionally allocates.
-**DON'T**: Clone to silence the borrow checker — restructure ownership instead.
+**DO**: Treat `Arc::clone(&handle)` of service handles, DB pools, and channels as idiomatic — that is what M-SERVICES-CLONE is for.
+**DON'T**: Clone owned heap data (`Vec`, `String`, large structs) to silence the borrow checker — restructure ownership instead.
 **DON'T**: Over-annotate lifetimes — elision covers 95% of cases.
 **DON'T**: Write `&'a mut self` on methods — borrows self for its entire lifetime.
 
 ## Error Handling
-→ *Consult [error-handling reference](references/error-handling.md) for thiserror/anyhow/snafu decision matrix.*
+
+→ _Consult [error-handling reference](references/error-handling.md) for thiserror/anyhow/snafu decision matrix._
 
 **DO**: Use `?` with `.context()` at every propagation point.
 **DO**: Use `thiserror` for libraries, `anyhow` for applications.
@@ -44,7 +47,8 @@ When a compiler error appears, reframe it as a design question:
 **DON'T**: Both log AND propagate an error — pick one.
 
 ## Type Design
-→ *Consult [type-patterns reference](references/type-patterns.md) for newtype, typestate, builder patterns.*
+
+→ _Consult [type-patterns reference](references/type-patterns.md) for newtype, typestate, builder patterns._
 
 **DO**: Parse, don't validate — convert raw inputs into types that carry their validity.
 **DO**: Replace boolean parameters with enums — `process(data, true, false)` is unreadable.
@@ -53,7 +57,8 @@ When a compiler error appears, reframe it as a design question:
 **DON'T**: Use catch-all `_` in match on owned enums — swallows new variants.
 
 ## Design Principles
-→ *Consult [design-principles reference](references/design-principles.md) for SOLID, Microsoft M-* rules, modern Rust table.*
+
+→ _Consult [design-principles reference](references/design-principles.md) for SOLID, Microsoft M-_ rules, modern Rust table.\*
 
 **DO**: Apply Single Responsibility — one struct per concept, one domain per module.
 **DO**: Depend on traits, not concrete types (Dependency Inversion).
@@ -62,14 +67,16 @@ When a compiler error appears, reframe it as a design question:
 **DON'T**: Expose `Arc`, `Rc`, `Box` in public API signatures — hide implementation details.
 
 ## Traits & API Surface
-→ *Consult [traits reference](references/traits.md) for generics vs dyn, standard traits, sealed patterns.*
+
+→ _Consult [traits reference](references/traits.md) for generics vs dyn, standard traits, sealed patterns._
 
 **DO**: Implement standard traits eagerly (`Debug`, `Clone`, `PartialEq`, `Hash`, `Default`).
 **DO**: Default to generics. Use `dyn Trait` only for genuine runtime polymorphism.
 **DON'T**: Violate Hash/Eq consistency — the most dangerous silent bug in Rust's stdlib.
 
 ## Async
-→ *Consult [async reference](references/async.md) for blocking taxonomy, cancellation safety, JoinSet.*
+
+→ _Consult [async reference](references/async.md) for blocking taxonomy, cancellation safety, JoinSet._
 
 **DO**: Keep business logic synchronous. Use async only at I/O boundaries.
 **DO**: Use `CancellationToken` for graceful shutdown — not `task.abort()`.
@@ -78,7 +85,8 @@ When a compiler error appears, reframe it as a design question:
 **DON'T**: Make every function async "just in case" — async infects signatures upward.
 
 ## Concurrency
-→ *Consult [concurrency reference](references/concurrency.md) for decision tree, actor pattern, channels.*
+
+→ _Consult [concurrency reference](references/concurrency.md) for decision tree, actor pattern, channels._
 
 **DO**: Ask first: "Do I actually need concurrency?" If no measured bottleneck, stay sequential.
 **DO**: Prefer channels and actors over shared mutable state.
@@ -87,7 +95,8 @@ When a compiler error appears, reframe it as a design question:
 **DON'T**: Use async for CPU-bound work — use Rayon or `spawn_blocking`.
 
 ## Unsafe
-→ *Consult [unsafe reference](references/unsafe.md) for SAFETY comments, Miri, UB patterns.*
+
+→ _Consult [unsafe reference](references/unsafe.md) for SAFETY comments, Miri, UB patterns._
 
 **DO**: Every `unsafe` block needs a `// SAFETY:` comment explaining the invariant.
 **DO**: Run `cargo +nightly miri test` on code with unsafe.
@@ -95,28 +104,48 @@ When a compiler error appears, reframe it as a design question:
 **DON'T**: Use unsafe when safe alternatives exist — all memory-safety CVEs in Rust trace to unsafe code.
 
 ## Performance
-→ *Consult [performance reference](references/performance.md) for build config, allocation patterns, benchmarking.*
+
+→ _Consult [performance reference](references/performance.md) for build config, allocation patterns, benchmarking._
 
 **DO**: Profile before optimizing — `cargo flamegraph`, DHAT, samply.
 **DO**: Use `overflow-checks = true` in release profiles (CVE-2018-1000810).
 **DO**: Use `strict_add` / `strict_sub` (1.91) instead of `checked_add().unwrap()`.
+**DO**: Use `core::hint::cold_path()` (1.95) inside rare branches when `#[cold]` on the whole function is too coarse.
 **DON'T**: Optimize without a measured bottleneck.
 
+## Security & Robustness
+
+→ _Consult [security reference](references/security.md) for OWASP-class issues that safe Rust does not catch._
+
+**DO**: Enable `overflow-checks = true` in release; use `strict_*` for must-not-overflow business arithmetic.
+**DO**: Open-then-check filesystem paths (avoid TOCTOU); use `O_NOFOLLOW | O_DIRECTORY`.
+**DO**: Use constant-time comparison (`subtle::ConstantTimeEq`) for passwords, MACs, tokens.
+**DO**: Cap input sizes at every boundary (HTTP body, decompression, deserialization).
+**DO**: Wrap secrets in a redacting newtype (or `secrecy` crate) — never derive `Debug` on a struct containing a password.
+**DO**: Validate at the deserialization boundary via `#[serde(try_from = "...")]`, and use `#[serde(deny_unknown_fields)]`.
+**DO**: Run `cargo audit` (and `cargo deny` / `cargo geiger` where useful) in CI.
+**DON'T**: Use `==` on secret bytes, `Path::join` user input without checking absolute paths, or `as` to narrow integers.
+
 ## Testing & Documentation
-→ *Consult [testing](references/testing.md) and [documentation](references/documentation.md) references for test frameworks, property testing, and API docs guidelines.*
+
+→ _Consult [testing](references/testing.md) and [documentation](references/documentation.md) references for test frameworks, property testing, and API docs guidelines._
 
 ## Modules, Macros & Serde
-→ *Consult [modules-cargo](references/modules-cargo.md), [macros](references/macros.md), and [serde](references/serde.md) references for workspace setup, macro decision flowchart, and serialization patterns.*
+
+→ _Consult [modules-cargo](references/modules-cargo.md), [macros](references/macros.md), and [serde](references/serde.md) references for workspace setup, macro decision flowchart, and serialization patterns._
 
 ## Anti-Patterns
-→ *Consult [anti-patterns reference](references/anti-patterns.md) for the full severity-labeled catalog.*
+
+→ _Consult [anti-patterns reference](references/anti-patterns.md) for the full severity-labeled catalog._
 
 ## The Rust AI Slop Test
-→ *Consult [ai-slop reference](references/ai-slop.md) for the complete fingerprint catalog.*
+
+→ _Consult [ai-slop reference](references/ai-slop.md) for the complete fingerprint catalog._
 
 **Critical quality check**: If a senior Rust engineer reviewed this code, would they immediately suspect AI generated it? If yes, that's the problem.
 
 The most common AI tells in Rust:
+
 - `.clone()` everywhere to silence the borrow checker
 - `Arc<Mutex<T>>` as default concurrency for everything
 - `.unwrap()` on every `Result` and `Option`
@@ -150,6 +179,7 @@ Label every finding:
 ## Output Format
 
 Group findings by file. For each finding:
+
 1. File path and line number
 2. Severity label
 3. Rule name

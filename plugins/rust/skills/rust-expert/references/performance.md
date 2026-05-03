@@ -15,6 +15,7 @@
 ## Build Configuration
 
 ### Maximum Runtime Speed
+
 ```toml
 [profile.release]
 opt-level = 3
@@ -25,6 +26,7 @@ overflow-checks = true # prevent silent wrapping (CVE-2018-1000810)
 ```
 
 ### Minimum Binary Size
+
 ```toml
 [profile.release]
 opt-level = "z"
@@ -39,6 +41,7 @@ Try `lto = "thin"` first — often comparable to fat with faster compile.
 ## Heap Allocation Patterns
 
 ### Pre-allocate Collections
+
 ```rust
 // BAD: triggers log2(n) reallocations
 let mut v = Vec::new();
@@ -52,6 +55,7 @@ for item in items { v.push(item); }
 Same for `String::with_capacity()`.
 
 ### Reuse Allocations in Loops
+
 ```rust
 // BAD: new Vec each iteration
 for row in rows {
@@ -68,6 +72,7 @@ for row in rows {
 ```
 
 ### clone_from Reuses Allocation
+
 ```rust
 a.clone_from(&b);  // reuses a's buffer if possible
 // better than: a = b.clone();  // drops old allocation, creates new
@@ -75,18 +80,19 @@ a.clone_from(&b);  // reuses a's buffer if possible
 
 ## Stack Allocation Options
 
-| Type | Storage | Heap fallback | Use case |
-|---|---|---|---|
-| `[T; N]` | Stack | None | Fixed size known at compile time |
-| `Vec<T>` | Heap | Always | General-purpose dynamic |
-| `SmallVec<[T; N]>` | Stack → Heap | Yes | Usually small, occasionally large |
-| `ArrayVec<T, N>` | Stack | None | Bounded max size |
+| Type               | Storage      | Heap fallback | Use case                          |
+| ------------------ | ------------ | ------------- | --------------------------------- |
+| `[T; N]`           | Stack        | None          | Fixed size known at compile time  |
+| `Vec<T>`           | Heap         | Always        | General-purpose dynamic           |
+| `SmallVec<[T; N]>` | Stack → Heap | Yes           | Usually small, occasionally large |
+| `ArrayVec<T, N>`   | Stack        | None          | Bounded max size                  |
 
 **Caveat:** SmallVec is not always faster than Vec — the extra branch on every access can hurt. Always benchmark.
 
 ## Iterators vs Loops
 
 Iterators are zero-cost abstractions — the compiler generates the same machine code as hand-written loops. Often marginally faster because:
+
 - Bounds check elimination for sequential access
 - Better LLVM vectorizer confidence
 - Values kept in registers across chains
@@ -94,6 +100,7 @@ Iterators are zero-cost abstractions — the compiler generates the same machine
 Prefer explicit loops when: body is large/multifunctional, complex early-exit logic, or forced conversion hurts readability.
 
 ### High-Value Patterns
+
 ```rust
 // Lazy chains — no intermediate Vec
 let result: Vec<_> = data.iter()
@@ -118,6 +125,7 @@ if let Some(tok) = iter.next_if(|t| t.is_number()) { ... }
 ```
 
 ### Avoid Collect-Then-Iterate
+
 ```rust
 // BAD: allocates a Vec just to iterate again
 let items: Vec<_> = source.iter().filter(|x| x.valid).collect();
@@ -155,3 +163,30 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 ```
 
 Can give significant gains for allocation-heavy workloads. Always benchmark.
+
+## Branch Hints
+
+- **`core::hint::cold_path()`** (1.95) — mark the current path as unlikely. Use inside an error or rare branch when `#[cold]` on a whole function is too coarse:
+  ```rust
+  if unlikely_condition {
+      core::hint::cold_path();
+      log_and_recover();
+  }
+  ```
+- **`#[cold]`** on whole functions is still appropriate for error reporters, panic helpers, and slow-path implementations.
+- **`std::hint::black_box`** is for benchmarks only — do not use it as a "don't optimize" hint in production code.
+
+## `format_args!` Got Faster (1.93)
+
+The internal `fmt::Arguments` representation was rewritten by Mara Bos (PR #148789). All format-based APIs (`println!`, `format!`, `panic!`, `write!`, `log::*`, `tracing::*`, etc.) benefit:
+
+- Hello world: ~3% faster compile, smaller `.text`, no stack data for the args struct.
+- Ripgrep / Cargo: 1.5–2% faster compile, ~2% smaller binaries.
+- Format-heavy workspaces: up to 38% faster compile, 22% smaller binary on the worst case.
+
+No source change required — just bump MSRV to 1.93+. Continue to prefer **inline argument captures** over positional args for readability and to give the macro the most room to optimize:
+
+```rust
+format!("{name}: {value}")           // preferred
+format!("{}: {}", name, value)       // legacy, still works
+```

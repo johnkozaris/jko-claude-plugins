@@ -26,11 +26,13 @@ Execute these in order. For each finding, make the fix directly — don't just r
 ### Step 1: Eliminate Panic Sources
 
 Run in the shell:
+
 ```bash
 rg --type rust '\.(unwrap|expect)\(' src/ --glob '!*test*' -n
 ```
 
 For each match:
+
 - If the unwrap is on a `Result`: replace with `?` and add `.context("description")` if anyhow is available
 - If the unwrap is on an `Option`: replace with `.ok_or_else(|| Error::...)` then `?`
 - If it's genuinely an invariant (e.g., after a length check): change to `.expect("reason: invariant X holds because Y")` with a clear explanation
@@ -38,11 +40,13 @@ For each match:
 ### Step 2: Document Unsafe Blocks
 
 Run in the shell:
+
 ```bash
 rg --type rust -B1 'unsafe \{' src/ -n | head -50
 ```
 
 For each `unsafe` block without a preceding `// SAFETY:` comment, add one explaining:
+
 - What invariant is being upheld
 - Why it is safe in this context
 - Under what conditions it would become unsound
@@ -61,6 +65,7 @@ overflow-checks = true
 ### Step 4: Replace Indexing with Safe Access
 
 Run in the shell:
+
 ```bash
 rg --type rust '\[\w+\]' src/ --glob '!*test*' -n | head -30
 ```
@@ -74,17 +79,32 @@ Scan public functions that accept external input (CLI args, network data, file c
 ### Step 6: Remove Debug Artifacts
 
 Run in the shell:
+
 ```bash
 rg --type rust '(println!|dbg!|eprintln!|#\[allow\(unused)' src/ -n
 ```
 
 Replace `println!` with `tracing::info!` or `log::info!`. Remove `dbg!()`. Remove `#[allow(unused)]` — either use the item or delete it. Replace `#[allow(lint)]` with `#[expect(lint)]`.
 
+### Step 7: Security Hardening Pass
+
+Consult the [security reference](../skills/rust-expert/references/security.md) and apply applicable items:
+
+- **TOCTOU**: any `path.is_dir()` / `is_file()` followed by an fs op on the same path → switch to open-with-`O_NOFOLLOW`-then-operate-on-handle.
+- **Constant-time comparison**: scan for `==` on `&[u8]`, `Vec<u8>`, `String` containing passwords/tokens/MACs/signatures → switch to `subtle::ConstantTimeEq`.
+- **Bounded input**: HTTP body / decompression / `serde` entry points must have explicit size caps.
+- **Secret leakage**: any `#[derive(Debug)]` on a struct with `password`, `token`, `secret`, `api_key`, `private_key` field → wrap field in a redacting newtype or `secrecy::SecretString`.
+- **Numeric narrowing**: `as iN` / `as uN` where the source is wider → switch to `TryFrom` with error propagation.
+- **`Path::join` with absolute argument**: if input is user-controlled, validate `!arg.is_absolute()` first.
+- **Dependency audit**: run `cargo audit` and resolve any `RUSTSEC-*` advisories before merge.
+
 ## Output
 
 Report what was hardened with a count:
+
 - X unwrap/expect calls replaced
 - X unsafe blocks documented
 - X overflow-checks added
 - X indexing operations reviewed
 - X debug artifacts removed
+- X security findings fixed (TOCTOU / timing / bounds / secret-leak / narrowing / path-traversal / advisory)

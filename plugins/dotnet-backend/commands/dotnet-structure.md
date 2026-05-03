@@ -13,7 +13,7 @@ Analyze the `.NET` backend structure. If `$ARGUMENTS` is provided, analyze that 
 
 1. **Map the solution**:
    - list `*.sln` and `*.csproj`
-   - classify projects as API/host, AppHost, contracts, application, domain, infrastructure, workers, tests
+   - classify projects as API/host, contracts, application, domain, infrastructure, workers, tests
    - detect whether the codebase is layered, vertical slice, modular monolith, or tangled
 2. **File size audit**:
    - flag `.cs` files over 300 lines as split candidates
@@ -22,7 +22,7 @@ Analyze the `.NET` backend structure. If `$ARGUMENTS` is provided, analyze that 
 3. **Project boundary audit**:
    - domain should not depend on infrastructure or host projects
    - contracts should stay transport-safe
-   - AppHost should orchestrate, not contain business rules
+   - any local-orchestration or composition-root project (e.g., Docker Compose wiring) must orchestrate, not contain business rules
 4. **Folder organization audit**:
    - check for one major type per file
    - check for feature grouping versus giant technical buckets

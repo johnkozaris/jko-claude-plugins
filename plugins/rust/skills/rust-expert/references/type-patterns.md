@@ -19,12 +19,14 @@ fn get_user(id: UserId) -> User { ... }
 ```
 
 **Best practices:**
+
 - Keep inner field private by default
 - Implement standard traits (`Debug`, `Display`, `From`, `Deref` where appropriate)
 - Use `derive_more` to reduce boilerplate
 - **Caveat:** Serde's `#[serde(transparent)]` bypasses validation during deserialization
 
 ### Validated Newtypes
+
 ```rust
 pub struct Email(String);
 
@@ -168,13 +170,13 @@ match users.as_slice() {
 
 ## Enums vs Trait Objects
 
-| | Enum | `dyn Trait` |
-|---|---|---|
-| Variants known at compile time | Yes | No |
-| Heap allocation | No | Yes (Box) |
-| External extensibility | No | Yes |
-| Performance | Faster (inlinable) | Slower (vtable, no inlining) |
-| `match` exhaustiveness | Yes | No |
+|                                | Enum               | `dyn Trait`                  |
+| ------------------------------ | ------------------ | ---------------------------- |
+| Variants known at compile time | Yes                | No                           |
+| Heap allocation                | No                 | Yes (Box)                    |
+| External extensibility         | No                 | Yes                          |
+| Performance                    | Faster (inlinable) | Slower (vtable, no inlining) |
+| `match` exhaustiveness         | Yes                | No                           |
 
 Use enums for closed sets (parsers, AST nodes, error types). Use `dyn Trait` for open sets (plugins, middleware).
 
@@ -198,6 +200,61 @@ pub enum Error {
 ```
 
 Downstream code must include a wildcard arm in match, allowing you to add variants without breaking semver.
+
+## Destructure in Trait Impls — Compiler-Enforced Field Awareness
+
+When implementing `PartialEq`, `Hash`, `Debug`, `Clone`, etc. by hand, **destructure the struct** so adding a field becomes a compile error rather than a silent semantic change.
+
+```rust
+struct PizzaOrder {
+    size: PizzaSize,
+    toppings: Vec<Topping>,
+    crust_type: CrustType,
+    ordered_at: SystemTime,
+}
+
+// BAD: silently ignores any new field added later
+impl PartialEq for PizzaOrder {
+    fn eq(&self, o: &Self) -> bool {
+        self.size == o.size && self.toppings == o.toppings && self.crust_type == o.crust_type
+    }
+}
+
+// GOOD: compile error when a new field is added — must decide what to do
+impl PartialEq for PizzaOrder {
+    fn eq(&self, o: &Self) -> bool {
+        let Self { size, toppings, crust_type, ordered_at: _ } = self;
+        let Self { size: s2, toppings: t2, crust_type: c2, ordered_at: _ } = o;
+        size == s2 && toppings == t2 && crust_type == c2
+    }
+}
+```
+
+This pattern is the most reliable defense against "added a field, forgot to update the equality / hash / debug impl, shipped a subtle bug." Apply it to every hand-written impl that touches multiple fields.
+
+## Temporary Mutability via Shadowing
+
+When a value needs to be mutable only during construction, shadow it with an immutable binding immediately after:
+
+```rust
+let mut data = load_rows();
+data.sort_by_key(|r| r.id);
+let data = data;            // now immutable for the rest of the function
+```
+
+For multi-step initialization, scope the mutability inside a block expression:
+
+```rust
+let config = {
+    let mut c = Config::from_env()?;
+    c.merge(Config::from_file(path)?);
+    c.normalize();
+    c           // returned as the block's value
+};
+// `config` is immutable; intermediate `c` is out of scope
+```
+
+Benefits: no accidental later mutation, intermediate variables don't leak into the outer scope, intent ("mutable only during init") is encoded in the structure.
 
 ## Error → Design Question Reframing
 

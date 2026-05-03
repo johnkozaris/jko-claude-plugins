@@ -1,45 +1,73 @@
-# SignalR
+# Real-Time Transports: SignalR, Raw WebSockets, and Server-Sent Events
 
-## Use SignalR for the Right Problems
+This reference covers all three real-time transports a Kestrel-hosted .NET backend can host. SignalR is the most opinionated, but it is **not** the default for every push scenario. Choose intentionally.
 
-SignalR fits:
+## Pick the Transport First
 
-- notifications
-- dashboards
-- collaboration
-- presence updates
-- low-latency server push to connected clients
+| Use case                                                                                                 | Best transport               | Why                                                                                                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One-way server → client streaming (notifications, AI/LLM token streams, log tails, dashboards, progress) | **Server-Sent Events (SSE)** | Plain HTTP, proxy/CDN-friendly, auto-reconnect in browsers, no client SDK, trivial to consume from `EventSource`, `fetch`, or any HTTP client. In .NET 10 use `TypedResults.ServerSentEvents` with an `IAsyncEnumerable<SseItem<T>>`. |
+| Bidirectional hub semantics, groups, presence, transport fallback, official multi-language clients       | **SignalR**                  | Hub method invocation, group/user targeting, reconnect-with-state, JSON or MessagePack protocol, supported clients in JavaScript, .NET, Java, Swift.                                                                                  |
+| Custom wire protocol, non-SignalR peers, full framing/backpressure control, binary protocols             | **Raw WebSockets**           | Direct `HttpContext.WebSockets.AcceptWebSocketAsync()`. You own framing, heartbeats, and reconnect. Right call when the peer is not a SignalR client.                                                                                 |
 
-It is not your general-purpose event bus, database, or cross-service source of truth.
+## SignalR Is Not the Default
 
-## What SignalR Officially Connects To
+A disproportionate amount of real-time .NET code reaches for SignalR by reflex. Most often that is wrong, because:
 
-SignalR is not generic WebSockets. Officially supported clients:
+- the use case is one-way (server pushes to client) — SSE is simpler and proxy-friendly
+- the peer is not a SignalR client — raw WebSockets are the honest choice
+- the team does not need groups, hub methods, or transport fallback — SignalR's machinery is pure cost
 
-- JavaScript
-- .NET
-- Java
-- Swift
+Reach for SignalR when you genuinely need hubs, groups, presence, and the supported client ecosystem. Otherwise prefer SSE for one-way streams or raw WebSockets for custom protocols.
 
-If the peer is not a SignalR client, assume it does **not** speak SignalR until proven otherwise.
+## Server-Sent Events on Kestrel (.NET 10)
 
-## Transports and Protocols
+.NET 10 added first-class SSE support via `TypedResults.ServerSentEvents`, available in both Minimal APIs and controllers.
 
-SignalR can use:
+When SSE fits:
 
-- WebSockets (preferred)
-- Server-Sent Events
-- Long Polling
+- LLM/AI token streaming
+- progress updates for long-running jobs
+- notification feeds, presence updates, log tails
+- dashboards that subscribe to one stream of updates
 
-SignalR hub payloads use JSON (default) or MessagePack. Choose MessagePack only when the payload contract is stable and both sides support it.
+When SSE does not fit:
 
-## SignalR vs Raw WebSockets
+- the client must send messages back through the same connection (use WebSockets or SignalR)
+- you need binary frames
+- you need transport fallback for legacy proxies that strip long-lived HTTP responses
 
-For most `.NET` real-time backend applications on Kestrel, prefer SignalR over raw WebSockets.
+Operational notes:
 
-Choose SignalR for hub method semantics, connection/group management, transport fallback, and the supported client ecosystem.
+- terminate at HTTP/1.1 or HTTP/2; HTTP/2 multiplexes many SSE streams over one connection
+- ensure the reverse proxy does not buffer responses (`X-Accel-Buffering: no` on nginx, response buffering disabled on YARP)
+- propagate `CancellationToken` through the `IAsyncEnumerable` so disconnects close the producer
+- keep payloads small; use `event:`/`id:`/`data:` framing deliberately
+- treat reconnect as normal: the client may reconnect with a `Last-Event-ID` and you should be able to resume
 
-Choose raw WebSockets for generic socket peers, full protocol control, custom wire contracts, or transport without the hub abstraction.
+## Raw WebSockets on Kestrel
+
+Raw WebSockets are the right choice when:
+
+- the peer is not a SignalR client
+- you need a custom wire protocol
+- you want explicit control over framing and backpressure
+- you are building a transport for a non-browser client (Rust, Go, embedded)
+
+Use `app.UseWebSockets()` plus an endpoint that calls `HttpContext.WebSockets.AcceptWebSocketAsync()`. You own:
+
+- ping/pong and keep-alive
+- reconnect protocol
+- message framing (JSON, protobuf, custom)
+- authorization at accept time
+
+## SignalR vs Raw WebSockets vs SSE
+
+For most .NET real-time backend applications on Kestrel, decide in this order:
+
+1. Is it one-way server → client? **Use SSE.**
+2. Do you need bidirectional hub semantics, groups, presence, or the supported client ecosystem? **Use SignalR.**
+3. Is the peer not a SignalR client, or do you need a custom protocol? **Use raw WebSockets.**
 
 ## Hub Rules
 
@@ -172,11 +200,11 @@ Community clients exist (`signalrs`, `rust_signalr_client`). Verify maintenance 
 
 ## SignalR Smells
 
-| Smell | Signal | Fix |
-|---|---|---|
-| Fat hub | hub contains workflow logic or persistence code | delegate to application service |
-| In-memory truth | static dictionary is treated as durable state | move durable state outward |
-| `ConnectionId` as identity | code assumes one connection per user forever | use user/group model |
-| Protocol confusion | generic WebSocket peer is treated as if it were a SignalR client | use raw WebSockets or implement a real SignalR client |
-| Stringly contracts | magic method names and anonymous payloads | introduce typed contracts |
-| No scale plan | multiple nodes but no backplane/service | design scale-out explicitly |
+| Smell                      | Signal                                                           | Fix                                                   |
+| -------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------- |
+| Fat hub                    | hub contains workflow logic or persistence code                  | delegate to application service                       |
+| In-memory truth            | static dictionary is treated as durable state                    | move durable state outward                            |
+| `ConnectionId` as identity | code assumes one connection per user forever                     | use user/group model                                  |
+| Protocol confusion         | generic WebSocket peer is treated as if it were a SignalR client | use raw WebSockets or implement a real SignalR client |
+| Stringly contracts         | magic method names and anonymous payloads                        | introduce typed contracts                             |
+| No scale plan              | multiple nodes but no backplane/service                          | design scale-out explicitly                           |

@@ -1,6 +1,6 @@
 {
   "name": "dotnet-backend",
-  "description": "Pure .NET 10 backend architecture for Kestrel-hosted REST and SignalR services with DI, data access, and SOLID review",
+  "description": "Pure .NET 10 backend architecture for Kestrel-hosted REST and real-time services (SignalR, WebSockets, SSE) with DI, data access, and SOLID review",
   "version": "1.0.2",
   "license": "MIT",
   "author": {
@@ -16,12 +16,13 @@
     "backend",
     "rest",
     "signalr",
+    "websockets",
+    "sse",
     "efcore",
     "solid",
     "clean-architecture",
+    "hexagonal-architecture",
     "dependency-injection",
-    "apphost",
-    "aspire",
     "architecture",
     "review"
   ]

@@ -87,14 +87,17 @@
     {
       "name": "dead-code",
       "source": "./plugins/dead-code",
-      "description": "Find and remove dead code, unused imports, and duplicates across any language",
-      "version": "1.0.0",
+      "description": "Find and remove dead code, duplicates, split-brain implementations, and dead deployment artifacts across any language and stack",
+      "version": "1.1.0",
       "category": "development",
       "tags": [
         "dead-code",
         "cleanup",
         "refactoring",
-        "code-quality"
+        "code-quality",
+        "split-brain",
+        "architecture",
+        "polyglot"
       ]
     },
     {

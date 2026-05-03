@@ -85,6 +85,14 @@ Use a consistent RFC 7807 shape.
 - decide early for external/public APIs
 - avoid silent breaking changes
 - keep contract evolution visible in review
+- use **`Asp.Versioning.Http`** (and `Asp.Versioning.Mvc.ApiExplorer` for OpenAPI integration) when you need real versioning — it is the de-facto standard library for both Minimal APIs and controllers, and integrates cleanly with the .NET 10 OpenAPI pipeline
+
+### Validation in .NET 10
+
+Two realistic options:
+
+- **Built-in source-generator validation** — `builder.Services.AddValidation()` activates a Minimal-API endpoint filter that runs `[DataAnnotations]` and `IValidatableObject` automatically. Validation APIs now live in `Microsoft.Extensions.Validation`, so application-layer code can validate without an HTTP dependency.
+- **FluentValidation** — still appropriate when validation rules are complex, conditional, cross-field, or need to live next to use cases. Do not run both pipelines on the same model.
 
 ## Endpoint Template
 

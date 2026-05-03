@@ -1,6 +1,6 @@
 ---
 name: dotnet-backend-expert
-description: This skill should be used when the user is writing, reviewing, debugging, or architecting pure .NET backend code for Kestrel-hosted services. It provides expert critique for REST endpoints, SignalR hubs, TypeScript/React client integration shape, pragmatic Rust interop, application services, AppHost-aware project structure, EF Core and database boundaries, dependency injection lifetimes, OOP and SOLID quality, concurrency, and distributed-architecture tradeoffs. Use when the user asks "critique my .NET backend", "review this service", "should this be singleton or scoped", "structure my solution", "review my SignalR hub", "review my AppHost", "is this clean architecture", "should I use repositories", "fix my DbContext usage", "design my REST endpoints", "review my concurrency", or "should this be microservices".
+description: This skill should be used when the user is writing, reviewing, debugging, or architecting pure .NET backend code for Kestrel-hosted services. It provides expert critique for REST endpoints, real-time transports (SignalR, raw WebSockets, Server-Sent Events), TypeScript/React client integration shape, pragmatic Rust interop, application services, project structure, EF Core and database boundaries, dependency injection lifetimes, OOP and SOLID quality, concurrency, and distributed-architecture tradeoffs. Use when the user asks "critique my .NET backend", "review this service", "should this be singleton or scoped", "structure my solution", "review my SignalR hub", "should I use SignalR or WebSockets or SSE", "is this clean architecture", "should I use repositories", "fix my DbContext usage", "design my REST endpoints", "review my concurrency", or "should this be microservices".
 ---
 
 Build real `.NET` backends. Not UI shells. Not Razor pages. Not MAUI. Build Kestrel-hosted services that stay clear under load, survive team growth, and remain easy to reason about in code review, LLD interviews, and production incidents.
@@ -21,7 +21,6 @@ Focus on:
 - REST endpoints, controllers, route groups, and SignalR hubs
 - application/domain/infrastructure boundaries
 - EF Core or pragmatic data-access decisions
-- AppHost/Aspire usage for backend orchestration
 - auth/authz boundaries, JWT posture, CORS, rate limiting, health checks, and graceful shutdown
 - hosted services, concurrency, DI lifetimes, and messaging tradeoffs
 - current backend guidance across `.NET 8`, `.NET 9`, and `.NET 10`, with `.NET 10` as the default recommendation for new services
@@ -37,7 +36,7 @@ Do not drift into:
 Pick an architecture before adding layers:
 
 - **Default to a modular monolith.** Split into distributed services only when bounded contexts, team topology, deployment independence, or failure isolation actually require it.
-- **Keep the host thin.** `Program.cs`, route groups, controllers, hubs, and AppHost setup are composition surfaces, not homes for business logic.
+- **Keep the host thin.** `Program.cs`, route groups, controllers, and hubs are composition surfaces, not homes for business logic.
 - **Let application services orchestrate.** Use cases, workflows, transactions, and coordination live here.
 - **Let the domain protect invariants.** Entities and value objects should own rules that must remain true.
 - **Let infrastructure adapt.** EF Core, Dapper, external APIs, message buses, and caches are details, not the center of the design.
@@ -57,36 +56,38 @@ When these pull in different directions, choose the simplest design that preserv
 
 ## Modern .NET 10
 
-→ *[Modern .NET reference](references/modern-dotnet.md)*
+→ _[Modern .NET reference](references/modern-dotnet.md)_
 
 Detect the real SDK and target framework from `global.json`, `Directory.Build.props`, `*.csproj`, or the solution. Recommend only features supported by the project. Use modern C# deliberately — not as syntax confetti. Prefer newer APIs when they clearly improve correctness, clarity, or performance. Do not force new syntax into a codebase that has an established style without a good reason.
 
 ## Kestrel and Hosting
 
-→ *[Kestrel hosting reference](references/kestrel-hosting.md)*
+→ _[Kestrel hosting reference](references/kestrel-hosting.md)_
 
 Kestrel is part of the backend architecture, not a deployment footnote. Review whether the service is intentionally internet-facing, whether proxy metadata is trusted safely, and whether protocol and request limits are explicit enough for the actual traffic.
 
 ## Security and Operations
 
-→ *[Security and operations reference](references/security-and-operations.md)*
+→ _[Security and operations reference](references/security-and-operations.md)_
 
 Review public-facing backend posture, not just code shape.
 
 **DO**:
+
 - keep authentication and authorization at clear boundaries
 - keep browser-facing CORS explicit and narrow
 - require an abuse/rate-limit story for public surfaces
 - treat health checks and graceful shutdown as real backend behavior
 
 **DON'T**:
+
 - let services manually parse tokens or auth headers
 - ship wildcard CORS on public backends
 - ignore readiness, liveness, or shutdown behavior
 
 ## Architecture and Boundaries
 
-→ *[Architecture reference](references/architecture.md)*
+→ _[Architecture reference](references/architecture.md)_
 
 Keep dependency direction obvious:
 
@@ -99,12 +100,12 @@ Keep dependency direction obvious:
 **DO**: prefer a small number of obvious layers over many decorative ones
 **DO**: separate contracts from entities
 **DON'T**: let the host project become the application layer
-**DON'T**: put business rules in controllers, route handlers, SignalR hubs, or AppHost wiring
+**DON'T**: put business rules in controllers, route handlers, or SignalR hubs
 **DON'T**: let `Coordinator` / `Manager` / `Engine` / `Orchestrator` types accumulate responsibilities unchecked
 
 ## OOP and SOLID
 
-→ *[SOLID reference](references/solid-principles.md)*
+→ _[SOLID reference](references/solid-principles.md)_
 
 Use OOP to model responsibilities and invariants, not to create inheritance tangles. High-level rules:
 
@@ -123,7 +124,7 @@ Use OOP to model responsibilities and invariants, not to create inheritance tang
 
 ## Project Structure
 
-→ *[Project structure reference](references/project-structure.md)*
+→ _[Project structure reference](references/project-structure.md)_
 
 Favor project layouts that make responsibilities obvious:
 
@@ -132,17 +133,17 @@ Favor project layouts that make responsibilities obvious:
 - `Domain` project for core model and rules
 - `Infrastructure` project for EF Core, clients, queues, cache, and adapters
 - `Contracts` project or folder for request/response/event models when shared boundaries justify it
-- `AppHost` only when `.NET Aspire` is part of the solution
 
 Keep one major type per file when the type matters. Split files above 300 lines when they contain multiple responsibilities. Split urgently above 500 lines.
 
 ## REST Endpoints and Contracts
 
-→ *[Endpoints reference](references/endpoints-rest.md)*
+→ _[Endpoints reference](references/endpoints-rest.md)_
 
 Use minimal APIs or controllers intentionally. Either is fine if the boundary stays thin.
 
 **DO**:
+
 - validate at the boundary
 - map domain/application outcomes to HTTP intentionally
 - use typed request/response contracts
@@ -150,42 +151,52 @@ Use minimal APIs or controllers intentionally. Either is fine if the boundary st
 - keep status codes and `ProblemDetails` consistent
 
 **DON'T**:
+
 - return EF entities directly from endpoints
 - let handlers perform raw orchestration across five services
 - mix validation, business rules, persistence, and transport mapping in one method
 - treat versioning, pagination, or idempotency as afterthoughts
 
-## SignalR
+## Real-Time Transports: SignalR vs Raw WebSockets vs SSE
 
-→ *[SignalR reference](references/signalr.md)*
+→ _[SignalR reference](references/signalr.md)_
 
-SignalR is a transport and coordination surface, not the domain layer.
+Real-time push has three legitimate transports on Kestrel. Choose intentionally; do not default to SignalR for everything.
+
+| Need                                                                                       | Best fit                                                         |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| One-way server → client streaming (notifications, AI token streams, dashboards, log tails) | **Server-Sent Events (SSE)** via `TypedResults.ServerSentEvents` |
+| Hub semantics, groups, presence, transport fallback, official multi-language clients       | **SignalR**                                                      |
+| Custom wire protocol, non-SignalR peers, full framing/backpressure control                 | **Raw WebSockets** on Kestrel                                    |
 
 **DO**:
-- keep hubs thin like controllers
-- use explicit message contracts and typed hubs when client contracts are long-lived
-- separate connection bookkeeping from business workflows
+
+- pick SSE first for one-way streams — it is plain HTTP, proxy-friendly, trivially consumed by browsers, and avoids a client SDK
+- use SignalR when you need bidirectional hub methods, groups, presence, and the official client ecosystem (JavaScript, .NET, Java, Swift)
+- use raw WebSockets when the peer is not a SignalR client or you need a custom protocol
+- keep hubs thin like controllers; delegate to application services
 - design for reconnects and multiple connections per user
 - assume in-memory connection state breaks under scale-out
-- know the official client ecosystem: JavaScript, .NET, Java, Swift
-- treat Rust as community/DIY interop — prove compatibility before production
+- treat Rust as community/DIY SignalR interop — prove compatibility before production
 - prefer JSON protocol for mixed client ecosystems
 
 **DON'T**:
+
+- reach for SignalR when SSE would do — SignalR adds protocol weight, scale-out concerns, and client SDK lock-in
 - store cross-node truth in static dictionaries
 - make hubs call directly into `DbContext`
 - hide authorization rules in random hub methods
-- use SignalR when plain request/response or a queue would be simpler
 - treat SignalR as a generic raw WebSocket protocol
 - assume non-SignalR clients can invoke hub methods
 
 ## Data Access and Databases
 
-→ *[Data access reference](references/data-access.md)*
+→ _[Data access reference](references/data-access.md)_
 
 Use EF Core as the default unless a hot path or specialized query truly needs a lower-level tool. Keep transaction boundaries close to the use case.
 
 **DO**:
+
 - keep `DbContext` scoped
 - shape queries intentionally
 - use repositories when they protect a real domain boundary or hide persistence complexity
@@ -193,6 +204,7 @@ Use EF Core as the default unless a hot path or specialized query truly needs a 
 - keep migrations and schema evolution deliberate and reviewable
 
 **DON'T**:
+
 - capture `DbContext` in singletons
 - mix read/write concerns carelessly in giant repository blobs
 - let endpoints or hubs become the data access layer
@@ -200,17 +212,19 @@ Use EF Core as the default unless a hot path or specialized query truly needs a 
 
 ## Dependency Injection and Lifetimes
 
-→ *[DI reference](references/dependency-injection.md)*
+→ _[DI reference](references/dependency-injection.md)_
 
 Use the built-in DI container by default. Constructor injection first. Keep the composition root explicit.
 
 **DO**:
+
 - make singletons stateless or rigorously thread-safe
 - keep scoped services request- or operation-bound
 - use transients for cheap, disposable, or stateful-per-use objects
 - use factories only when runtime parameters truly require them
 
 **DON'T**:
+
 - inject scoped services into singletons
 - resolve services manually from `IServiceProvider` in business code
 - turn `Program.cs` into an unreadable scroll of registrations and side effects
@@ -218,11 +232,12 @@ Use the built-in DI container by default. Constructor injection first. Keep the 
 
 ## Async, Concurrency, and Background Work
 
-→ *[Concurrency reference](references/concurrency.md)*
+→ _[Concurrency reference](references/concurrency.md)_
 
 Backend `.NET` code is async by default. Honor that.
 
 **DO**:
+
 - propagate `CancellationToken`
 - avoid blocking calls in request and worker paths
 - use channels, queues, or controlled concurrency when work fans out
@@ -230,36 +245,33 @@ Backend `.NET` code is async by default. Honor that.
 - treat `BackgroundService` as an operational boundary with explicit lifetime rules
 
 **DON'T**:
+
 - use `.Result`, `.Wait()`, or `GetAwaiter().GetResult()` in backend paths
 - fire-and-forget work without ownership, logging, and shutdown semantics
 - assume mutable singleton caches are safe without synchronization
 - create parallelism before measuring the need
 
-## AppHost and Aspire
-
-→ *[AppHost reference](references/apphost-aspire.md)*
-
-Treat `AppHost` as orchestration, composition, and local/distributed application wiring — not as a domain layer. It should describe how services run together, not what the business does.
-
 ## Distributed Architecture
 
-→ *[Distributed architecture reference](references/distributed-architecture.md)*
+→ _[Distributed architecture reference](references/distributed-architecture.md)_
 
 Start simple. Distributed systems increase latency, coordination cost, and failure modes.
 
 **DO**:
+
 - require a concrete reason before splitting services
 - use messaging when asynchronous decoupling solves a real problem
 - plan for idempotency and observability before introducing event-driven flows
 
 **DON'T**:
+
 - split services because “microservices are modern”
 - use queues to avoid fixing local design
-- treat AppHost, brokers, and service discovery as free complexity
+- treat brokers and service discovery as free complexity
 
 ## Error Handling
 
-→ *[Error handling reference](references/error-handling.md)*
+→ _[Error handling reference](references/error-handling.md)_
 
 Handle errors at the right boundary. Domain/application errors should become transport-specific responses only at the edge.
 
@@ -268,7 +280,7 @@ Handle errors at the right boundary. Domain/application errors should become tra
 
 ## Anti-Patterns
 
-→ *[Anti-patterns reference](references/anti-patterns.md)* — `DN-01` through `DN-21`
+→ _[Anti-patterns reference](references/anti-patterns.md)_ — `DN-01` through `DN-21`
 
 The most common backend failures are structural:
 
@@ -277,14 +289,13 @@ The most common backend failures are structural:
 - scoped-into-singleton bugs
 - static mutable state
 - generic repository theater
-- AppHost leakage into runtime business code
 - blocking async and fire-and-forget work
 - in-memory SignalR truth in scale-out systems
 - distributed architecture without a distributed problem
 
 ## AI Slop Test
 
-→ *[AI slop reference](references/ai-slop.md)*
+→ _[AI slop reference](references/ai-slop.md)_
 
 Modern `.NET` AI slop has a recognizable smell:
 
@@ -306,22 +317,22 @@ Ask one hard question: **does this code look designed, or merely assembled?** If
 5. **Project structure** → `references/project-structure.md`
 6. **OOP / SOLID** → `references/solid-principles.md`
 7. **Endpoints and contracts** → `references/endpoints-rest.md`
-8. **SignalR** → `references/signalr.md`
+8. **Real-time transports (SignalR / WebSockets / SSE)** → `references/signalr.md`
 9. **Dependency injection** → `references/dependency-injection.md`
 10. **Data access** → `references/data-access.md`
 11. **Error handling** → `references/error-handling.md`
 12. **Concurrency and background work** → `references/concurrency.md`
-13. **AppHost / Aspire** → `references/apphost-aspire.md`
-14. **Distributed architecture** → `references/distributed-architecture.md`
-15. **Security and operations** → `references/security-and-operations.md`
-16. **Testing** → `references/testing.md`
-17. **Anti-patterns** → `references/anti-patterns.md`
+13. **Distributed architecture** → `references/distributed-architecture.md`
+14. **Security and operations** → `references/security-and-operations.md`
+15. **Testing** → `references/testing.md`
+16. **Anti-patterns** → `references/anti-patterns.md`
 
 Label findings: **blocking**, **important**, **nit**, **suggestion**, **praise**.
 
 Group findings by file. Cite file and line. Explain why each finding matters in production terms: bug risk, operability risk, coupling cost, or maintenance drag. End with a prioritized summary.
 
 **NEVER**:
+
 - recommend abstractions without naming the seam they protect
 - confuse backend guidance with UI or front-end concerns
 - praise distributed complexity without discussing operational cost

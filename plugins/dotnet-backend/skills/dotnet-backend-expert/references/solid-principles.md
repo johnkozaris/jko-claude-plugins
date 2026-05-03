@@ -38,6 +38,23 @@ Bad extension points:
 - giant switch statements that grow forever
 - one interface per class with no real substitution need
 
+## Liskov Substitution Principle
+
+Any subclass or implementation must be substitutable for its base type without surprising the caller.
+
+In backend code that means:
+
+- alternate `IRepository<T>` or `IEmailSender` implementations must honor the same exception, ordering, and idempotency contract — not just the method signature
+- avoid "throw `NotSupportedException` for half the methods" style implementations — that is an interface segregation problem in disguise
+- a fake/in-memory adapter used in tests must behave like the real adapter for the operations under test, or the test is not proving anything
+- decorators must preserve the wrapped contract (cancellation, logging side effects, return semantics)
+
+LSP signals worth flagging:
+
+- subclass overrides a method to throw or no-op
+- one implementation silently changes ordering, transactionality, or null behavior
+- callers must check the concrete type to decide what to do
+
 ## Dependency Inversion Principle
 
 High-level code depends on abstractions at the boundary, not infrastructure details.
@@ -71,14 +88,14 @@ Keep interfaces narrow and boundary-driven. A repository or client interface sho
 
 ## File and Type Size Guidance
 
-| Component | Target | Max | Split Signal |
-|---|---|---|---|
-| Endpoint file | 50-150 | 300 | multiple unrelated route groups |
-| Hub | 50-150 | 250 | contains domain or persistence logic |
-| Service / use case | 40-200 | 300 | handles multiple domains or workflows |
-| Repository / adapter | 30-150 | 250 | many ad hoc query knobs |
-| Contract file | 20-120 | 200 | unrelated request/response models |
-| Any file | --- | 500 | split urgently |
+| Component            | Target | Max | Split Signal                          |
+| -------------------- | ------ | --- | ------------------------------------- |
+| Endpoint file        | 50-150 | 300 | multiple unrelated route groups       |
+| Hub                  | 50-150 | 250 | contains domain or persistence logic  |
+| Service / use case   | 40-200 | 300 | handles multiple domains or workflows |
+| Repository / adapter | 30-150 | 250 | many ad hoc query knobs               |
+| Contract file        | 20-120 | 200 | unrelated request/response models     |
+| Any file             | ---    | 500 | split urgently                        |
 
 ## Review Heuristics
 

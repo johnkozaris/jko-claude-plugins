@@ -7,6 +7,7 @@ Before removing ANY code flagged as unused, check these categories. Removing fal
 Code accessed by string name at runtime. Static analysis cannot see these references.
 
 **Examples:**
+
 - Python: `getattr(obj, "method_name")`, `importlib.import_module("package.module")`
 - Java: `Class.forName("com.example.MyClass")`, `Method.invoke()`
 - C#: `Type.GetMethod("MethodName")`, `Activator.CreateInstance(typeof(T))`
@@ -20,6 +21,7 @@ Code accessed by string name at runtime. Static analysis cannot see these refere
 Fields and classes used by serializers may have zero explicit references in code.
 
 **Examples:**
+
 - JSON: `[JsonProperty("field")]`, `@JsonIgnore`, `#[serde(rename = "x")]`
 - XML: `[XmlElement]`, `@XmlType`
 - Protocol Buffers: Generated classes used only by protobuf runtime
@@ -33,6 +35,7 @@ Fields and classes used by serializers may have zero explicit references in code
 Frameworks discover and invoke code by naming convention, not explicit imports.
 
 **Examples:**
+
 - ASP.NET: Controllers (discovered by `*Controller` suffix), Razor Pages, Middleware
 - Django: views.py functions (referenced in urls.py as strings), models (used by ORM), management commands, template tags
 - Flask: `@app.route` decorated functions, template filters
@@ -49,6 +52,7 @@ Frameworks discover and invoke code by naming convention, not explicit imports.
 Code designed to be loaded dynamically by a plugin system.
 
 **Examples:**
+
 - Entry points in `setup.py` / `pyproject.toml`
 - Service providers in Laravel, Spring, .NET DI containers
 - Gradle/Maven plugins loaded by configuration
@@ -62,6 +66,7 @@ Code designed to be loaded dynamically by a plugin system.
 If the project is a **library** (not an application), exported symbols may have zero internal callers but are used by downstream consumers.
 
 **Indicators that code is a public API:**
+
 - `pub` (Rust), `public` (Java/C#), `export` (JS/TS), `__all__` (Python)
 - Documented in README or API docs
 - Part of a published package (npm, PyPI, crates.io, NuGet)
@@ -74,6 +79,7 @@ If the project is a **library** (not an application), exported symbols may have 
 Methods required by a protocol, interface, or base class even if not called explicitly.
 
 **Examples:**
+
 - Python: `__init__`, `__str__`, `__repr__`, `__enter__`, `__exit__`, `__hash__`, `__eq__`
 - Java: `toString()`, `hashCode()`, `equals()`, `finalize()`, `Serializable.readObject()`
 - Swift: `viewDidLoad()`, `body` (SwiftUI), `init(from:)` (Codable)
@@ -87,6 +93,7 @@ Methods required by a protocol, interface, or base class even if not called expl
 Code referenced from HTML templates, JSX, or other non-source files that static analysis may not scan.
 
 **Examples:**
+
 - Django/Jinja2: `{{ variable }}`, `{% url 'view_name' %}`, template tags
 - Angular: Component selectors in HTML templates
 - Vue: Methods/computed properties referenced in `<template>` section
@@ -100,6 +107,7 @@ Code referenced from HTML templates, JSX, or other non-source files that static 
 Code consumed by build tools, generators, or preprocessors.
 
 **Examples:**
+
 - Macro inputs (Rust proc macros, C preprocessor)
 - GraphQL schema definitions consumed by codegen
 - Protobuf/Thrift definitions consumed by compilers
@@ -111,6 +119,7 @@ Code consumed by build tools, generators, or preprocessors.
 Code called from another language across a foreign function interface.
 
 **Examples:**
+
 - Rust: `#[no_mangle] pub extern "C" fn` called from C
 - Python: C extension functions called via ctypes/cffi
 - C#: P/Invoke targets, COM-visible classes
@@ -121,29 +130,55 @@ Code called from another language across a foreign function interface.
 Handlers registered in config, markup, or at runtime.
 
 **Examples:**
+
 - HTML: `onclick="handleClick()"`, `addEventListener('click', handler)`
 - Android: XML layout `android:onClick="onButtonClick"`
 - iOS: Interface Builder actions/outlets
 - Signal/slot connections in Qt
 - Event bus subscribers (e.g., `@Subscribe` in Guava EventBus)
 
+## 11. Dependency Injection Container Resolution
+
+Types instantiated by a DI container at runtime, with no `new` / explicit constructor call in source.
+
+**Examples:**
+
+- **.NET:** `services.AddScoped<IFoo, FooImpl>()` — `FooImpl` is constructed by the container, never via `new FooImpl()`.
+- **Java/Spring:** `@Component`, `@Service`, `@Repository`, `@Bean` — the class graph is wired by reflection.
+- **Python:** `dependency-injector`, `punq`, `wired`, FastAPI `Depends(...)`, pytest fixtures.
+- **TypeScript:** `tsyringe`, `inversify`, NestJS `@Injectable()` providers.
+- **Rust:** `shaku`, manual factory passing `Arc<dyn Trait>` — less reflection-magic, easier to trace.
+- **Go:** `wire`, `dig`, `fx` — codegen / reflection containers.
+
+**Telltale:** A class with no direct `new` / constructor call but is registered in the container OR has a known DI marker attribute / decorator.
+
+**Mitigation:** Before flagging an unused class:
+
+1. Search for the class name in DI registration sites (`AddScoped`, `Register`, `bind`, `provide`).
+2. Check for DI markers / attributes (`[Service]`, `@Injectable`, `@Component`, `@Bean`).
+3. Check if a constructor parameter elsewhere asks for the class (or its interface) by type — that's a DI consumption point.
+
+**Inverse problem:** A class registered in the container but with no consumer (no constructor parameter asks for it). The registration is dead. This is a **legitimate dead-code finding** — flag it.
+
 ## Decision Framework
 
 When uncertain, score the evidence:
 
-| Signal | Points |
-|---|---|
-| Zero references in project-wide ripgrep | +2 |
-| Private/internal visibility | +2 |
-| No framework decorators/attributes | +1 |
-| No serialization attributes | +1 |
-| Old git blame (>1 year, no recent touches) | +1 |
-| Has lint suppression (`#[allow(dead_code)]`) | +1 |
-| In an application (not a library) | +1 |
-| Has framework decorator/convention name | -3 |
-| Has serialization/ORM attributes | -3 |
-| Public visibility in a library | -3 |
-| Recent git blame (<1 month) | -2 |
+| Signal                                       | Points |
+| -------------------------------------------- | ------ |
+| Zero references in project-wide ripgrep      | +2     |
+| Private/internal visibility                  | +2     |
+| No framework decorators/attributes           | +1     |
+| No serialization attributes                  | +1     |
+| No DI registration / consumption             | +1     |
+| Old git blame (>1 year, no recent touches)   | +1     |
+| Has lint suppression (`#[allow(dead_code)]`) | +1     |
+| In an application (not a library)            | +1     |
+| Has framework decorator/convention name      | -3     |
+| Has serialization/ORM attributes             | -3     |
+| Has DI marker / is registered in container   | -3     |
+| Public visibility in a library               | -3     |
+| Recent git blame (<1 month)                  | -2     |
 
 **Score 5+:** High confidence dead. Flag for removal.
 **Score 2-4:** Medium confidence. Flag with investigation note.

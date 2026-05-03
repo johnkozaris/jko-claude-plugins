@@ -23,15 +23,15 @@ Skills use the shared [Agent Skills specification](https://developers.openai.com
 
 ## Plugins
 
-| Plugin | Skill | Cmds | What it covers |
-|--------|-------|:----:|----------------|
-| **[rust](plugins/rust/)** | `rust` | 5 | Ownership, async, unsafe, error handling, type design, anti-patterns |
-| **[esp32-cpp](plugins/esp32-cpp/)** | `esp32` | 4 | FreeRTOS, ESP-IDF/PlatformIO, peripherals, memory, all ESP32 variants |
-| **[python-backend](plugins/python-backend/)** | `python-backend` | 3 | Litestar, FastAPI, SQLAlchemy, hexagonal architecture, async patterns |
-| **[dotnet-backend](plugins/dotnet-backend/)** | `dotnet-backend` | 4 | Pure .NET 10 backend review for Kestrel hosting, REST, SignalR, EF Core, and DI |
-| **[swiftui](plugins/swiftui/)** | `swiftui` | 1 | iOS/macOS/visionOS patterns, Liquid Glass, accessibility |
-| **[dead-code](plugins/dead-code/)** | `dead-code` | 2 | Unused imports, functions, classes, duplicates, any language |
-| **[peekaboo-macos-validator](plugins/peekaboo-macos-validator/)** | `peekaboo` | 2 | Drive any SwiftUI/AppKit app via Peekaboo; agent reads pixels itself (no AI keys) |
+| Plugin                                                            | Skill            | Cmds | What it covers                                                                    |
+| ----------------------------------------------------------------- | ---------------- | :--: | --------------------------------------------------------------------------------- |
+| **[rust](plugins/rust/)**                                         | `rust`           |  5   | Ownership, async, unsafe, error handling, type design, anti-patterns              |
+| **[esp32-cpp](plugins/esp32-cpp/)**                               | `esp32`          |  4   | FreeRTOS, ESP-IDF/PlatformIO, peripherals, memory, all ESP32 variants             |
+| **[python-backend](plugins/python-backend/)**                     | `python-backend` |  3   | Litestar, FastAPI, SQLAlchemy, hexagonal architecture, async patterns             |
+| **[dotnet-backend](plugins/dotnet-backend/)**                     | `dotnet-backend` |  4   | Pure .NET 10 backend review for Kestrel hosting, REST, SignalR, EF Core, and DI   |
+| **[swiftui](plugins/swiftui/)**                                   | `swiftui`        |  1   | iOS/macOS/visionOS patterns, Liquid Glass, accessibility                          |
+| **[dead-code](plugins/dead-code/)**                               | `dead-code`      |  2   | Unused imports, functions, classes, duplicates, any language                      |
+| **[peekaboo-macos-validator](plugins/peekaboo-macos-validator/)** | `peekaboo`       |  2   | Drive any SwiftUI/AppKit app via Peekaboo; agent reads pixels itself (no AI keys) |
 
 ## Install
 
@@ -104,11 +104,11 @@ Use the shell commands above from your terminal. Inside Claude Code and Copilot 
 
 The repo uses one shared skill directory per plugin and thin CLI-specific packaging around it.
 
-| Tool | What it auto-discovers in a working repo | How install/discovery works here |
-|------|------------------------------------------|----------------------------------|
-| **Claude Code** | `.claude/skills/`, nested `.claude/skills/`, `.claude/commands/`, `.claude/agents/` | Install the marketplace or load a plugin with `claude --plugin-dir ...`. Claude uses `.claude-plugin/marketplace.json` at the repo root. |
-| **GitHub Copilot CLI** | `.github/skills/`, `.claude/skills/`, `.github/agents/`, `.claude/agents/`, `.github/hooks/` | Install the marketplace or a plugin with `copilot plugin ...`. Copilot uses `.github/plugin/marketplace.json` and prefers `.github/plugin/plugin.json` when both manifest styles exist. |
-| **OpenAI Codex CLI** | `.agents/skills/` from the current directory up to repo root, `~/.agents/skills/`, `/etc/codex/skills/` | Install individual skill directories with `$skill-installer` or copy them into a scanned `.agents/skills/` location. There is no Codex plugin marketplace layer here. |
+| Tool                   | What it auto-discovers in a working repo                                                                | How install/discovery works here                                                                                                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Claude Code**        | `.claude/skills/`, nested `.claude/skills/`, `.claude/commands/`, `.claude/agents/`                     | Install the marketplace or load a plugin with `claude --plugin-dir ...`. Claude uses `.claude-plugin/marketplace.json` at the repo root.                                                |
+| **GitHub Copilot CLI** | `.github/skills/`, `.claude/skills/`, `.github/agents/`, `.claude/agents/`, `.github/hooks/`            | Install the marketplace or a plugin with `copilot plugin ...`. Copilot uses `.github/plugin/marketplace.json` and prefers `.github/plugin/plugin.json` when both manifest styles exist. |
+| **OpenAI Codex CLI**   | `.agents/skills/` from the current directory up to repo root, `~/.agents/skills/`, `/etc/codex/skills/` | Install individual skill directories with `$skill-installer` or copy them into a scanned `.agents/skills/` location. There is no Codex plugin marketplace layer here.                   |
 
 The important part is that all three tools discover the **skill directory**, not arbitrary `plugins/**/skills/**` paths. A skill can safely contain `references/`, `scripts/`, `assets/`, and other supporting files next to `SKILL.md`, but the parent skill directory still has to be reached through that tool's discovery or installation mechanism.
 
@@ -118,58 +118,58 @@ Claude Code and Copilot CLI can load the plugin command adapters in `commands/`.
 
 ### Rust
 
-| Command | What it does |
-|---------|-------------|
-| `/rust-critique` | Full code review for soundness, ownership, error handling, types, async, performance |
-| `/rust-harden` | Replace `unwrap` with proper errors, add SAFETY comments to unsafe, validate inputs |
-| `/rust-types` | Replace primitives with newtypes, booleans with enums, make illegal states unrepresentable |
-| `/rust-polish` | Pre-merge cleanup: dead code, doc comments, clippy, debug artifacts |
-| `/rust-teach` | One-time: scans your project and writes Rust conventions to CLAUDE.md |
+| Command          | What it does                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------ |
+| `/rust-critique` | Full code review for soundness, ownership, error handling, types, async, performance       |
+| `/rust-harden`   | Replace `unwrap` with proper errors, add SAFETY comments to unsafe, validate inputs        |
+| `/rust-types`    | Replace primitives with newtypes, booleans with enums, make illegal states unrepresentable |
+| `/rust-polish`   | Pre-merge cleanup: dead code, doc comments, clippy, debug artifacts                        |
+| `/rust-teach`    | One-time: scans your project and writes Rust conventions to CLAUDE.md                      |
 
 ### ESP32
 
-| Command | What it does |
-|---------|-------------|
-| `/esp-harden` | Scan firmware for field failures, crashes, memory issues, and security problems |
-| `/esp-debug` | Help debug crashes, hangs, and peripheral issues |
-| `/esp-optimize` | Optimize for performance, memory, power, or binary size |
-| `/esp-teach` | One-time: discover hardware, find datasheets, persist context to CLAUDE.md |
+| Command         | What it does                                                                    |
+| --------------- | ------------------------------------------------------------------------------- |
+| `/esp-harden`   | Scan firmware for field failures, crashes, memory issues, and security problems |
+| `/esp-debug`    | Help debug crashes, hangs, and peripheral issues                                |
+| `/esp-optimize` | Optimize for performance, memory, power, or binary size                         |
+| `/esp-teach`    | One-time: discover hardware, find datasheets, persist context to CLAUDE.md      |
 
 ### Python
 
-| Command | What it does |
-|---------|-------------|
-| `/py-critique` | Architecture review: SOLID compliance, layer boundaries, anti-patterns, design quality |
-| `/py-harden` | Run the full anti-pattern catalog (AP-01 through AP-22) and fix what it finds |
-| `/py-structure` | Check project layout, file sizes, module splitting, hexagonal architecture compliance |
+| Command         | What it does                                                                           |
+| --------------- | -------------------------------------------------------------------------------------- |
+| `/py-critique`  | Architecture review: SOLID compliance, layer boundaries, anti-patterns, design quality |
+| `/py-harden`    | Run the full anti-pattern catalog (AP-01 through AP-22) and fix what it finds          |
+| `/py-structure` | Check project layout, file sizes, module splitting, hexagonal architecture compliance  |
 
 ### .NET
 
-| Command | What it does |
-|---------|-------------|
-| `/dotnet-critique` | Full backend architecture review for Kestrel-hosted REST and SignalR services |
-| `/dotnet-harden` | Scan for high-impact backend anti-patterns like sync-over-async and fragile state |
-| `/dotnet-structure` | Check solution layout, boundaries, and oversized files |
-| `/dotnet-teach` | One-time: scan a backend and persist conventions to `CLAUDE.md` |
+| Command             | What it does                                                                      |
+| ------------------- | --------------------------------------------------------------------------------- |
+| `/dotnet-critique`  | Full backend architecture review for Kestrel-hosted REST and SignalR services     |
+| `/dotnet-harden`    | Scan for high-impact backend anti-patterns like sync-over-async and fragile state |
+| `/dotnet-structure` | Check solution layout, boundaries, and oversized files                            |
+| `/dotnet-teach`     | One-time: scan a backend and persist conventions to `CLAUDE.md`                   |
 
 ### SwiftUI
 
-| Command | What it does |
-|---------|-------------|
+| Command           | What it does                                                             |
+| ----------------- | ------------------------------------------------------------------------ |
 | `/swift-critique` | Review SwiftUI code for patterns, design, accessibility, and performance |
 
 ### Dead Code
 
-| Command | What it does |
-|---------|-------------|
-| `/dead-code-scan` | Read-only scan for unused imports, functions, classes, duplicates |
-| `/dead-code-clean` | Actually remove the dead code it finds |
+| Command            | What it does                                                      |
+| ------------------ | ----------------------------------------------------------------- |
+| `/dead-code-scan`  | Read-only scan for unused imports, functions, classes, duplicates |
+| `/dead-code-clean` | Actually remove the dead code it finds                            |
 
 ### Peekaboo (macOS validator)
 
-| Command | What it does |
-|---------|-------------|
-| `/peekaboo-macos-validator:peekaboo-doctor` | Verify peekaboo install, version, and macOS permissions |
+| Command                                        | What it does                                                                   |
+| ---------------------------------------------- | ------------------------------------------------------------------------------ |
+| `/peekaboo-macos-validator:peekaboo-doctor`    | Verify peekaboo install, version, and macOS permissions                        |
 | `/peekaboo-macos-validator:validate-macos-app` | Launch a macOS app, walk each view, snapshot + critique each, report PASS/FAIL |
 
 ## How it works
@@ -180,12 +180,12 @@ Hook config files are scaffolded in the plugin directories, but this repo does n
 
 ### Cross-tool compatibility
 
-| Feature | Claude Code | Copilot CLI | Codex CLI | OpenCode |
-|---------|:-----------:|:-----------:|:---------:|:--------:|
-| Skills + references | yes | yes | yes | yes |
-| Slash commands | yes | yes | -- | -- |
-| Hooks | yes | yes | -- | -- |
-| Plugin marketplace | yes | yes | -- | -- |
+| Feature             | Claude Code | Copilot CLI | Codex CLI | OpenCode |
+| ------------------- | :---------: | :---------: | :-------: | :------: |
+| Skills + references |     yes     |     yes     |    yes    |   yes    |
+| Slash commands      |     yes     |     yes     |    --     |    --    |
+| Hooks               |     yes     |     yes     |    --     |    --    |
+| Plugin marketplace  |     yes     |     yes     |    --     |    --    |
 
 ## Contributing
 

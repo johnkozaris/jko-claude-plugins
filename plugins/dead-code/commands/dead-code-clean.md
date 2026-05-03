@@ -101,13 +101,13 @@ For each: check if there's a linked issue or reason. If it's been skipped >6 mon
 ## Phase 3: Aggressive Mode Only (medium confidence)
 
 Only execute if mode is 'aggressive'.
-→ *Consult [false-positives reference](references/false-positives.md) before every removal in this phase.*
+→ *Consult [false-positives reference](references/false-positives.md) before every removal in this phase — includes DI container resolution as category 11.*
 
 ### 3a. Unused Exported Functions
-Functions exported/public in applications (not libraries) with zero external callers. Search thoroughly including templates, configs, and dynamic references before removing.
+Functions exported/public in applications (not libraries) with zero external callers. Search thoroughly including templates, configs, DI container registrations, and dynamic references before removing.
 
 ### 3b. Orphaned Files
-Files not imported by anything. Verify they're not entry points, config files, or framework-discovered modules before removing.
+Files not imported by anything. Verify they're not entry points, config files, DI-discovered services, or framework-discovered modules before removing.
 
 ### 3c. Duplicate Implementations
 Identify functions doing the same thing.
@@ -119,8 +119,96 @@ Interfaces with single implementation, unused parameters, wrapper functions addi
 
 ### 3e. AI Slop Cleanup
 If the project uses AI coding tools, check for AI-specific dead code patterns.
-→ *Consult [AI slop patterns](references/ai-slop-patterns.md) for the full catalog.*
-Target: copy-paste proliferation, wrapper functions adding nothing, reimplemented stdlib, excessive restating comments, phantom edge case handling.
+→ *Consult [AI slop patterns](references/ai-slop-patterns.md) for the full catalog including split-brain across stacks.*
+Target: copy-paste proliferation, wrapper functions adding nothing, reimplemented stdlib, excessive restating comments, phantom edge case handling, split-brain implementations.
+
+### 3f. Stack-Specific Dead Code
+Apply per-stack patterns from `references/stack-specific.md`. Examples:
+- **SwiftUI:** Remove orphan `Assets.xcassets` entries, dead localization keys, unused `EnvironmentKey`s, unused `ViewModifier`s.
+- **Rust:** Remove orphan workspace members, dead `examples/`, always-on/always-off `#[cfg(feature = "...")]` branches, over-broad `pub` visibility.
+- **TS/React:** Remove `useState` whose setter is never called, dead `Context.Provider`s, dead reducer cases, unused Tailwind utilities, unused barrel re-exports.
+- **.NET:** Remove DI registrations with no consumer, dead `DbSet`/navigation properties, `appsettings.json` keys nothing binds, no-op middleware.
+- **Python:** Add missing `await`s for unawaited coroutines (or delete the call if effect is unwanted), remove stale `TYPE_CHECKING` imports, unused FastAPI `Depends`, unused fixtures.
+- **C++:** Remove dead `#define`s, prove `#ifdef` branches with `unifdef` then collapse, remove dead CMake link libraries.
+
+## Phase 4: Cross-Boundary / Split-Brain Cleanup (aggressive only)
+
+Only execute if mode is 'aggressive' AND the project spans multiple stacks. **High-risk phase — every change crosses an architectural seam.**
+→ *Consult [duplicate code reference](references/duplicate-code.md) "Cross-Boundary Duplication" section.*
+
+### 4a. Identify Split-Brain Pairs
+```bash
+# Same enum-like declarations across languages
+rg -o '(enum|class)\s+(\w+)' -t ts -t py -t cs -t swift --no-filename \
+  | sort | uniq -c | sort -rn | awk '$1 >= 2 {print $1, $2}'
+
+# Same field names across model/dto/schema/type directories
+for d in models schemas dto types entities; do
+  fd -t f . "$d" 2>/dev/null
+done | xargs rg -o '^\s*(\w+):' --no-filename -r '$1' 2>/dev/null \
+  | sort | uniq -c | sort -rn | awk '$1 >= 3'
+
+# Two route handlers covering same path
+rg -o "(get|post|put|delete|patch|MapGet|MapPost|app\.route)\(['\"]([^'\"]+)" \
+  --no-filename -r '$2' | sort | uniq -c | sort -rn | awk '$1 >= 2'
+```
+
+### 4b. Choose a Canonical Source
+For each split-brain pair, pick one canonical source per the rules below. **Do not delete either side without picking the canonical.**
+
+| Pattern | Default canonical |
+|---|---|
+| Enum / status / type set | Protobuf / OpenAPI / shared schema package |
+| Validation rules | Backend (defense-in-depth requires server-side; mirror to client via codegen) |
+| DTO ↔ Entity mapping | Generate DTO from entity (or generate both from a schema) |
+| Two services for same resource | Newer service (with explicit deprecation timer for old) |
+| Read path vs write path | Add missing field to read model OR remove from write model — don't leave drift |
+| Two config sources | Pick one; document precedence loudly if both are intentional |
+| Old API + new API | Deprecate old; use access logs to confirm zero callers; then remove |
+
+### 4c. Introduce Codegen / Shared Package
+- Add codegen step to CI (`buf generate` for Protobuf, `openapi-typescript` for OpenAPI → TS, `quicktype` for JSON Schema → multi-lang).
+- Or: extract shared logic into a package consumed by both halves (npm workspace package, Python package, shared Rust crate compiled to WASM for browser).
+
+### 4d. Migrate Callers
+1. Add the canonical source.
+2. Migrate one consumer at a time to the canonical source.
+3. Verify with build + tests after each migration.
+4. Once all consumers migrated, delete the duplicate.
+
+**Do not skip the migration step — deleting the duplicate first will break the consumer that still references it.**
+
+## Phase 5: Deployment / Asset Cleanup (aggressive only, project-aware)
+
+Only execute if mode is 'aggressive' AND the user has confirmed they want non-source-file cleanup. **Highest risk — operational artifacts can have non-obvious consumers.**
+→ *Consult [deployment dead code reference](references/deployment-dead-code.md).*
+
+### 5a. Dead Environment Variables
+1. Inventory declared env vars (`.env*`, k8s `ConfigMap`/`Secret`, Helm values, Docker Compose).
+2. Inventory read sites in source.
+3. For each declared-but-unread var: confirm with the user / operator before removing (some may be runtime-conventional).
+
+### 5b. Dead Configuration Keys
+For `appsettings.json` / `config.yaml` / `pyproject.toml [tool.*]`: walk every leaf key, grep for it as a string literal in the appropriate language. Confirmed-unread keys can be removed.
+
+### 5c. Dead Asset Files
+For files in `public/` / `assets/` / `static/` / `Assets.xcassets`: grep the basename across source and templates. Confirmed-orphan assets can be removed (git history preserves them).
+
+### 5d. Dead Localization Keys
+For `.json` / `.po` / `.strings` / `.xcstrings`: walk every key, grep for it. Confirmed-unread keys can be removed.
+
+### 5e. Dead Scripts
+For files in `scripts/`: grep filename across pipelines, justfile, package.json, Makefile, README. Orphans can be removed.
+
+### 5f. Stale Documentation Links
+Run `lychee --no-progress './**/*.md'` (or equivalent) to find broken markdown links. Fix or remove.
+
+**DO NOT** auto-remove without user confirmation:
+- Database migrations (chain integrity).
+- Helm/K8s/Terraform resources (require operational verification).
+- Public HTTP routes (require traffic analysis from access logs).
+- Feature flags (require flag-management-system check).
+- Anything in `infra/` / `deploy/` / `terraform/` / `k8s/` directories without explicit user approval.
 
 ## Verify After Each Phase
 
@@ -149,14 +237,20 @@ Report what was cleaned:
 - X unused dependencies removed
 - X skipped tests removed
 - X duplicate implementations consolidated
-- **Total: X lines removed**
+- X stack-specific items cleaned (DI registrations, dead assets, unused EnvironmentKeys, etc.)
+- X split-brain pairs unified (with canonical source named)
+- X dead env vars / config keys / asset files / scripts removed
+- **Total: X lines / artifacts removed**
 
-State any items skipped due to false-positive risk, with explanation.
+State any items skipped due to false-positive risk, with explanation. For split-brain unifications, document the canonical source chosen and the codegen / shared-package approach used.
 
 **NEVER**:
 - Remove public API in libraries without user confirmation
-- Remove code with framework decorators without understanding the framework
+- Remove code with framework decorators / DI markers without understanding the framework
 - Skip build + test verification between phases
 - Make large bulk deletions -- work file by file so failures are easy to isolate
 - Remove code flagged as medium confidence without checking the false-positives reference
 - Mix dead code removal with feature changes in the same edit
+- Remove split-brain duplicates without first migrating consumers to the canonical source
+- Auto-remove deployment artifacts (env vars, K8s resources, migrations, public routes) without explicit user confirmation
+- Delete database migrations (the chain breaks for fresh installs)

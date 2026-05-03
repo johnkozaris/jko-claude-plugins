@@ -23,9 +23,8 @@ Before asking questions, thoroughly scan the project:
 - `global.json`, `Directory.Build.props`, `Directory.Packages.props` — SDK, language version, common props, package management
 - `*.sln`, `*.csproj` — project structure, target frameworks, references
 - `Program.cs` and service-registration extensions — host style, DI patterns, middleware/endpoints
-- AppHost project — whether `.NET Aspire` is used and how strictly it is separated
 - Data access — EF Core, Dapper, raw SQL, migrations, transaction patterns
-- Realtime — SignalR hubs, group management, connection state strategy
+- Realtime — SignalR hubs, raw WebSocket endpoints, Server-Sent Events streams; group/connection-state strategy
 - Background work — `BackgroundService`, channels, queue abstractions
 - Logging/observability — ILogger, Serilog, OpenTelemetry, correlation patterns
 - Tests — unit/integration/API test projects and tools
@@ -38,16 +37,18 @@ Note what is clearly inferable and what remains uncertain.
 Ask only what the codebase cannot answer.
 
 ### Project Context
+
 - Is this backend a modular monolith, product suite, or service in a larger ecosystem?
-- Is AppHost only for local orchestration, or part of the team's normal distributed-dev workflow?
 - Any hard latency, throughput, or reliability requirements?
 
 ### Conventions
+
 - Is the preferred endpoint style minimal APIs, controllers, or mixed?
 - Are repositories required everywhere, or only at selected boundaries?
 - Are vertical slices preferred over strict layer buckets?
 
 ### Quality Rules
+
 - Any strict rules for file size, interface usage, or architecture layering?
 - Any data or messaging rules that all contributors must follow?
 - Any specific DI lifetime or SignalR policies?
@@ -62,24 +63,31 @@ Synthesize findings into a `## .NET Backend Conventions` section:
 ## .NET Backend Conventions
 
 ### Host Style
-[Minimal APIs/controllers/SignalR/workers/AppHost usage]
+
+[Minimal APIs / controllers / SignalR / raw WebSockets / SSE / workers usage]
 
 ### Architecture
+
 [Modular monolith, layered, vertical slice, project boundaries]
 
 ### Data Access
+
 [EF Core, repositories, transaction rules, migration approach]
 
 ### Dependency Injection
+
 [Built-in container patterns, lifetime rules, factory usage]
 
 ### Realtime & Background Work
-[SignalR usage, connection-state rules, workers/channels]
+
+[SignalR / raw WebSocket / SSE usage, connection-state rules, workers/channels]
 
 ### Testing & Quality Gates
+
 [Test projects, required commands, style or analyzer expectations]
 
 ### Domain Rules
+
 [Project-specific rules that should steer all future work]
 ```
 

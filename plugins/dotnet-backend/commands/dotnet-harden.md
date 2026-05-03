@@ -12,7 +12,7 @@ Harden the `.NET` backend. If `$ARGUMENTS` is provided, focus on that project, d
 ## Preparation
 
 1. Detect the solution, SDK, and backend entry projects.
-2. Determine whether the code uses minimal APIs, controllers, SignalR hubs, workers, AppHost, EF Core, Dapper, or mixed data access.
+2. Determine whether the code uses minimal APIs, controllers, SignalR hubs, raw WebSockets, Server-Sent Events, workers, EF Core, Dapper, or mixed data access.
 3. Read the composition root before making any changes.
 
 ## High-Value Scans
@@ -61,7 +61,7 @@ rg -n '(UseForwardedHeaders|ForwardedHeaders|KnownProxies|KnownNetworks|Kestrel|
 2. Fix boundary leaks second:
    - endpoint or hub contains business logic (`DN-01`, `DN-02`)
    - entities leak directly to HTTP or SignalR contracts (`DN-08`)
-   - AppHost or infrastructure concerns leak into domain logic (`DN-16`)
+   - infrastructure or wiring concerns leak into domain logic (`DN-16`)
 3. Fix operability risks third:
    - fragile SignalR connection state kept in-process (`DN-15`)
    - unbounded concurrency
@@ -77,6 +77,7 @@ rg -n '(UseForwardedHeaders|ForwardedHeaders|KnownProxies|KnownNetworks|Kestrel|
 ### Hardened Issues
 
 For each fixable issue, report:
+
 - file and line
 - anti-pattern ID
 - why it matters
@@ -91,6 +92,7 @@ List issues that need broader refactoring or product decisions.
 After changes, run the existing build/tests for the affected project. Report what ran and whether it passed.
 
 **NEVER**:
+
 - “Fix” issues by adding broad catch blocks
 - Introduce abstractions without a concrete boundary reason
 - Turn a modular monolith into accidental distributed architecture

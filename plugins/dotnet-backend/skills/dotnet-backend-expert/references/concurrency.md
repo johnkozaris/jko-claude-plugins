@@ -36,6 +36,17 @@ Use for producer/consumer work and background pipelines. Prefer bounded channels
 
 Use to cap concurrency for async work. Always release in `finally`.
 
+### `Parallel.ForEachAsync`
+
+Use to bound concurrency over an `IEnumerable<T>` or `IAsyncEnumerable<T>` of async work. Replaces the common `SemaphoreSlim` + `Task.WhenAll` hand-roll for "do these N items, at most K in flight, with cancellation" scenarios.
+
+```csharp
+await Parallel.ForEachAsync(
+    items,
+    new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = ct },
+    async (item, token) => await ProcessAsync(item, token));
+```
+
 ### `lock`
 
 Use only for short synchronous critical sections. Never `await` inside a lock.
@@ -62,10 +73,10 @@ If work matters, give it an owner:
 
 ## Concurrency Smells
 
-| Smell | Signal | Fix |
-|---|---|---|
-| Sync-over-async | `.Result`, `.Wait()`, blocking wrappers | make the whole path async |
-| Hidden shared state | static or singleton mutable collections | isolate ownership or synchronize properly |
-| Ad hoc queue | list + lock + polling loop | use `Channel<T>` |
-| Scoped-in-worker bug | hosted service uses scoped dependency directly | create a scope or use factory |
-| `await` in `lock` | impossible or fragile critical section | redesign with async-safe coordination |
+| Smell                | Signal                                         | Fix                                       |
+| -------------------- | ---------------------------------------------- | ----------------------------------------- |
+| Sync-over-async      | `.Result`, `.Wait()`, blocking wrappers        | make the whole path async                 |
+| Hidden shared state  | static or singleton mutable collections        | isolate ownership or synchronize properly |
+| Ad hoc queue         | list + lock + polling loop                     | use `Channel<T>`                          |
+| Scoped-in-worker bug | hosted service uses scoped dependency directly | create a scope or use factory             |
+| `await` in `lock`    | impossible or fragile critical section         | redesign with async-safe coordination     |

@@ -4,20 +4,20 @@ AI-generated backend code often compiles, sometimes even passes tests, and still
 
 ## Tells
 
-| ID | Tell | Why It Matters |
-|---|---|---|
-| AS-01 | interface per class with no real seam | abstraction tax and indirection |
-| AS-02 | `BaseService` / `BaseRepository` explosion | cargo-cult architecture |
-| AS-03 | giant `Program.cs` with inline everything | no feature structure, unreadable host |
-| AS-04 | pass-through services | fake layering with zero value |
-| AS-05 | endpoints or hubs touch infrastructure directly | layer violation |
-| AS-06 | same type used for entity, request, response, and persistence | boundary collapse |
-| AS-07 | generic helper / manager / provider names everywhere | no domain language |
-| AS-08 | tests mirror implementation details only | coverage theater |
-| AS-09 | heavy comments restating obvious code | generated noise instead of design |
-| AS-10 | random factories and strategy patterns with one implementation | ceremony before need |
-| AS-11 | static helper bags full of hidden dependencies | anti-DI design |
-| AS-12 | eventing/AppHost/microservices added with no clear problem | modernization theater |
+| ID    | Tell                                                           | Why It Matters                        |
+| ----- | -------------------------------------------------------------- | ------------------------------------- |
+| AS-01 | interface per class with no real seam                          | abstraction tax and indirection       |
+| AS-02 | `BaseService` / `BaseRepository` explosion                     | cargo-cult architecture               |
+| AS-03 | giant `Program.cs` with inline everything                      | no feature structure, unreadable host |
+| AS-04 | pass-through services                                          | fake layering with zero value         |
+| AS-05 | endpoints or hubs touch infrastructure directly                | layer violation                       |
+| AS-06 | same type used for entity, request, response, and persistence  | boundary collapse                     |
+| AS-07 | generic helper / manager / provider names everywhere           | no domain language                    |
+| AS-08 | tests mirror implementation details only                       | coverage theater                      |
+| AS-09 | heavy comments restating obvious code                          | generated noise instead of design     |
+| AS-10 | random factories and strategy patterns with one implementation | ceremony before need                  |
+| AS-11 | static helper bags full of hidden dependencies                 | anti-DI design                        |
+| AS-12 | eventing/microservices added with no clear problem             | modernization theater                 |
 
 ## Scorecard
 

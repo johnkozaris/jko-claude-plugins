@@ -27,6 +27,14 @@ fn process(data: Vec<String>) {
 
 **Detection:** Count `.clone()` calls. If more than 1 per 50 lines in non-test code, investigate each one. Most should be `&T` borrows instead.
 
+**Important nuance — not every clone is slop.** The community consensus is that several clone patterns are _idiomatic_ and should not be flagged:
+
+- **`Arc::clone(&handle)` / `Rc::clone(&handle)`** on service handles, DB pools, channels, configs. This is the M-SERVICES-CLONE pattern (see [design-principles reference](design-principles.md)). Long-lived service types are designed to be cheap to clone.
+- **`String::clone()` / `Vec::clone()` for genuinely-needed independent ownership** — sending owned data into a `tokio::spawn`, building a snapshot before releasing a lock, returning owned data from a function whose only borrow source is shorter-lived than the return.
+- **Prototype code** where readability beats peak perf and the clone has been measured to not be on a hot path.
+
+The AI tell is **unprincipled clone-to-shut-up-the-compiler on owned heap data** (`Vec<String>`, large structs, `HashMap`). The legitimate uses above all share one property: the author can name _why_ the clone is correct in one sentence. If the author cannot, it is slop.
+
 ### 2. `Arc<Mutex<T>>` as Default Concurrency
 
 AI reaches for `Arc<Mutex<T>>` for ANY shared state. It's the tutorial answer that AI memorized. Real code uses channels, actors, atomics, or just passes ownership.
@@ -261,6 +269,7 @@ let _config = load_config();  // prefix with _ if intentionally unused
 ```
 
 **Common AI suppression patterns:**
+
 - `#[allow(unused)]` on everything rather than removing dead code
 - `#[allow(clippy::needless_pass_by_value)]` rather than taking `&T`
 - `#[allow(clippy::cast_possible_truncation)]` rather than using `try_into()`
@@ -276,30 +285,35 @@ AI generates 100+ line functions mixing I/O, parsing, validation, business logic
 
 ## Benchmark Data
 
-| Metric | Finding | Source |
-|---|---|---|
-| Ownership/borrowing errors share of all LLM compile errors | >40% | Academic survey |
-| Best model on real Rust tasks (CRUST-Bench) | 48% success (o3) | COLM 2025 |
-| Idiomatic C-to-Rust translation success | 52% | arXiv SACTOR |
-| LLM-generated code with at least one code smell | 60.9% | Cross-LLM study |
-| Code clones with AI assistance | 4x increase | GitClear 2025 |
-| Refactored code with AI assistance | 60% decrease | GitClear 2025 |
+| Metric                                                     | Finding          | Source          |
+| ---------------------------------------------------------- | ---------------- | --------------- |
+| Ownership/borrowing errors share of all LLM compile errors | >40%             | Academic survey |
+| Best model on real Rust tasks (CRUST-Bench)                | 48% success (o3) | COLM 2025       |
+| Idiomatic C-to-Rust translation success                    | 52%              | arXiv SACTOR    |
+| LLM-generated code with at least one code smell            | 60.9%            | Cross-LLM study |
+| Code clones with AI assistance                             | 4x increase      | GitClear 2025   |
+| Refactored code with AI assistance                         | 60% decrease     | GitClear 2025   |
 
 ## The Fingerprints — Cross-Language
 
 ### Generic Variable Names
+
 AI defaults to `result`, `data`, `temp`, `item`, `value`, `output`, `response`. Humans use domain names: `invoice_total`, `conn`, `buf`.
 
 ### Tutorial-Style Flow
+
 AI code reads like a step-by-step tutorial — heavily commented, each step following logically. Production code is terser, makes assumptions, and is written for someone who knows the domain.
 
 ### No Refactoring
+
 AI duplicates rather than extracts. It copies a 20-line block and changes two variables instead of parameterizing. Research data: refactored code dropped from 24% to under 10% of changes with AI assistance (GitClear 2025).
 
 ### Over-Engineering Without Justification
+
 Factory patterns for one implementation. Repository layers for three tables. Configuration systems that are never configured. Every abstraction should earn its keep — "What bug does this prevent?"
 
 ### Defensive Overreach
+
 Redundant validation at every layer. Try-catch around code that cannot fail. Null checks on values just constructed. `else` blocks after `return`.
 
 ## The Litmus Test
@@ -316,6 +330,7 @@ After reviewing any code, ask:
 ## What to Do
 
 When you detect AI slop:
+
 - **Don't just flag it** — rewrite it to show what idiomatic Rust looks like
 - **Explain the WHY** — "this clone exists because the AI couldn't figure out that `&data` is sufficient"
 - **Suggest the `/rust-harden` command** for systematic cleanup

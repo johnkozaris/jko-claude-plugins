@@ -39,6 +39,17 @@ Examples:
 
 The API boundary decides whether these become `404`, `409`, `400`, or another response.
 
+## Result Types vs Domain Exceptions
+
+For expected failures, both styles are valid:
+
+- **Domain-specific exceptions** — thrown by application/domain code, caught and mapped at the host edge. Familiar, easy to centralize, but can hide control flow.
+- **Result types** (`OneOf<TSuccess, TError>`, custom `Result<T>`, discriminated unions) — expected outcomes are part of the method signature. Forces callers to handle every case; no hidden throws. Increasingly common in modern .NET codebases.
+
+Pick one style per layer and stay consistent. Mixing both inside the same application service is the common failure mode — the result type loses its contract guarantee the moment a downstream call throws a domain exception that the wrapper does not translate.
+
+Review rule: throwing for genuinely exceptional conditions is fine; using exceptions for routine "item not found" or "already exists" results across an entire codebase is a smell whether you migrate to result types or not.
+
 ## Logging
 
 Log once with context at the boundary that owns the failure.
@@ -50,10 +61,10 @@ Log once with context at the boundary that owns the failure.
 
 ## Smells
 
-| Smell | Signal | Fix |
-|---|---|---|
-| Swallowed exception | `catch` logs and returns success-ish result | rethrow or map deliberately |
-| Business exceptions as flow control everywhere | normal invalid states use exceptions deep in core | use explicit outcomes where clearer |
-| Inconsistent errors | each endpoint invents its own JSON shape | standardize on `ProblemDetails` |
-| Detail leakage | stack traces or raw exception text in responses | sanitize at edge |
-| 500 for known case | domain/application failure becomes generic server error | map explicitly |
+| Smell                                          | Signal                                                  | Fix                                 |
+| ---------------------------------------------- | ------------------------------------------------------- | ----------------------------------- |
+| Swallowed exception                            | `catch` logs and returns success-ish result             | rethrow or map deliberately         |
+| Business exceptions as flow control everywhere | normal invalid states use exceptions deep in core       | use explicit outcomes where clearer |
+| Inconsistent errors                            | each endpoint invents its own JSON shape                | standardize on `ProblemDetails`     |
+| Detail leakage                                 | stack traces or raw exception text in responses         | sanitize at edge                    |
+| 500 for known case                             | domain/application failure becomes generic server error | map explicitly                      |

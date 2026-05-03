@@ -18,13 +18,13 @@ Need code reuse?
 
 ## When Macros Are Anti-Patterns
 
-| Anti-Pattern | Fix |
-|---|---|
-| Macro for trivial logic | Plain function |
-| Hidden `return`/`continue` in macro | Return `Result`/`Option`, caller uses `?` |
-| Multiple evaluation of arguments | Assign to temp var in macro body |
-| Non-standard confusing syntax | Match normal Rust or look obviously different |
-| Macro wrapping that hides references | Explicit `&` at call site |
+| Anti-Pattern                         | Fix                                           |
+| ------------------------------------ | --------------------------------------------- |
+| Macro for trivial logic              | Plain function                                |
+| Hidden `return`/`continue` in macro  | Return `Result`/`Option`, caller uses `?`     |
+| Multiple evaluation of arguments     | Assign to temp var in macro body              |
+| Non-standard confusing syntax        | Match normal Rust or look obviously different |
+| Macro wrapping that hides references | Explicit `&` at call site                     |
 
 ## macro_rules! Best Practices
 
@@ -36,6 +36,7 @@ Need code reuse?
 ## Procedural Macro Best Practices
 
 ### Crate Structure
+
 Proc macros must be in their own crate with `proc-macro = true`. Convention: `<crate>-derive` or `<crate>-macros`.
 
 ### The Standard Stack: syn + quote + proc-macro2
@@ -52,6 +53,7 @@ pub fn my_trait_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
 ```
 
 ### Error Reporting
+
 ```rust
 // GOOD: preserves source spans, actionable error
 syn::Error::new(span, "expected a struct, not an enum").to_compile_error()
@@ -61,9 +63,11 @@ panic!("expected a struct")
 ```
 
 ### Absolute Paths in Generated Code
+
 Generated code runs in the user's crate. Always qualify: `::std::option::Option`, `::core::result::Result`.
 
 ### Testing
+
 - `trybuild` — test that macros emit correct compile-time errors
 - `cargo expand` — inspect expanded output during development
 
@@ -81,3 +85,38 @@ pub fn builder_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream
 ## Future Direction
 
 As of the 2025H1 project goals, there is active work to extend `macro_rules!` to define attribute and derive macros declaratively — without writing a proc macro crate. Check the Rust blog for current status.
+
+## Built-in Macros to Prefer Over Crate Dependencies
+
+### `cfg_select!` (1.95) — Replaces the `cfg-if` Crate
+
+`cfg_select!` is a compile-time `match` over `cfg` predicates. The first arm whose predicate is `true` expands; the rest are discarded. Drop the `cfg-if` dependency.
+
+```rust
+cfg_select! {
+    unix => {
+        fn platform_init() { /* unix */ }
+    }
+    windows => {
+        fn platform_init() { /* windows */ }
+    }
+    _ => {
+        fn platform_init() { /* fallback */ }
+    }
+}
+
+// Expression form
+let label: &str = cfg_select! {
+    target_pointer_width = "64" => "64-bit",
+    target_pointer_width = "32" => "32-bit",
+    _ => "other",
+};
+```
+
+Use over `#[cfg]` ladders when:
+
+- Multiple sibling items vary on the same predicate set (avoids repeating `#[cfg(not(...))]`)
+- A fallback `_` arm is needed
+- The result is an expression, not an item
+
+Stay with plain `#[cfg]` for single-item gates — `cfg_select!` is overkill for `#[cfg(test)] fn helper() {}`.

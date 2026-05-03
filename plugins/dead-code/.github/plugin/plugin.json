@@ -1,7 +1,7 @@
 {
   "name": "dead-code",
-  "description": "Find and remove dead code, unused imports, and duplicates across any language",
-  "version": "1.0.0",
+  "description": "Find and remove dead code, duplicates, split-brain implementations, and dead deployment artifacts across any language and stack",
+  "version": "1.1.0",
   "license": "MIT",
   "author": {
     "name": "John Kozaris"
@@ -15,10 +15,15 @@
     "simplify",
     "duplicate",
     "DRY",
+    "split-brain",
+    "spaghetti",
     "imports",
     "refactoring",
     "lint",
-    "code-quality"
+    "code-quality",
+    "architecture",
+    "deployment",
+    "polyglot"
   ],
   "skills": "./skills",
   "commands": "./commands"

@@ -9,6 +9,7 @@ The fundamental approach: find all symbol definitions, then count references acr
 ## Unused Function Detection
 
 ### Python
+
 ```bash
 # List all function definitions
 rg -o 'def (\w+)' -r '$1' --no-filename -t py | sort -u > /tmp/py_funcs.txt
@@ -21,6 +22,7 @@ done < /tmp/py_funcs.txt
 ```
 
 ### JavaScript / TypeScript
+
 ```bash
 # Find exported functions/consts that may be unused
 rg 'export (function|const|class|type|interface|enum) (\w+)' -t ts -t js -o -r '$2' --no-filename | sort -u | while read sym; do
@@ -30,6 +32,7 @@ done
 ```
 
 ### Rust
+
 ```bash
 # Find pub functions not referenced elsewhere
 rg 'pub fn (\w+)' -t rust -o -r '$1' --no-filename | sort -u | while read func; do
@@ -41,6 +44,7 @@ done
 ## Unused Import Detection
 
 ### Python
+
 ```bash
 # Find imports and check if the imported name is used in the file
 rg -n '^(from \S+ )?import (.+)' -t py | while IFS=: read -r file line match; do
@@ -53,6 +57,7 @@ done
 ```
 
 ### JavaScript / TypeScript (simple check)
+
 ```bash
 # Find named imports and check usage in same file
 rg -n 'import \{([^}]+)\}' -t ts -t js | while IFS=: read -r file line match; do
@@ -158,6 +163,7 @@ rg -n '(\w+)\s*=' -t py | sort | uniq -d -f1
 ## Quick Full Scan Script
 
 Combine the above into a single scan:
+
 ```bash
 #!/bin/bash
 # dead-code-scan.sh - Quick heuristic dead code scan
@@ -182,4 +188,102 @@ echo -e "\n--- Skipped Tests ---"
 rg -c '(@skip|@ignore|xit\(|xdescribe\(|\.skip\(|#\[ignore\]|\[Ignore\]|@Disabled|@pytest\.mark\.skip)' "$DIR" 2>/dev/null | awk -F: '{s+=$2} END {print "Total:", s+0}'
 
 echo -e "\nScan complete. Run language-specific tools for deeper analysis."
+```
+
+## Cyclic Dependency Detection
+
+Cycles hide dead code from `knip`-style analysis. Detect and visualize per stack:
+
+```bash
+# JavaScript / TypeScript
+npx madge --circular --extensions ts,tsx,js,jsx src/
+# or: npx dependency-cruiser --validate src/
+
+# Python
+pip install pydeps && pydeps --show-cycles --max-bacon 0 src/
+# or: pylint --disable=all --enable=cyclic-import src/
+
+# Rust
+cargo install cargo-modules
+cargo modules generate graph --package $CRATE | grep -i cycle
+
+# Go
+go install github.com/loov/goda@latest
+goda graph ./... | grep -i cycle
+
+# C / C++
+cinclude2dot . > deps.dot && dot -Tpng deps.dot > deps.png
+
+# .NET (requires NDepend or community tools)
+# Use dependency-cruiser for TS, or NetArchTest in tests
+```
+
+## Split-Brain Quick Scan (Cross-Stack)
+
+```bash
+# Same enum-like declarations across languages
+rg -o '(enum|class)\s+(\w+)' -t ts -t py -t cs -t swift --no-filename \
+  | sort | uniq -c | sort -rn | awk '$1 >= 2 {print $1, $2}' | head -20
+
+# Same field names across model/dto/schema/type directories
+for d in models schemas dto types entities; do
+  fd -t f . "$d" 2>/dev/null
+done | xargs rg -o '^\s*(\w+):' --no-filename -r '$1' 2>/dev/null \
+  | sort | uniq -c | sort -rn | awk '$1 >= 3' | head -20
+
+# Hardcoded URLs duplicated
+rg -o 'https?://[a-zA-Z0-9./?=&_-]+' --no-filename | sort | uniq -c | sort -rn | head -10
+
+# Two route handlers covering same path
+rg -o "(get|post|put|delete|patch|MapGet|MapPost|app\.route)\(['\"]([^'\"]+)" \
+  --no-filename -r '$2' | sort | uniq -c | sort -rn | awk '$1 >= 2'
+```
+
+## Deployment Dead Code Quick Scan
+
+```bash
+# Env vars declared in .env but never read
+{
+  rg -o '^[A-Z_][A-Z0-9_]+=' .env* 2>/dev/null | sed 's/=$//'
+} | sort -u > /tmp/declared.txt
+{
+  rg -o "process\.env\.([A-Z_][A-Z0-9_]+)" -r '$1' -t ts -t js
+  rg -o "os\.(getenv|environ\[)['\"]?([A-Z_][A-Z0-9_]+)" -r '$2' -t py
+  rg -o 'std::env::var\("([A-Z_][A-Z0-9_]+)"' -r '$1' -t rust
+} | sort -u > /tmp/used.txt
+comm -23 /tmp/declared.txt /tmp/used.txt
+
+# Asset files with no string-literal reference
+fd -t f -e png -e jpg -e svg -e ico public/ assets/ static/ 2>/dev/null | while read f; do
+  base=$(basename "$f" | sed 's/\.[^.]*$//')
+  count=$(rg -wc "$base" -t ts -t tsx -t js -t jsx -t css -t html 2>/dev/null | awk -F: '{s+=$2} END {print s+0}')
+  [ "$count" -eq 0 ] && echo "Possibly orphan asset: $f"
+done
+
+# Shell scripts in scripts/ never invoked
+fd -t f -e sh -e bash scripts/ 2>/dev/null | while read s; do
+  name=$(basename "$s")
+  count=$(rg -c "$name" -g '!scripts/*' --no-filename 2>/dev/null | awk -F: '{s+=$1} END {print s+0}')
+  [ "$count" -eq 0 ] && echo "Possibly orphan script: $s"
+done
+
+# Markdown links to missing files
+rg -o '\[([^\]]+)\]\(([^)]+)\)' --no-filename -r '$2' -t md | grep -v '^http' | grep -v '^#' | while read link; do
+  [ ! -e "$link" ] && echo "Broken doc link: $link"
+done
+```
+
+## Complexity Hot-Spot Detection
+
+High complexity often hides dead branches and dead variables. Scan first, audit those files manually for dead code.
+
+```bash
+# Multi-language complexity (lizard)
+pip install lizard
+lizard -C 10 -L 50 -a 5 src/ | head -50
+# CCN > 10, length > 50 LOC, args > 5
+
+# Files larger than 500 lines (likely god files hiding dead code)
+fd -t f -e py -e ts -e tsx -e js -e jsx -e rs -e cs -e swift -e go src/ \
+  | xargs wc -l 2>/dev/null | awk '$1 > 500 {print}' | sort -rn | head -20
 ```

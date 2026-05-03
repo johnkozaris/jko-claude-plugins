@@ -10,7 +10,6 @@ project-root/
   Directory.Build.props
   Directory.Packages.props
   src/
-    MyApp.AppHost/         # optional Aspire orchestration only
     MyApp.Api/             # Kestrel host, route groups/controllers, hubs, DI
     MyApp.Application/     # use cases, workflows, ports, policies
     MyApp.Domain/          # entities, value objects, invariants
@@ -86,19 +85,18 @@ Infrastructure/
 - one major type per file when the type matters
 - no `Common`, `Helpers`, or `Utilities` dumping ground unless it is tiny and specific
 - do not let `Program.cs` become the only place a feature exists
-- do not let AppHost become a second application layer
 - keep contracts close to the boundary they serve
 
 ## File Size Guidance
 
-| File Type | Target | Max |
-|---|---|---|
-| `Program.cs` | 50-150 | 250 |
-| endpoint group | 50-150 | 300 |
+| File Type        | Target | Max |
+| ---------------- | ------ | --- |
+| `Program.cs`     | 50-150 | 250 |
+| endpoint group   | 50-150 | 300 |
 | service/use case | 40-200 | 300 |
-| hub | 50-150 | 250 |
-| contract file | 20-120 | 200 |
-| any `.cs` file | --- | 500 |
+| hub              | 50-150 | 250 |
+| contract file    | 20-120 | 200 |
+| any `.cs` file   | ---    | 500 |
 
 ## Smells
 

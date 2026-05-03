@@ -82,6 +82,7 @@ while let Some(result) = set.join_next().await {
 ```
 
 **Key patterns:**
+
 - `set.spawn()` for fire-and-track
 - `set.join_next().await` to collect results
 - `set.abort_all()` for forced cancellation
@@ -122,6 +123,7 @@ impl DbActor {
 ```
 
 **Why actors beat Arc<Mutex>:**
+
 - No deadlocks — single-owner, sequential processing
 - Backpressure — bounded channel blocks senders
 - Clean shutdown — drop all handles, actor drains and exits
@@ -132,6 +134,7 @@ impl DbActor {
 ### When It's Wrong
 
 **Config that changes once at startup.** Use `ArcSwap` or `OnceCell`/`OnceLock`:
+
 ```rust
 // BAD: mutex for read-only-after-init config
 let config = Arc::new(Mutex::new(load_config()));
@@ -142,6 +145,7 @@ CONFIG.set(load_config()).ok();
 ```
 
 **Data only one task touches.** Just own it:
+
 ```rust
 // BAD: Arc<Mutex> for private task state
 let state = Arc::new(Mutex::new(MyState::new()));
@@ -158,6 +162,7 @@ tokio::spawn(async move {
 ```
 
 **Counters and flags.** Use atomics:
+
 ```rust
 // BAD
 let count = Arc::new(Mutex::new(0u64));
@@ -229,19 +234,57 @@ Use atomics for simple shared values instead of Mutex:
 
 ### Memory Ordering
 
-| Ordering | Use |
-|---|---|
-| `Relaxed` | Isolated counters, statistics — no inter-variable sync |
-| `Release` / `Acquire` | Producer publishes, consumer reads — the primary tool |
-| `SeqCst` | Rarely needed — carries unnecessary performance cost |
+| Ordering              | Use                                                    |
+| --------------------- | ------------------------------------------------------ |
+| `Relaxed`             | Isolated counters, statistics — no inter-variable sync |
+| `Release` / `Acquire` | Producer publishes, consumer reads — the primary tool  |
+| `SeqCst`              | Rarely needed — carries unnecessary performance cost   |
 
 **Do not use `SeqCst` as a lazy default.** Understand your actual synchronization needs.
 
 ## Modern Concurrency APIs
 
+- **`Atomic{Bool,Ptr,Usize,Isize,...}::update` / `try_update`** (1.95) — apply a closure to atomically transform a value. Replaces hand-rolled `compare_exchange` CAS loops:
+
+  ```rust
+  // BEFORE: hand-rolled CAS loop
+  let mut cur = atomic.load(Ordering::Relaxed);
+  loop {
+      let new = cur + 1;
+      match atomic.compare_exchange_weak(cur, new, Ordering::Release, Ordering::Relaxed) {
+          Ok(_) => break,
+          Err(actual) => cur = actual,
+      }
+  }
+
+  // AFTER (1.95)
+  atomic.update(Ordering::Release, Ordering::Relaxed, |cur| cur + 1);
+  ```
+
 - **`RwLockWriteGuard::downgrade()`** (1.92) — atomically convert write guard to read guard. Prevents other writers sneaking in.
 - **`strict_add`, `strict_sub`, `strict_mul`** (1.91) — always panics on overflow, even in release.
 - **`File::lock()`, `lock_shared()`, `try_lock()`** (1.89) — native file locking. Replaces `fd-lock`, `fs2` crates.
+
+## Threading: Prefer `thread::scope` Over `thread::spawn`
+
+For threads that operate on borrowed data and have a known scope, **always use `std::thread::scope`** instead of bare `thread::spawn`:
+
+```rust
+// BAD: bare spawn — loses 'static-borrowed data; easy to forget join();
+//      destructors of values moved into the thread may never run if the
+//      JoinHandle is dropped without join()
+let data = vec![1, 2, 3];
+let handle = std::thread::spawn(move || process(data));
+// ... forgot handle.join()? — main may exit before destructors run
+
+// GOOD: scoped threads — borrow non-'static data, auto-join at scope end
+std::thread::scope(|s| {
+    s.spawn(|| process(&data));
+    s.spawn(|| log(&data));
+}); // all scoped threads joined here, even on panic
+```
+
+`JoinHandle` is **not** `#[must_use]` (rejected for being too noisy). Forgetting `.join()` is a real footgun: cleanup work in spawned threads may never finish before the process exits. See matklad, ["Join Your Threads"](https://matklad.github.io/2019/08/23/join-your-threads.html).
 
 ## ArcSwap — Lock-Free Hot-Swapping
 
@@ -264,13 +307,13 @@ Use `ArcSwapOption` when the value can start as `None`. `load_full()` returns an
 
 ## Send and Sync
 
-| Type | `Send` | `Sync` | Notes |
-|---|---|---|---|
-| Primitives | Yes | Yes | Trivially safe |
-| `Arc<T>` (T: Send+Sync) | Yes | Yes | Thread-safe shared ownership |
-| `Mutex<T>` (T: Send) | Yes | Yes | Synchronized access |
-| `Rc<T>` | No | No | Single-threaded only |
-| `RefCell<T>` | Yes | No | Runtime borrow check not thread-safe |
+| Type                    | `Send` | `Sync` | Notes                                |
+| ----------------------- | ------ | ------ | ------------------------------------ |
+| Primitives              | Yes    | Yes    | Trivially safe                       |
+| `Arc<T>` (T: Send+Sync) | Yes    | Yes    | Thread-safe shared ownership         |
+| `Mutex<T>` (T: Send)    | Yes    | Yes    | Synchronized access                  |
+| `Rc<T>`                 | No     | No     | Single-threaded only                 |
+| `RefCell<T>`            | Yes    | No     | Runtime borrow check not thread-safe |
 
 In async: futures held across `.await` must be `Send` for multi-threaded executors. Replace `Rc` → `Arc`, `RefCell` → `Mutex/RwLock`.
 
@@ -278,13 +321,13 @@ For "Future is not Send" causes and fixes, see the [async reference](async.md#fu
 
 ## Concurrent Data Structures
 
-| Crate | Type | Use when |
-|---|---|---|
-| `dashmap` | Sharded `RwLock<HashMap>` | General concurrent map, good read/write balance |
-| `moka` | Concurrent cache with TTL/size eviction | Caching with expiration |
-| `papaya` | Lock-free hash map | Extreme read throughput, rarely written |
-| `arc-swap` | Atomic `Arc` swap | Config/provider hot-reload |
-| `crossbeam::SegQueue` | Lock-free unbounded queue | Work queues |
+| Crate                 | Type                                    | Use when                                        |
+| --------------------- | --------------------------------------- | ----------------------------------------------- |
+| `dashmap`             | Sharded `RwLock<HashMap>`               | General concurrent map, good read/write balance |
+| `moka`                | Concurrent cache with TTL/size eviction | Caching with expiration                         |
+| `papaya`              | Lock-free hash map                      | Extreme read throughput, rarely written         |
+| `arc-swap`            | Atomic `Arc` swap                       | Config/provider hot-reload                      |
+| `crossbeam::SegQueue` | Lock-free unbounded queue               | Work queues                                     |
 
 ## Rayon — Data Parallelism
 
@@ -294,6 +337,7 @@ let sum: i32 = data.par_iter().map(|&x| x * x).sum();
 ```
 
 **Rules:**
+
 - Never lock a Mutex inside `par_iter()` — use `fold` + `reduce` for accumulation
 - `RAYON_NUM_THREADS=1` for debugging to isolate concurrency bugs
 - Benchmark: if sequential is within 2x, the complexity isn't worth it
@@ -301,16 +345,16 @@ let sum: i32 = data.par_iter().map(|&x| x * x).sum();
 
 ## Channel Selection Guide
 
-| Library | MPMC | Async | `select!` | Notes |
-|---|---|---|---|---|
-| `std::mpsc` | No | No | No | Zero deps, single consumer |
-| `crossbeam-channel` | Yes | No | Yes | Mature, fast, feature-rich |
-| `flume` | Yes | Yes | No | Best sync+async bridge, no unsafe |
-| `kanal` | Yes | Yes | No | Highest raw throughput |
-| `tokio::sync::mpsc` | No | Yes | Yes (via `select!`) | Native tokio, bounded |
-| `tokio::sync::broadcast` | Yes | Yes | Yes | Fan-out to multiple receivers |
-| `tokio::sync::watch` | No | Yes | No | Latest-value broadcast (config changes) |
-| `tokio::sync::oneshot` | No | Yes | No | Single response (request/reply) |
+| Library                  | MPMC | Async | `select!`           | Notes                                   |
+| ------------------------ | ---- | ----- | ------------------- | --------------------------------------- |
+| `std::mpsc`              | No   | No    | No                  | Zero deps, single consumer              |
+| `crossbeam-channel`      | Yes  | No    | Yes                 | Mature, fast, feature-rich              |
+| `flume`                  | Yes  | Yes   | No                  | Best sync+async bridge, no unsafe       |
+| `kanal`                  | Yes  | Yes   | No                  | Highest raw throughput                  |
+| `tokio::sync::mpsc`      | No   | Yes   | Yes (via `select!`) | Native tokio, bounded                   |
+| `tokio::sync::broadcast` | Yes  | Yes   | Yes                 | Fan-out to multiple receivers           |
+| `tokio::sync::watch`     | No   | Yes   | No                  | Latest-value broadcast (config changes) |
+| `tokio::sync::oneshot`   | No   | Yes   | No                  | Single response (request/reply)         |
 
 ## Alternative Mutex: parking_lot
 

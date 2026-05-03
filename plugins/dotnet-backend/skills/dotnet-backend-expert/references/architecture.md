@@ -1,5 +1,24 @@
 # Architecture & Boundaries
 
+## Naming the Patterns
+
+The community uses several overlapping names for what is essentially the same idea: keep the dependency direction inward and isolate the domain from infrastructure and transport. Treat them as variants, not religions.
+
+| Pattern                          | Origin            | What it emphasizes                                                                                                                                         |
+| -------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Clean Architecture**           | Robert C. Martin  | Concentric layers; dependency rule points inward toward the domain.                                                                                        |
+| **Onion Architecture**           | Jeffrey Palermo   | Same shape as Clean; emphasizes that infrastructure lives on the outside ring.                                                                             |
+| **Hexagonal / Ports & Adapters** | Alistair Cockburn | Domain in the center; ports are interfaces defined inward; adapters (HTTP, EF Core, queues) implement them outward.                                        |
+| **Vertical Slice Architecture**  | Jimmy Bogard      | Organize by feature, not by technical layer. Each request lives in one cohesive slice; minimize coupling between slices, maximize coupling within a slice. |
+
+The default layered shape below is structurally a hexagonal/ports-and-adapters arrangement — application defines ports, infrastructure implements them. Inside `Application` and `Api`, the recommended folder structure (see "Feature Slices Inside Layers" below) is vertical slice. The two are complementary, not competing.
+
+## When to Use Which
+
+- **Default for new backends**: hexagonal/clean dependency direction at the project level + vertical slice organization inside `Application` and `Api`. This is what the rest of this reference assumes.
+- **Vertical slice as the primary model** (no separate Application/Domain projects): excellent for command/query-heavy services where most requests stand alone. Trade off: weaker domain modeling discipline; only safe with a team that recognizes when business logic should be promoted into a real domain layer.
+- **Strict layered/clean projects with thick interfaces and many abstractions**: only when the domain is genuinely complex and stable. For most CRUD-shaped backends this is ceremony.
+
 ## Default Shape: Modular Monolith First
 
 Start with one deployable backend unless you can name a real reason to split it:
@@ -49,7 +68,6 @@ That shape is overkill unless the system truly needs workflow engines or durable
 
 ```
 src/
-  MyApp.AppHost/           # optional .NET Aspire orchestration only
   MyApp.Api/               # Kestrel host, endpoints, hubs, DI composition root
   MyApp.Application/       # use cases, workflows, policies, ports
   MyApp.Domain/            # entities, value objects, domain services, invariants
@@ -96,20 +114,20 @@ Api/
 
 This keeps change local and reduces “one feature spread across five folders” drift.
 
-## AppHost Boundary
+## Local Orchestration Boundary
 
-If `AppHost` exists, it sits **above** service projects. It composes resources and startup relationships. It does not contain business rules, data-access logic, or endpoint behavior.
+If the solution uses any local-orchestration tool to run multiple services together (Docker Compose, Tye, or any other dev-orchestration layer), keep it **above** service projects. Orchestration composes resources and startup relationships. It does not contain business rules, data-access logic, or endpoint behavior. Service projects must remain independently runnable and testable without it.
 
 ## Boundary Smells
 
-| Smell | Signal | Fix |
-|---|---|---|
-| Business logic in host | `Program.cs` or endpoint has branching workflow logic | Move to application service/use case |
-| EF Core in domain | domain references `DbContext`, EF attributes, or migrations | Move persistence concerns to infrastructure |
-| Contract leakage | entity is returned directly over HTTP/SignalR | Introduce request/response contracts |
-| Empty layers | services or repositories only forward calls | Remove or merge the layer |
-| Feature scattering | one feature touches many unrelated folders for one change | Slice by feature within the boundary |
-| Coordination soup | `Coordinator`, `Manager`, `Engine`, and `Orchestrator` types forward work across too many layers | Collapse layers and rename by concrete responsibility |
+| Smell                  | Signal                                                                                           | Fix                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| Business logic in host | `Program.cs` or endpoint has branching workflow logic                                            | Move to application service/use case                  |
+| EF Core in domain      | domain references `DbContext`, EF attributes, or migrations                                      | Move persistence concerns to infrastructure           |
+| Contract leakage       | entity is returned directly over HTTP/SignalR                                                    | Introduce request/response contracts                  |
+| Empty layers           | services or repositories only forward calls                                                      | Remove or merge the layer                             |
+| Feature scattering     | one feature touches many unrelated folders for one change                                        | Slice by feature within the boundary                  |
+| Coordination soup      | `Coordinator`, `Manager`, `Engine`, and `Orchestrator` types forward work across too many layers | Collapse layers and rename by concrete responsibility |
 
 ## Architecture Review Questions
 

@@ -7,9 +7,17 @@ Use:
 - many fast unit tests for core logic
 - targeted integration tests for boundaries
 - a smaller set of API tests for HTTP/auth/middleware behavior
-- focused SignalR integration tests where transport behavior matters
+- focused real-time tests (SignalR / raw WebSockets / SSE) where transport behavior matters
 
 Do not let slow end-to-end tests become the primary safety net.
+
+## Tooling Defaults (.NET 10)
+
+- **xUnit or NUnit** — either is fine; pick one and stay consistent.
+- **`Microsoft.Testing.Platform` (MTP)** — supported in `dotnet test` for .NET 10. Faster than the legacy `VSTest` runner; worth adopting on new projects.
+- **`WebApplicationFactory<TEntryPoint>`** — standard way to spin up the real app in-process for HTTP/auth/middleware tests. Pairs with the .NET 10 source generator that emits `public partial class Program` automatically (no more manual `public partial class Program {}` line in `Program.cs`).
+- **TestContainers (`Testcontainers.PostgreSql`, `Testcontainers.MsSql`, etc.)** — default for relational integration tests. Spins real databases in Docker; cheap and reliable. Beats EF Core InMemory and SQLite-as-fake-Postgres approaches that hide bugs.
+- **`FluentAssertions` or `Shouldly`** — optional but common for readable assertions.
 
 ## Unit Tests
 
@@ -32,25 +40,26 @@ Good for:
 - hosted service orchestration pieces
 - SignalR connection/group/auth behavior
 
-Prefer real providers or close substitutes. EF Core InMemory is not proof of relational correctness.
+Prefer real providers or close substitutes via `WebApplicationFactory` and TestContainers. EF Core InMemory is not proof of relational correctness.
 
 ## Data Access Tests
 
 - test query behavior against the real provider when possible
 - keep migrations part of the story
-- use testcontainers or another reliable local strategy when warranted
+- use TestContainers for a real Postgres/MSSQL instance per test class or fixture
 - verify projections, transactions, and concurrency behavior where it matters
 
-## SignalR Tests
+## Real-Time Tests
 
-Mocking a hub does not prove connection behavior.
+Mocking a hub or socket does not prove connection behavior.
 
 Use a real host plus real client connections when testing:
 
 - auth
-- groups
+- groups (SignalR)
 - reconnect logic
 - transport-level behavior
+- SSE: stream lifecycle, cancellation propagation, `Last-Event-ID` resume
 
 ## Test Smells
 
