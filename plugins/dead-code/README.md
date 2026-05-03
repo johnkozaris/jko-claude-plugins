@@ -2,10 +2,32 @@
 
 Language-agnostic dead code detection, duplicate elimination, and codebase simplification across any programming language.
 
-## Components
+## What It Does
 
-### Skill: `dead-code-expert`
-Auto-activates when finding or removing dead code. Covers:
+A language-agnostic cleanup skill that identifies certainly dead code first, then escalates to higher-confidence duplicates, speculative abstractions, and zombie test/debug artifacts. It emphasizes proof, false-positive awareness, and safe removal instead of blind deletion.
+
+## Installation
+
+```bash
+# From the marketplace
+claude plugin marketplace add /path/to/myClaudeSkills
+claude plugin install dead-code@jko-claude-plugins
+
+# Or load for one session
+claude --plugin-dir /path/to/myClaudeSkills/plugins/dead-code
+```
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `/dead-code-scan` | Read-only scan for dead code findings grouped by confidence and category |
+| `/dead-code-clean` | Remove dead code, duplicates, and zombie artifacts using configurable confidence modes |
+
+## Skill
+
+The `dead-code-expert` skill activates automatically when finding or removing dead code. It provides:
+
 - Unused imports, variables, functions, classes, and types
 - Unreachable code and dead branches
 - Commented-out code and debug artifacts
@@ -14,30 +36,19 @@ Auto-activates when finding or removing dead code. Covers:
 - Lint suppressions hiding dead code
 - False-positive awareness (reflection, serialization, framework magic, public API)
 
-### Command: `/dead-code-scan`
-Read-only scan that reports dead code grouped by confidence level.
-
-```
-/dead-code-scan                  # Scan entire project
-/dead-code-scan src/services/    # Scan a specific directory
-```
-
-### Command: `/dead-code-clean`
-Actively finds and removes dead code with configurable confidence modes.
-
-```
-/dead-code-clean                          # Default: high confidence
-/dead-code-clean src/ certain             # Safest: only compiler-confirmed
-/dead-code-clean src/ aggressive          # Includes medium confidence
-```
-
 ## Supported Languages
 
 Python, JavaScript/TypeScript, Rust, Go, Swift, C#, Java, C/C++ — with per-language tool integration (knip, vulture, clippy, periphery, deadcode, Roslyn, etc.).
 
-## Installation
+## Hook
 
-Copy or symlink to your Claude Code plugins directory, or use within the myClaudeSkills marketplace.
+No active runtime hooks. `hooks/hooks.json` is reserved for future hook-based checks.
+
+## References
+
+8 reference files organized by domain:
+
+ai-slop-patterns, detection-catalog, duplicate-code, false-positives, grep-patterns, language-tools, prevention, safe-removal
 
 ## License
 

@@ -2,10 +2,31 @@
 
 Expert SwiftUI guidance — modern patterns, design craft, clean code principles, and code critique. Targets the latest iOS and Swift versions.
 
-## Components
+## What It Does
 
-### Skill: `swiftui-expert`
-Auto-activates when writing, reviewing, or debugging SwiftUI code. Provides guidance on:
+A production-focused SwiftUI skill that critiques code for modern API usage, state and data flow, clean composition, accessibility, performance, animation, concurrency, navigation, and visual craft. It pushes toward current Apple platform patterns without drifting into stale SwiftUI guidance or generic UIKit advice.
+
+## Installation
+
+```bash
+# From the marketplace
+claude plugin marketplace add /path/to/myClaudeSkills
+claude plugin install swiftui@jko-claude-plugins
+
+# Or load for one session
+claude --plugin-dir /path/to/myClaudeSkills/plugins/swiftui
+```
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `/swift-critique` | Review SwiftUI code for modern patterns, design quality, accessibility, performance, concurrency, and visual polish |
+
+## Skill
+
+The `swiftui-expert` skill activates automatically when writing, reviewing, or debugging SwiftUI code. It provides:
+
 - Modern API usage (deprecated API replacement)
 - State management (`@Observable`, property wrappers, SwiftData)
 - View composition and clean code (DRY, SRP, Open/Closed)
@@ -17,18 +38,15 @@ Auto-activates when writing, reviewing, or debugging SwiftUI code. Provides guid
 - Navigation (NavigationStack, sheets, tabs, deep links)
 - Liquid Glass (iOS 26+ adoption, fallback patterns)
 
-### Command: `/swift-critique`
-Reads SwiftUI code files and critiques them against all rules — deprecated APIs, design craft, clean code, accessibility, performance, concurrency, and AI aesthetics. Shows before/after fixes.
+## Hook
 
-```
-/swift-critique                    # Critique all .swift files in project
-/swift-critique Sources/Views/     # Critique a specific directory
-/swift-critique ContentView.swift  # Critique a single file
-```
+No active runtime hooks. `hooks/hooks.json` is reserved for future hook-based checks.
 
-## Installation
+## References
 
-Copy or symlink to your Claude Code plugins directory, or use within the myClaudeSkills marketplace.
+10 reference files organized by domain:
+
+accessibility, animation, concurrency, design-craft, liquid-glass, modern-api, navigation, performance, state-data, view-composition
 
 ## Targets
 

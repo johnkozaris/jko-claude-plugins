@@ -1,6 +1,6 @@
 # Contributing to jko-claude-plugins
 
-Thanks for your interest in contributing! This marketplace contains specialized Claude Code plugins built with care, and contributions that maintain that quality bar are welcome.
+Thanks for your interest in contributing! This marketplace contains specialized multi-CLI plugins built with care, and contributions that maintain that quality bar are welcome.
 
 ## Ways to Contribute
 
@@ -39,6 +39,11 @@ claude --plugin-dir ./plugins/<your-plugin>
 # Run the plugin validator agent (if you have the plugin-dev plugin installed)
 # /validate-plugin
 ```
+
+If you iterate on a plugin locally:
+
+- In **Claude Code**, run `/reload-plugins` after installing, enabling, disabling, or updating plugins in the current session.
+- In **GitHub Copilot CLI**, reinstall the plugin after local edits because installed plugins are cached.
 
 To enable the checked-in pre-commit hook for this repository:
 
