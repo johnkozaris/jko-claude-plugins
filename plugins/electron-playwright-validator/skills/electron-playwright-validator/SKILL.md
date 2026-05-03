@@ -148,6 +148,28 @@ e-cli screenshot
 e-cli close
 ```
 
+## Validation Mindset
+
+Running e-cli commands is not enough — you must think critically about what you see.
+
+### UI Appearance
+After every screenshot, evaluate it with a designer's eye. Do layouts, spacing, colors, and typography look correct? Does this screen feel consistent with the rest of the app? Would a real user notice something off — misalignment, clipped text, wrong font weight, broken dark-mode contrast? If something looks wrong, it is wrong.
+
+### User Experience
+Don't just verify elements exist. Click through the flow as a user would. Does the interaction sequence make sense? Are transitions smooth? Does the app respond where you expect it to? If a button exists but the flow around it is confusing, that's a bug.
+
+### Test Depth
+Happy-path validation is insufficient. Consider what a real user would encounter:
+- Empty states — what happens with no data?
+- Error states — what if something fails?
+- Edge cases — rapid clicks, resize, long text, many items
+- Navigation — can you get back? Does browser-back work?
+
+If your validation only covers the obvious path, go deeper.
+
+### Coherence
+A feature can be technically correct but feel wrong in context. After validating, ask: does this change fit the existing app? Does it match the design language, information density, and interaction patterns of surrounding views? Flag anything that looks out of place, even if it "works."
+
 ## DO
 
 - Always `e-cli snapshot` before interacting — confirms the element exists
