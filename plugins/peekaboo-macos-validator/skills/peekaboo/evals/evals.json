@@ -1,0 +1,28 @@
+{
+  "evals": [
+    {
+      "id": "trigger-after-swiftui-edit",
+      "user_message": "I just tweaked the spacing on my Settings sidebar in the macOS app. Does it still look balanced?",
+      "expected_output": "Skill triggers. Builds (or assumes a fresh build), launches the target macOS app via `peekaboo app launch --bundle-id <BID>`, takes a `peekaboo see --json --annotate` snapshot, then `view`s the annotated PNG and writes an inline scored critique focused on spacing/balance with a rubric (alignment, spacing rhythm, hierarchy). Returns a verdict that explicitly answers 'did the change achieve intent'. MUST NOT stop at 'the button is still clickable'. MUST NOT use any external AI provider — the agent reads the PNG itself.",
+      "should_invoke": true
+    },
+    {
+      "id": "trigger-validation-prompt",
+      "user_message": "Click the Settings tab and verify it works",
+      "expected_output": "Skill triggers. Captures a snapshot, finds the Settings element by .accessibilityIdentifier or label, clicks via `peekaboo click --on elem_N --snapshot $SID`, captures again, verifies via the AX tree that the panel switched, AND `view`s the resulting annotated PNG to confirm the panel renders correctly (not just that the click succeeded).",
+      "should_invoke": true
+    },
+    {
+      "id": "trigger-screenshot",
+      "user_message": "take a screenshot of the app and tell me if the empty state copy is too dim",
+      "expected_output": "Skill triggers. Runs `peekaboo see` against the target app, `view`s the resulting PNG inline, and writes a critique that specifically evaluates the empty state's copy contrast (numerically — opacity %, contrast ratio estimate vs WCAG AA) plus other visible issues. Includes a top-3-fixes-by-impact list.",
+      "should_invoke": true
+    },
+    {
+      "id": "no-trigger-backend",
+      "user_message": "Refactor my Rust runtime FFI module to use Result types throughout",
+      "expected_output": "Skill DOES NOT trigger. This is a backend / non-UI change. The skill description explicitly notes 'Skip if the change is purely backend / non-UI'. Suggests rust-critique or similar code-review skills instead.",
+      "should_invoke": false
+    }
+  ]
+}

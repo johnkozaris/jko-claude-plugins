@@ -1,0 +1,15 @@
+{
+  "description": "Verify peekaboo CLI is installed at session start. Silent on success; prints actionable install hint to stderr if missing.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/check-peekaboo.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

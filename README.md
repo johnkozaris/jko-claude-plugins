@@ -4,8 +4,8 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/plugins-6-orange" alt="Plugins: 6">
-  <img src="https://img.shields.io/badge/commands-19-green" alt="Commands: 19">
+  <img src="https://img.shields.io/badge/plugins-7-orange" alt="Plugins: 7">
+  <img src="https://img.shields.io/badge/commands-21-green" alt="Commands: 21">
 </p>
 
 These are the guidelines and patterns I use across my projects. They help coding agents review code, catch mistakes, and stay consistent with how I actually want things built. Each plugin covers a stack I work in.
@@ -31,6 +31,7 @@ Skills use the shared [Agent Skills specification](https://developers.openai.com
 | **[dotnet-backend](plugins/dotnet-backend/)** | `dotnet-backend` | 4 | Pure .NET 10 backend review for Kestrel hosting, REST, SignalR, EF Core, and DI |
 | **[swiftui](plugins/swiftui/)** | `swiftui` | 1 | iOS/macOS/visionOS patterns, Liquid Glass, accessibility |
 | **[dead-code](plugins/dead-code/)** | `dead-code` | 2 | Unused imports, functions, classes, duplicates, any language |
+| **[peekaboo-macos-validator](plugins/peekaboo-macos-validator/)** | `peekaboo` | 2 | Drive any SwiftUI/AppKit app via Peekaboo; agent reads pixels itself (no AI keys) |
 
 ## Install
 
@@ -47,6 +48,7 @@ claude plugin install python-backend@jko-claude-plugins
 claude plugin install dotnet-backend@jko-claude-plugins
 claude plugin install swiftui@jko-claude-plugins
 claude plugin install dead-code@jko-claude-plugins
+claude plugin install peekaboo-macos-validator@jko-claude-plugins
 ```
 
 Or try one without installing:
@@ -92,6 +94,11 @@ cp -r plugins/rust/skills/rust-expert ~/.config/opencode/skills/rust-expert
 ```
 
 Use the shell commands above from your terminal. Inside Claude Code and Copilot CLI, the interactive `/plugin ...` equivalents work too.
+
+### Refresh behavior during local development
+
+- **Claude Code:** after installing, enabling, disabling, or updating plugins in the current session, run `/reload-plugins`.
+- **GitHub Copilot CLI:** installed plugins are cached, so reinstall a local plugin after edits before testing again.
 
 ## Discovery model
 
@@ -157,6 +164,13 @@ Claude Code and Copilot CLI can load the plugin command adapters in `commands/`.
 |---------|-------------|
 | `/dead-code-scan` | Read-only scan for unused imports, functions, classes, duplicates |
 | `/dead-code-clean` | Actually remove the dead code it finds |
+
+### Peekaboo (macOS validator)
+
+| Command | What it does |
+|---------|-------------|
+| `/peekaboo-macos-validator:peekaboo-doctor` | Verify peekaboo install, version, and macOS permissions |
+| `/peekaboo-macos-validator:validate-macos-app` | Launch a macOS app, walk each view, snapshot + critique each, report PASS/FAIL |
 
 ## How it works
 
