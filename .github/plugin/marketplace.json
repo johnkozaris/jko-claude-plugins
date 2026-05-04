@@ -4,8 +4,8 @@
     "name": "John Kozaris"
   },
   "metadata": {
-    "description": "Claude Code plugins for Rust, ESP32 C++, Python backend, .NET backend, SwiftUI, dead code detection, backend validation, mobile validation, Electron validation, and macOS app validation",
-    "version": "1.3.0"
+    "description": "Claude Code plugins for Rust, ESP32 C++, Python backend, .NET backend, SwiftUI, dead code detection, backend validation, mobile validation, Electron validation, macOS app validation, and FFI/UDS seam probing",
+    "version": "1.4.0"
   },
   "plugins": [
     {
@@ -166,6 +166,25 @@
         "accessibility",
         "visual-regression",
         "critique"
+      ]
+    },
+    {
+      "name": "seam-probe",
+      "source": "./plugins/seam-probe",
+      "description": "Generic NDJSON probe for embedded-runtime seams: dlopen FFI dylibs and Unix-domain sockets. Manifest-driven, ships zero app-specific knowledge.",
+      "version": "1.0.0",
+      "category": "testing",
+      "tags": [
+        "ffi",
+        "dlopen",
+        "unix-socket",
+        "uds",
+        "ndjson",
+        "probe",
+        "validation",
+        "embedded-runtime",
+        "rust",
+        "seam"
       ]
     }
   ]

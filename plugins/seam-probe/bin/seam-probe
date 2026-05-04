@@ -1,0 +1,32 @@
+#!/bin/sh
+# bin/seam-probe — thin wrapper for the bundled Rust binary.
+#
+# Build location: ${CLAUDE_PLUGIN_DATA}/target/release/seam-probe.
+# That dir survives plugin updates per the Claude Code spec, so an update
+# does not force a rebuild unless the bundled crate sources actually
+# changed. Build via /seam-probe-setup or:
+#     cd "${CLAUDE_PLUGIN_ROOT}/crate" && cargo build --release \
+#         --target-dir "${CLAUDE_PLUGIN_DATA}/target"
+
+set -eu
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}
+DATA_DIR=${CLAUDE_PLUGIN_DATA:-${XDG_CACHE_HOME:-$HOME/.cache}/seam-probe}
+BIN=$DATA_DIR/target/release/seam-probe
+
+if [ ! -x "$BIN" ]; then
+  cat >&2 <<EOF
+seam-probe is not built.
+
+Run /seam-probe-setup in Claude Code, or build directly:
+
+  cd "$PLUGIN_ROOT/crate" && cargo build --release \\
+      --target-dir "$DATA_DIR/target"
+
+Rust is required (https://www.rust-lang.org/tools/install).
+EOF
+  exit 1
+fi
+
+exec "$BIN" "$@"

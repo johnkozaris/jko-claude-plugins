@@ -32,6 +32,7 @@ Skills use the shared [Agent Skills specification](https://developers.openai.com
 | **[swiftui](plugins/swiftui/)**                                   | `swiftui`        |  1   | iOS/macOS/visionOS patterns, Liquid Glass, accessibility                          |
 | **[dead-code](plugins/dead-code/)**                               | `dead-code`      |  2   | Unused imports, functions, classes, duplicates, any language                      |
 | **[peekaboo-macos-validator](plugins/peekaboo-macos-validator/)** | `peekaboo`       |  2   | Drive any SwiftUI/AppKit app via Peekaboo; agent reads pixels itself (no AI keys) |
+| **[seam-probe](plugins/seam-probe/)**                             | `seam-probe`     |  1   | Generic NDJSON probe for FFI dylibs and Unix-domain sockets; manifest-driven      |
 
 ## Install
 
@@ -49,6 +50,7 @@ claude plugin install dotnet-backend@jko-claude-plugins
 claude plugin install swiftui@jko-claude-plugins
 claude plugin install dead-code@jko-claude-plugins
 claude plugin install peekaboo-macos-validator@jko-claude-plugins
+claude plugin install seam-probe@jko-claude-plugins
 ```
 
 Or try one without installing:
@@ -65,6 +67,7 @@ copilot plugin marketplace add johnkozaris/jko-claude-plugins
 
 # Install a plugin
 copilot plugin install rust@jko-claude-plugins
+copilot plugin install seam-probe@jko-claude-plugins
 ```
 
 ### OpenAI Codex CLI
@@ -171,6 +174,12 @@ Claude Code and Copilot CLI can load the plugin command adapters in `commands/`.
 | ---------------------------------------------- | ------------------------------------------------------------------------------ |
 | `/peekaboo-macos-validator:peekaboo-doctor`    | Verify peekaboo install, version, and macOS permissions                        |
 | `/peekaboo-macos-validator:validate-macos-app` | Launch a macOS app, walk each view, snapshot + critique each, report PASS/FAIL |
+
+### seam-probe (FFI / UDS probe)
+
+| Command                       | What it does                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| `/seam-probe:seam-probe-setup` | One-time `cargo build --release` of the bundled probe crate (Rust required)   |
 
 ## How it works
 

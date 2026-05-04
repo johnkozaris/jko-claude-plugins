@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "seam-probe",
+  "description": "Generic NDJSON probe for embedded-runtime seams: dlopen FFI dylibs and Unix-domain sockets. Manifest-driven, ships zero app-specific knowledge.",
+  "version": "1.0.0",
+  "license": "MIT",
+  "author": { "name": "John Kozaris" },
+  "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
+  "repository": "https://github.com/johnkozaris/jko-claude-plugins",
+  "keywords": [
+    "ffi",
+    "dlopen",
+    "unix-socket",
+    "uds",
+    "ndjson",
+    "probe",
+    "validation",
+    "embedded-runtime",
+    "rust",
+    "seam"
+  ],
+  "skills": "./skills",
+  "commands": "./commands"
+}
