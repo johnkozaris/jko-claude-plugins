@@ -45,28 +45,85 @@ in scope:
 
 - `.dylib` (Mach-O), `.so` (ELF), `.dll` (PE) loaded via `dlopen` /
   `LoadLibrary`. The library must export an `extern "C"` lifecycle
-  function and accept a callback struct.
+  function and accept a plain C-ABI callback struct.
 - Unix-domain stream sockets with `be32` / `be64` / `varint` framing,
   or no framing at all.
 
 Out of scope today (would need probe extensions, not just a manifest):
 
+- **Statically-linked Rust crates** (`crate-type = ["staticlib"]`,
+  produces `.a`/`.lib`). Static archives have no dynamic load
+  surface — they're meant to be linked at build time. The probe
+  cannot load them. **Tell the user to expose a cdylib alongside
+  their static target for probing**; see "Preparing a Rust crate
+  for probing" below. This is a build-config change only — no code
+  changes, no impact on production distribution.
+- **UniFFI crates**. UniFFI produces a cdylib that *is* dlopen-able,
+  but exports use UniFFI's own wire format: every call goes through
+  `RustBuffer` (a `(ptr, len, capacity)` struct) with a
+  `RustCallStatus` out-parameter, and arguments are serialised via
+  UniFFI's binary format. The probe's three callback signature
+  kinds (`json` / `json_with_sid` / `raw_with_seq`) don't model
+  this. For UniFFI-exposed crates use **`uniffi-bindgen`** to
+  generate a Swift / Kotlin / Python / Ruby binding and test
+  through that. Probing UniFFI directly would require the probe to
+  read the `*.uniffi.json` metadata and implement the FFI converter
+  protocol — significant scope creep.
 - **TCP sockets** — same framing logic would apply, but the binary
   has no `--tcp host:port` mode yet. For loopback testing of a TCP
-  service, fall back to `nc`/`socat`/`websocat`.
+  service, fall back to `nc` / `socat` / `websocat`.
 - **Subprocess + stdio** — driving a CLI that reads NDJSON on stdin
   and emits responses on stdout. Common for "headless mode" Rust
   runtimes. For this, just use shell pipes + `tee`.
-- **Wasm modules** — `wasmtime`/`wasmer` calling exports with import
-  shims. Different ABI from C; not implemented.
-- **Statically-linked binaries** — no dynamic surface to probe; you'd
-  drive them via their stdio or socket interface instead.
+- **Wasm modules** — `wasmtime` / `wasmer` calling exports with
+  import shims. Different ABI from C; not implemented.
 - **gRPC, D-Bus, HTTP, WebSocket** — use `grpcurl`, `busctl`, `curl`,
   `websocat` respectively.
 - **Kernel modules, JNI, Python C API** — out of scope.
 
 If the user wants to probe one of the out-of-scope surfaces, say so
 and suggest the right tool rather than forcing a fit.
+
+### Preparing a Rust crate for probing
+
+If the user's crate is `staticlib`-only (or `rlib`-only, or it's a
+binary crate with no library target), it's not loadable by the probe.
+Have them add a cdylib output to their `Cargo.toml`. This **does not**
+change what they ship — they can keep their existing target and add
+cdylib alongside:
+
+```toml
+[lib]
+crate-type = ["cdylib", "staticlib"]   # or just ["cdylib"] for probing only
+```
+
+After `cargo build --release`, the cdylib lands at:
+
+| Platform | Path |
+| --- | --- |
+| macOS  | `target/release/lib<crate_name>.dylib` |
+| Linux  | `target/release/lib<crate_name>.so`    |
+| Windows| `target/release/<crate_name>.dll`      |
+
+The crate must also actually expose its surface as `extern "C"`:
+
+```rust
+#[unsafe(no_mangle)]
+pub extern "C" fn foo_start(cb: *const FooCallbacks) -> i32 { /* … */ }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn foo_stop() { /* … */ }
+```
+
+If the crate uses `mangle` or `extern "Rust"`, it's not probe-able
+even as a cdylib — symbols won't be resolvable by name. Internal Rust
+APIs need to be wrapped with a thin C-ABI shim module. This is a
+small one-time cost; the user can gate it behind a feature flag
+(`#[cfg(feature = "probe")]`) so it doesn't pollute production.
+
+Generating a C header at build time with **`cbindgen`** is strongly
+recommended — the manifest's `callback_struct[]` field order has to
+match the C struct exactly, and the header is the source of truth.
 
 ## Preflight
 
