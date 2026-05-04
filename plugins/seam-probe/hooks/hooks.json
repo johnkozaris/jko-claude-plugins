@@ -1,0 +1,18 @@
+{
+  "description": "Auto-build the seam-probe binary in the background on first install or after a plugin update. Silent on success; surfaces build failures to Claude via asyncRewake.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "asyncRewake": true,
+            "statusMessage": "seam-probe: checking build…",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/rebuild-if-needed.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

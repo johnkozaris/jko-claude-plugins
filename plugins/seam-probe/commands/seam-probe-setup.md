@@ -1,5 +1,5 @@
 ---
-description: Build the seam-probe Rust binary one-time (~30s). Re-run after plugin updates or crate edits.
+description: Manual rebuild of the seam-probe Rust binary with verbose output. Only needed if the auto-build SessionStart hook failed or Rust was unavailable at session start.
 argument-hint: ""
 allowed-tools:
   - Bash
@@ -8,8 +8,9 @@ user-invocable: true
 
 # seam-probe Setup
 
-Build the bundled Rust crate into `crate/target/release/seam-probe`. The
-wrapper at `bin/seam-probe` execs that binary on every invocation.
+The plugin auto-builds the probe on session start. This command is the
+verbose recovery path — use it when the auto-build failed (e.g. `cargo`
+wasn't on PATH, source/lock mismatch, network issue fetching crates).
 
 ## Steps
 
@@ -17,8 +18,7 @@ wrapper at `bin/seam-probe` execs that binary on every invocation.
 
 ```bash
 if ! command -v cargo >/dev/null 2>&1; then
-  echo "❌ cargo not on PATH."
-  echo "   Install Rust: https://www.rust-lang.org/tools/install"
+  echo "❌ cargo not on PATH. Install Rust: https://www.rust-lang.org/tools/install"
   exit 1
 fi
 cargo --version
@@ -34,10 +34,8 @@ cargo build --release --locked \
   --target-dir "${CLAUDE_PLUGIN_DATA}/target"
 ```
 
-The build output lives in `${CLAUDE_PLUGIN_DATA}` — that directory
-survives plugin updates per the Claude Code spec, so subsequent
-updates only rebuild when the bundled crate sources actually changed.
-First build takes ~30s; rebuilds are incremental and near-instant.
+Output goes to `${CLAUDE_PLUGIN_DATA}/target/release/seam-probe`. That
+dir survives plugin updates per the Claude Code spec.
 
 ### 3. Smoke test
 
@@ -45,19 +43,9 @@ First build takes ~30s; rebuilds are incremental and near-instant.
 seam-probe vocab | head -5
 ```
 
-This should print the NDJSON I/O contract. If it does, setup is
-complete — the skill `seam-probe` can now be used to probe FFI
-dylibs and UDS endpoints.
+Should print the NDJSON I/O contract.
 
 ### 4. Report
 
-Tell the user:
-
-- ✅ seam-probe vX.Y.Z built and on PATH
-- Hand-off to the `seam-probe` skill for actual probing work.
-
-## When to re-run
-
-- After `claude plugin update` if the bundled crate changed.
-- After hand-editing files in `${CLAUDE_PLUGIN_ROOT}/crate/`.
-- If `seam-probe vocab` errors with "seam-probe is not built".
+- ✅ `seam-probe vX.Y.Z` built and on PATH
+- Hand off to the `seam-probe` skill for probing work.

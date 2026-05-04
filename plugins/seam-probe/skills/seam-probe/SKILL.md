@@ -39,10 +39,10 @@ Plus two utility modes that need no manifest:
 seam-probe vocab >/dev/null
 ```
 
-If that errors with `seam-probe is not built`, the user has not run the
-one-time build yet. Tell them to run `/seam-probe-setup` (or
-`cd ${CLAUDE_PLUGIN_ROOT}/crate && cargo build --release`), then resume.
-Build instructions live in `references/setup.md`.
+If this errors with `seam-probe is not built`, the SessionStart hook
+either hasn't finished yet (fresh install or plugin update — wait a
+moment and retry) or it failed. Tell the user to run
+`/seam-probe-setup` for verbose recovery output.
 
 If the command runs but a flag in this skill is missing or behaviour
 disagrees with the docs, stop and ask the user to **update** the
@@ -164,8 +164,6 @@ rules guard against UB:
 
 ## Reference docs
 
-- `references/setup.md` — one-time `cargo build --release` instructions
-  for the bundled crate.
 - `references/manifest-schema.md` — full manifest grammar and the three
   callback signature kinds.
 - `references/discover-ffi-symbols.md` — how to learn an unfamiliar

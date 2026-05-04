@@ -47,42 +47,33 @@ The plugin ships one skill (`seam-probe`) that teaches Claude how to:
 It does **not** ship any app-specific manifests. Apps differ; build
 your own.
 
-## Build the binary
+## Build (automatic)
 
-The plugin ships a pre-built **darwin-arm64** binary at
-`bin/seam-probe-darwin-arm64`. On Apple Silicon Macs, first run is
-instant — no toolchain required.
+The plugin auto-builds the Rust binary on session start via a
+`SessionStart` hook (`hooks/hooks.json`). The hook runs in the
+background — the session is never blocked.
 
-For other platforms, the wrapper (`bin/seam-probe`) falls back to
-building the bundled Rust source under `crate/` into
-`${CLAUDE_PLUGIN_DATA}/target/release/` (the persistent plugin data
-dir, survives plugin updates). Cargo rebuilds only when `Cargo.toml`,
-`Cargo.lock`, or `src/` change.
+- **First install** — first session compiles `crate/` into
+  `${CLAUDE_PLUGIN_DATA}/target/release/seam-probe` (~30s on a cold
+  cache; runs async). If you invoke `seam-probe` before the build
+  finishes, the wrapper prints a hint and exits non-zero.
+- **Subsequent sessions** — the hook diffs `crate/Cargo.lock` against
+  the build stamp in the persistent data dir; ~5ms when nothing
+  changed.
+- **After plugin updates** — Cargo.lock differs → automatic rebuild.
+- **Build failure** — the hook wakes Claude with the cargo error as
+  a system reminder so it surfaces in conversation. Run
+  `/seam-probe-setup` for verbose recovery.
 
-| Host                    | First-run path                                     |
-| ----------------------- | -------------------------------------------------- |
-| Apple Silicon (darwin-arm64) | exec `bin/seam-probe-darwin-arm64` directly  |
-| Anything else           | `cargo build --release` from `crate/`, ~30s        |
+Requires **`cargo`** on `PATH`
+(<https://www.rust-lang.org/tools/install>). No prebuilt binaries
+are shipped: the source builds in seconds and avoids trust issues
+around opaque blobs.
 
-The fallback requires **`cargo`** on `PATH`
-(<https://www.rust-lang.org/tools/install>).
-
-### Add a pre-built binary for your platform
-
-Build the crate and drop the binary alongside the wrapper:
-
-```bash
-cd ~/Repos/myclaudeplugins/seam-probe/crate
-cargo build --release
-strip target/release/seam-probe
-cp target/release/seam-probe "../bin/seam-probe-$(uname -s | tr 'A-Z' 'a-z')-$(uname -m | sed 's/aarch64/arm64/;s/amd64/x86_64/')"
-chmod +x ../bin/seam-probe-*
-```
-
-### Develop standalone
+## Standalone development
 
 ```bash
-cd ~/Repos/myclaudeplugins/seam-probe/crate
+cd ~/Repos/myclaudeskills/plugins/seam-probe/crate
 cargo build --release
 # binary at: crate/target/release/seam-probe
 ```
