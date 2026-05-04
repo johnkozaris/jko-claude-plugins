@@ -7,5 +7,23 @@
     "name": "John Kozaris"
   },
   "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
-  "repository": "https://github.com/johnkozaris/jko-claude-plugins"
+  "repository": "https://github.com/johnkozaris/jko-claude-plugins",
+  "keywords": [
+    "claude-code",
+    "agent-design",
+    "skills",
+    "prompt-caching",
+    "verification",
+    "subagents",
+    "worktrees",
+    "best-practices",
+    "productivity",
+    "tool-design",
+    "context-engineering",
+    "patterns",
+    "workflows",
+    "agents"
+  ],
+  "skills": "./skills",
+  "commands": "./commands"
 }
