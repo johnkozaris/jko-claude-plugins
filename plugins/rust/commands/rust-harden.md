@@ -13,6 +13,8 @@ argument-hint: "<target>"
 
 Systematically harden the target Rust code against production failures. This is the defensive pass — every change reduces crash risk.
 
+> **Note**: this command is a focused entry point for the defensive pass. `/rust-critique --harden` runs the same scans inside the broader critique flow. Use this command when hardening is your only goal; use the critique mode when you want defensive findings surfaced alongside other concerns.
+
 ## Preparation
 
 1. Find the workspace root: run `cargo locate-project --workspace --message-format plain 2>/dev/null | xargs dirname`.
@@ -23,7 +25,7 @@ Systematically harden the target Rust code against production failures. This is 
 
 Execute these in order. For each finding, make the fix directly — don't just report it.
 
-### Step 1: Eliminate Panic Sources
+### Step 1: Eliminate Panic Sources on External Input
 
 Run in the shell:
 
@@ -31,11 +33,19 @@ Run in the shell:
 rg --type rust '\.(unwrap|expect)\(' src/ --glob '!*test*' -n
 ```
 
-For each match:
+For each match, classify it:
 
-- If the unwrap is on a `Result`: replace with `?` and add `.context("description")` if anyhow is available
-- If the unwrap is on an `Option`: replace with `.ok_or_else(|| Error::...)` then `?`
-- If it's genuinely an invariant (e.g., after a length check): change to `.expect("reason: invariant X holds because Y")` with a clear explanation
+**External input (parse, IO, env, deserialize, network, user input)** — NEVER unwrap. This is what took down [Cloudflare on Nov 18, 2025](https://blog.cloudflare.com/18-november-2025-outage/). Replace:
+- Unwrap on `Result`: replace with `?` and add `.context("description")` if anyhow is available
+- Unwrap on `Option`: replace with `.ok_or_else(|| Error::...)` then `?`
+
+**Genuine invariant** (programmer guarantee, e.g., after a length check or freshly-inserted map key) — keep but document. Change to `.expect("invariant X holds because Y")` with the reason in the message. Per BurntSushi: unwrap-as-assertion is OK; unwrap-as-error-handling is not.
+
+**Mutex::lock() poison case** — `.expect("mutex poisoned — programmer error elsewhere")` is acceptable. Or migrate to `parking_lot::Mutex` which doesn't poison.
+
+**Startup init that MUST succeed** — `.expect("could not load config")` acceptable. The program can't proceed without it.
+
+The Cloudflare receipt is the universal "why": their FL2 proxy hit a hard-coded 200-feature limit; `.unwrap()` on the `Err` panicked in `fl2_worker_thread`; 5xx globally. The fix Cloudflare itself describes isn't "no unwrap" — it's "defensive boundaries: type checks, explicit guards, input validation, limits, and staged rollout." The unwrap was a symptom of unvalidated external input meeting brittle assumptions about its shape.
 
 ### Step 2: Document Unsafe Blocks
 

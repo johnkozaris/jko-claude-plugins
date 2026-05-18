@@ -63,12 +63,30 @@ Always — for any function that can fail due to input, environment, or external
 
 | Context | Allowed? | Notes |
 |---|---|---|
-| Production code | No | Use `?` with context |
-| Tests | `unwrap()` fine | Tests should panic on failure |
-| Examples / doc tests | Use `?` | Per API Guidelines C-QUESTION-MARK |
-| Invariant that type system can't express | `expect("reason")` | Document why it can't fail |
+| Result/Option from outside the program (parse, IO, env, deserialize, network, user input) | **NEVER** | Propagate with `?` and `.context()`. This is what took down Cloudflare on Nov 18, 2025. |
+| Invariant the type system can't express (e.g., "I just inserted, so .get() is Some") | `expect("documented reason")` | Per BurntSushi: assertion-of-invariant is OK; lazy error handling is not. |
+| Mutex::lock() poison case | `expect("mutex poisoned")` acceptable | Or use `parking_lot` which doesn't poison. |
+| Startup init that MUST succeed | `expect("could not load config")` acceptable | Program can't proceed without it. |
+| Tests, benchmarks | `unwrap()` fine | Tests should panic on unexpected state. |
+| Doc examples | Use `?` ideally | Per API Guidelines C-QUESTION-MARK. `unwrap` acceptable for brevity if it focuses the example. |
 
 **`expect()` is always better than `unwrap()`** — the message appears in the panic output.
+
+### The Cloudflare outage of November 18, 2025
+
+This is the incident to cite when explaining why `.unwrap()` on external input is dangerous. A ClickHouse permission change caused one of Cloudflare's Bot Management feature files to double in size. When Cloudflare's FL2 proxy loaded the oversized file, it hit a hard-coded 200-feature limit. The code that handled the limit used `.unwrap()` on a `Result`, which panicked:
+
+```
+thread fl2_worker_thread panicked: called Result::unwrap() on an Err value
+```
+
+The panic cascaded through the proxy, and Cloudflare served 5xx responses globally for hours. The lesson Cloudflare drew in their own postmortem isn't just "stop using unwrap" — it's broader than that. They identified the underlying problem as missing defensive boundaries: input validation, explicit guards, type checks, and staged rollout that would have caught the oversized file before it hit production. The `.unwrap()` was a symptom of unvalidated external input meeting brittle assumptions about its shape.
+
+The full postmortem is at [blog.cloudflare.com/18-november-2025-outage](https://blog.cloudflare.com/18-november-2025-outage/). When you flag a `.unwrap()` on external input in code review, this is the incident to point at.
+
+### BurntSushi's take on when unwrap is okay
+
+Andrew Gallant (the author of ripgrep) wrote a post called [Using unwrap() in Rust is Okay](https://burntsushi.net/unwrap/) that's worth knowing about. His position is that panicking shouldn't be used for error handling, but `unwrap()` as an assertion of an invariant the type system can't express is fine. So the rule isn't "no unwrap ever." It's "prefer `?` for error propagation; restrict `.unwrap()` to tests, benchmarks, and cases where you're asserting an invariant the type system can't capture." And when you do use it for an invariant, prefer `.expect("reason")` over `.unwrap()` — the panic message documents what was assumed, which is useful when something does go wrong.
 
 ## The `?` Operator
 

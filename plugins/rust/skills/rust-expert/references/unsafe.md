@@ -90,4 +90,4 @@ Miri detects: dangling pointers, misaligned access, data races, Stacked Borrows 
 - `unsafe` on `export_name`, `link_section`, `no_mangle` attributes
 - `unsafe_op_in_unsafe_fn` is denied by default
 - `static mut` references now denied — use raw pointers
-- `std::env::set_var` / `remove_var` now unsafe (Rust 1.83+, all editions)
+- `std::env::set_var` / `remove_var` now unsafe in Edition 2024 (Rust 1.85+); on older editions the bare safe form remains compilable but triggers `deprecated_safe_2024`

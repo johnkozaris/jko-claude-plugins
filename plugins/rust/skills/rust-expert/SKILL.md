@@ -40,9 +40,10 @@ When a compiler error appears, reframe it as a design question:
 → _Consult [error-handling reference](references/error-handling.md) for thiserror/anyhow/snafu decision matrix._
 
 **DO**: Use `?` with `.context()` at every propagation point.
-**DO**: Use `thiserror` for libraries, `anyhow` for applications.
+**DO**: Use `thiserror` (v2) for libraries, `anyhow` (v2) for applications.
 **DO**: Use `#[non_exhaustive]` on public error enums.
-**DON'T**: Use `.unwrap()` or `.expect()` in production paths — production services have been taken down by unhandled panics.
+**DO**: Use `.expect("invariant X holds because Y")` to assert what the type system cannot express — invariant assertion is OK (per BurntSushi).
+**DON'T**: Use `.unwrap()` or `.expect()` on Results from outside the program (parse, IO, env, deserialize, network) — this is what took down [Cloudflare on Nov 18, 2025](https://blog.cloudflare.com/18-november-2025-outage/): a hard-coded 200-feature limit hit unexpected input, `.unwrap()` on the `Err` panicked in `fl2_worker_thread`, 5xx globally for hours.
 **DON'T**: Implement `From` for fallible conversions — use `TryFrom`.
 **DON'T**: Both log AND propagate an error — pick one.
 
@@ -86,13 +87,19 @@ When a compiler error appears, reframe it as a design question:
 
 ## Concurrency
 
-→ _Consult [concurrency reference](references/concurrency.md) for decision tree, actor pattern, channels._
+→ _Consult [concurrency reference](references/concurrency.md) for decision tree, actor pattern, channels, atomic orderings._
 
 **DO**: Ask first: "Do I actually need concurrency?" If no measured bottleneck, stay sequential.
-**DO**: Prefer channels and actors over shared mutable state.
+**DO**: Pick the primitive by access pattern — see Concurrency Pattern Triage below.
 **DO**: Use bounded channels in production for backpressure.
-**DON'T**: Default to `Arc<Mutex<T>>` — it's expensive and often unnecessary.
+**DON'T**: Default to `Arc<Mutex<T>>` for everything — it's the right tool for short critical sections, not for global app state.
 **DON'T**: Use async for CPU-bound work — use Rayon or `spawn_blocking`.
+
+### When to reach for which concurrency primitive
+
+Pick by access pattern, not reflex. Channels (`tokio::sync::mpsc` for async, `crossbeam-channel` for sync) for ownership transfer between tasks. The actor pattern (one task owns state, handle wraps an `mpsc::Sender<Msg>`) for long-lived stateful concurrent components — this replaces most uses of `Arc<Mutex<BigStruct>>`. `Arc<Mutex<T>>` for short critical sections on shared data; std::sync::Mutex became futex-based on Linux in 1.62 and the gap to parking_lot closed dramatically (parking_lot still has an edge under heavy contention), so reach for parking_lot only for its specific features (fairness, reentrant, RwLock downgrade, deadlock detection). `Arc<RwLock<T>>` for read-heavy with rare writes (watch for writer starvation). `ArcSwap<T>` for snapshot reload (lock-free reads, atomic swap). `DashMap` for partition-keyed concurrent access — never call another DashMap method while holding a `Ref`/`RefMut` to the same map, that's a shard self-deadlock. Atomics for single primitives, with the right ordering (Relaxed for independent counters, Release/Acquire for publishing data).
+
+The anti-pattern is `Arc<Mutex<WholeAppState>>` as a god-object. Split by concern, let each piece pick its own primitive.
 
 ## Unsafe
 
@@ -134,6 +141,37 @@ When a compiler error appears, reframe it as a design question:
 
 → _Consult [modules-cargo](references/modules-cargo.md), [macros](references/macros.md), and [serde](references/serde.md) references for workspace setup, macro decision flowchart, and serialization patterns._
 
+## Architecture Patterns
+
+→ _See [architecture reference](references/architecture.md) for pattern descriptions, detection signatures, smells per pattern, and bad-pattern flags. See [workspace-organization](references/workspace-organization.md) for sub-crate decomposition. For architecture conversations, invoke `/rust-architect`._
+
+The posture: **detect what the codebase is using, stay consistent with it, flag bad patterns**. Don't pick between healthy architectures — module-driven, hexagonal, actor, functional-core/imperative-shell, sans-IO, pipeline, typestate, plugin registry all work for different shapes. The harm of mixed patterns in one codebase is worse than picking "wrong" between healthy options. For game engines (Bevy ECS), GUI apps (Iced MVU, egui immediate-mode), and embedded firmware (Embassy's async reactor), the framework decides — don't argue.
+
+**Bad patterns to flag regardless of architecture**: mixed architectures in one repo, OOP inheritance via `Deref` chains, god-object `Arc<Mutex<AppState>>`, stringly-typed domains, premature workspace splits with no consumer, one-implementor trait obsession, `Box<dyn Error>` in library APIs, mock-only tests. Full descriptions in the architecture reference.
+
+**Workspace split** is a separate decision with objective signals: compile-time pain, two binaries sharing code, a published plugin SDK (Zellij's `zellij-tile`), an FFI shim, or team ownership. [Tokio #1318](https://github.com/tokio-rs/tokio/issues/1318) is the "don't split for tidiness" warning. Flat layout when warranted; centralize with `[workspace.package]`, `[workspace.dependencies]`, `[workspace.lints]`.
+
+## 2026 Deprecation Watchlist
+
+→ _See [2026-currency reference](references/2026-currency.md) for the full table with RUSTSEC details, migration paths, and per-release feature index._
+
+Headline deprecations to flag in Cargo.toml scans: `async-std` ([RUSTSEC-2025-0052](https://rustsec.org/advisories/RUSTSEC-2025-0052.html)) and `bincode` ([RUSTSEC-2025-0141](https://rustsec.org/advisories/RUSTSEC-2025-0141)) are unmaintained; `once_cell`/`lazy_static!`/`if_chain!`/`cfg-if`/`addr_of!` are superseded by std equivalents; `async-trait` for static dispatch is replaced by native AFIT (1.75); `#[bench]` is a hard error on stable since 1.88; `sled` is best avoided for new projects (use `redb` or `fjall`); `actions-rs/*` GitHub Actions are deprecated.
+
+Existing code mostly still works — migrate when natural, not urgently. **`jiff` is the new datetime canon for IANA tz correctness but still pre-1.0**, so libraries with strict public-API stability should stay on `chrono` until jiff 1.0 ships.
+
+## Still in Motion (May 2026)
+
+These remain unstable or actively-debated. Use the workaround; don't pick winners.
+
+- **AsyncDrop** — nightly, tracking #126482. Workaround: explicit `async fn close(self)` with `DropBomb` to catch missed calls.
+- **`AsyncIterator` / `Stream` in std** — nightly. Use `futures::Stream` + `async-stream::stream!` macro.
+- **`gen` blocks / coroutines** — nightly. `gen` is reserved in Edition 2024.
+- **`Allocator` trait per-collection** — 6+ years nightly. `allocator_api2` polyfill.
+- **Pin language support** — library-only. `pin-project-lite`.
+- **Polonius borrow checker** — nightly, 2026 stabilization goal for alpha. Workaround: restructure or use `entry()`-style APIs.
+- **Parallel rustc frontend** (`-Z threads=N`) — nightly, 15-50% wallclock improvement.
+- **Cranelift codegen backend** (`rustc_codegen_cranelift`) — nightly-only as `rustc-codegen-cranelift-preview`. Active 2025H2 project goal to ship stable. ~20% dev-build speedup when used.
+
 ## Anti-Patterns
 
 → _Consult [anti-patterns reference](references/anti-patterns.md) for the full severity-labeled catalog._
@@ -166,13 +204,31 @@ Before suggesting any fix, work through:
 2. **What would happen in production?** Think in terms of incidents, not style.
 3. **Is the type system doing enough work?** Every runtime `assert!` is a type waiting to be born.
 
+## How to reason: the scientific method, applied to code review
+
+Approach every finding the same way you'd approach a scientific hypothesis. The steps are straightforward and the plugin should run through them in order.
+
+Start by discovering what the code actually does. Read it before suggesting anything — scan for patterns, dependencies, the shape of state, the I/O boundaries, the test setup. A finding that ignores what the code is doing is just noise.
+
+Then evaluate what you found against the evidence. Compare to known patterns and named consequences. When you see `.unwrap()` on external input, that's the Cloudflare class of bug — name the incident, explain the failure mode, propose the fix. When the dependency is `async-std`, cite RUSTSEC-2025-0052. When the codebase is a mix of architectures, the harm is concrete (the team has to keep multiple mental models in their heads at once) — say so. Findings backed by evidence get stated directly and confidently.
+
+Make sure you actually understand the code before recommending changes. An `Arc<Mutex<>>` that looks like a god-object might turn out to be a correctly-scoped cache with short critical sections. A trait with one implementor might be the deliberate seam for a planned second implementation. If you can't tell which case you're looking at, that's the time to ask the developer — not the time to invent a confident-sounding wrong answer.
+
+Every fix proposal should come with a way to verify it worked. If you suggest replacing `.unwrap()` with `?` and `.context(...)`, also tell the developer which test should now pass that didn't before — or that this is the time to write that test. If you suggest adding `overflow-checks = true`, tell them which arithmetic-heavy code path will now panic where it silently wrapped. A fix without a verification plan is a guess that hasn't been tested yet.
+
+Through all of this, use your judgment. The scientific method is a discipline, not a substitute for thinking. When the evidence supports a strong call, make it. When the codebase looks coherent and well-considered, say so and don't manufacture findings to look thorough. When the right answer genuinely depends on something the code can't tell you, ask the specific question that would clarify it — but ask it once, not as a tic.
+
+The thing to avoid is hedging that masquerades as humility. "Consider whether X applies; this depends on your specific context" is not honest uncertainty — it's a sentence with no information in it. The honest version of uncertainty is specific: "I can't tell from the code whether the `OrderRepository` trait is positioned for a planned second implementation — if it is, it's justified; if not, it's overhead. Which is it?" That kind of question helps the developer. Vague hedging just wastes their time.
+
 ## Severity Levels
 
 Label every finding:
 
-- **blocking** — Soundness bug, UB, data race, guaranteed panic. Must fix.
-- **important** — Wrong error handling, performance cliff, design pain. Should fix.
+- **blocking** — Soundness bug, UB, data race, guaranteed panic on plausible input, security flaw, RUSTSEC-flagged dependency. Must fix before merge.
+- **important** — Wrong error handling on external input, performance cliff in a measured hot path, design pain causing future churn, missing tests for non-trivial logic, deprecated dependencies needing a migration plan.
+- **architecture** — Misfit pattern, premature abstraction, missing seam, workspace-split signal. Used in `/rust-critique`; route to `/rust-architect` for design-level work.
 - **nit** — Style, naming, minor idiom. Fix if convenient.
+- **polish** — Pre-merge cleanup: clippy warnings, formatting drift, dead code, debug artifacts, doc coverage on public items.
 - **suggestion** — Alternative worth considering. No action required.
 - **praise** — Highlight well-written code. Reinforce good patterns.
 

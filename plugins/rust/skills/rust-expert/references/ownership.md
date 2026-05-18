@@ -138,6 +138,40 @@ struct Config { name: String, path: PathBuf }
 
 - **`bool: TryFrom<{integer}>`** (1.95) — `bool::try_from(n)` returns `Err` for any value other than 0 or 1. Replaces hand-rolled `match n { 0 => false, 1 => true, _ => return Err(..) }`.
 
+## Drop order — a real footgun
+
+Rust guarantees the order in which values get dropped ([RFC 1857](https://rust-lang.github.io/rfcs/1857-stabilize-drop-order.html)), but the rules are asymmetric in a way that catches people. The fields inside a struct drop in the order they're declared — first field drops first, last field drops last. But local variables in a function body drop in *reverse* order — the last `let` drops first, the first `let` drops last. The same backwards-by-default rule applies to function parameters and pattern bindings.
+
+This asymmetry is where the bugs come from. When a later field references something owned by an earlier field, the earlier field drops first and the later field's destructor finds a dangling reference. Here's the canonical case:
+
+```rust
+// FIELDS drop in declaration order — `device` drops FIRST
+struct Renderer {
+    device: VulkanDevice,    // dropped first → driver crash
+    pipeline: VulkanPipeline, // dropped second → already invalid
+}
+
+// LOCALS drop in reverse — `device` drops LAST
+fn render() {
+    let device = VulkanDevice::new();
+    let pipeline = VulkanPipeline::new(&device);  // dropped first ✓
+}                                                 // then device drops ✓
+```
+
+The same problem shows up in a lot of places. Vulkan and GPU code has pipelines and buffers that have to drop before the device that created them. Database code has transactions that have to commit or rollback before the connection drops. Tokio runtimes have tasks that have to finish before the `Runtime` drops, or the runtime's destructor blocks waiting. Threads that share `Arc<Mutex<>>` data need their join handles to drop before the shared state.
+
+When drop order matters, there are three ways to fix it. The easiest is to reorder the struct fields so children come before parents in the declaration — no `unsafe`, no `ManuallyDrop`, you just write the fields in the right order. If that doesn't work, you can split the type into multiple structs so the composition encodes the ordering. The last resort is `ManuallyDrop<T>` with explicit drops in your `Drop::drop` implementation, which requires `unsafe` and is genuinely hard to get right under panic unwinding.
+
+A few other Drop-related rules worth knowing:
+
+You can't derive both `Copy` and `Drop` on the same type (this is compile error E0184). The reason is that a bitwise copy would alias the resource and free it twice. If your type has cleanup work to do, it can't also be `Copy`.
+
+You can't partial-move out of a value with a `Drop` impl either (E0509). The destructor expects the whole value to be there, so taking ownership of one field by pattern-matching is forbidden. The two workarounds are `std::mem::replace(&mut self.field, default)` to swap a default into the slot, or wrapping the field in `Option<T>` and using `self.field.take()`.
+
+`Drop` is synchronous — there's no stable `AsyncDrop` in 2026. If your type needs to do async cleanup (close a network connection, flush a buffer, send a final message), provide an explicit `async fn close(self)` method and document that callers should call it. Sync `Drop` becomes a best-effort cleanup path. Don't try to `block_on` inside `Drop` either — that deadlocks on single-threaded runtimes.
+
+If `Drop` panics while the stack is already unwinding from another panic, the program aborts (this is the "double-panic" rule). Don't `.unwrap()` inside a `Drop` impl. Either swallow the error with `let _ = ...`, log it via `tracing::error!`, or set a flag the next operation will observe.
+
 ## Smart Pointer Decision Matrix
 
 | Scenario                      | Use                                 |

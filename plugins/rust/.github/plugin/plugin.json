@@ -1,7 +1,7 @@
 {
   "name": "rust",
-  "description": "Rust code critique, architecture guidance, and idiomatic pattern enforcement",
-  "version": "1.0.0",
+  "description": "Opinionated Rust expert. Code critique, architecture detection, defensive hardening, type strengthening, pre-merge polish. 2026-current (Rust 1.95, Edition 2024, Tokio LTS, RUSTSEC tracking). Commands: critique / architect / harden / types / polish / teach.",
+  "version": "2.0.0",
   "license": "MIT",
   "author": {
     "name": "John Kozaris"

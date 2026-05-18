@@ -13,6 +13,8 @@ argument-hint: "<target>"
 
 The final pass before merge. Polish is the discipline of caring about what most people skip. Do not polish work that is not functionally complete.
 
+> **Note**: this command is a focused entry point for the pre-merge cleanup pass. `/rust-critique --pre-merge` runs the same scans inside the broader critique flow. Use this command when polish is the only thing you need; use the critique mode when you want polish surfaced alongside other findings.
+
 ## The 10-Dimension Checklist
 
 Work through each dimension in order.
