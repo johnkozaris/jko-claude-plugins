@@ -1,48 +1,406 @@
 ---
 name: swiftui-expert
-description: This skill should be used when the user is building, reviewing, or debugging SwiftUI views and apps. Detects iOS and Swift version from the project. Covers creating views, state management with @Observable, NavigationStack routing, animations, accessibility, performance optimization, Liquid Glass adoption, design systems, and clean code architecture. Use when the user asks things like "create a SwiftUI list view", "my @State isn't updating", "add navigation to my app", "make this accessible", "optimize SwiftUI performance", "add Liquid Glass to my toolbar", "fix my Swift concurrency warning", "set up SwiftData models", "critique my SwiftUI code", "fix my SwiftUI layout", "create a custom ViewModifier", or "add Dark Mode support".
+description: This skill should be used when the user is building, reviewing, or debugging SwiftUI/Swift code for iOS, macOS, or visionOS apps. It detects the project's iOS and Swift version and covers MV architecture (no per-screen ViewModels by default), @Observable state, NavigationStack typed routes, view lifecycle, Approachable Concurrency, persistence with SwiftData / Core Data / SQLiteData / GRDB, design tokens, selective Liquid Glass adoption, iOS native capabilities (App Intents, Widgets, Live Activities, Privacy Manifest), macOS native capabilities (main menu, MenuBarExtra, sandbox, notarytool, Sparkle, AppKit interop), accessibility audits, performance with Instruments SwiftUI, and testing with Swift Testing. Trigger phrases include "create a SwiftUI list view", "review my SwiftUI code", "critique my SwiftUI", "my @State isn't updating", "set up navigation", "make this accessible", "optimize SwiftUI performance", "should I adopt Liquid Glass", "fix my Swift concurrency warning", "set up SwiftData with versioned schema", "structure my project folders", "what should App.swift own", "how do I theme this", "switch from ObservableObject to @Observable", "should I use MVVM in SwiftUI", "do I need TCA", "AppKit or SwiftUI for my Mac app", "what permissions do I need", "build a menu bar Mac app", "validate my macOS app", "validate my iOS app", and "find dead code".
 ---
 
 # SwiftUI Expert
 
-Provide expert guidance on SwiftUI development. Detect the project's deployment target and Swift version from `Package.swift`, `.xcodeproj`, or project settings and adapt guidance accordingly. Apply modern API usage, clean code principles, design craft, accessibility, and performance best practices. Do not invent APIs — if unsure, say so.
+This skill helps you review and write SwiftUI / Swift code for iOS, macOS, and visionOS apps. It is read by AI consumers and by humans, and the writing tries to work for both: clear sentences, named tradeoffs, and a default position whenever the evidence supports one.
 
-**Default targets**: iOS 26+, Swift 6.3 (released March 2026). Swift 6.2's "Approachable Concurrency" (default MainActor isolation, `nonisolated(nonsending)`, `@concurrent`) is the recommended baseline for new projects.
+Two principles run through everything below.
 
-## Review Process
+**Take a position when the evidence lines up.** Apple's docs, the modern SwiftUI teaching community, the Reddit consensus, and the popular open-source codebases (IceCubesApp, IcySky, Backyard Birds, NetNewsWire, CotEditor) agree on the modern defaults more often than people pretend. When they do, state the rule and move on. Hedging with "you could consider" produces inconsistent codebases — and AI consumers asked to apply hedged advice produce contradictory critiques across files.
 
-When asked to review or critique SwiftUI code, work through these checks **in order**, loading the matching reference file only if there is signal that area needs deeper attention:
+**Say "I don't know" when you don't.** If you are unsure whether a specific API exists, whether a deprecation date is right, whether a Feedback ticket number is real, or whether a deployment target supports a feature — say so. Recommend that the developer check `developer.apple.com`, look at the actual SDK headers, run the failing test, or open Xcode and try the API. Do not invent fake API names, made-up deprecation dates, fictional ticket numbers, or arbitrary thresholds like "twenty-plus screens" to look authoritative. Confident-sounding inventions are the worst possible advice — they propagate into real code and waste real time.
 
-1. **Deprecated/legacy API** → `references/modern-api.md`
-2. **View structure & composition** → `references/view-composition.md`
-3. **State & data flow** → `references/state-data.md`
-4. **Navigation & presentation** → `references/navigation.md`
-5. **Design craft & HIG** → `references/design-craft.md`
-6. **Accessibility** (VoiceOver, Dynamic Type, Reduce Motion) → `references/accessibility.md`
-7. **Performance** → `references/performance.md`
-8. **Concurrency** → `references/concurrency.md`
-9. **Animation & motion** → `references/animation.md`
-10. **Liquid Glass** (only if iOS 26+) → `references/liquid-glass.md`
-11. **General Swift idioms** → `references/swift-idioms.md`
+Be honest about what was checked. Some of the load-bearing claims in this skill have been verified directly against Apple docs and against the IceCubesApp source on `main` — the Liquid Glass SwiftUI surface, the Privacy Manifest dates, the `notarytool` cutover, the `@AppStorage` + `@Observable` workaround. Others — community testimonials, Reddit consensus, named-author critiques, smaller WWDC session attributions — come from research summaries and were not all individually fact-checked. Treat any version-specific or named-attribution claim as a starting point and re-verify before quoting it in a production critique. New APIs ship every Xcode release.
 
-Skip steps that don't apply. Report only **genuine** problems — do not nitpick or invent issues.
+When the answer genuinely depends on context, describe what you actually see in the code rather than inventing a threshold. "Your build times have grown past the point where a flat target keeps up" is more useful than "you have crossed thirty thousand lines of code." Qualitative triggers tied to real pain are how decisions actually get made.
 
-## Output Format (for reviews)
+## Default targets
 
-Group findings **by file**. For each issue:
+This skill assumes Swift 6.3, iOS 26 / macOS 26 Tahoe, and Xcode 26 unless the project says otherwise. Check `Package.swift`, the `.xcodeproj` settings, any `.xcconfig` files, and `Info.plist` for the actual deployment target before suggesting version-gated APIs. For new app code, assume Approachable Concurrency is on (default actor isolation set to `MainActor`, `nonisolated(nonsending)` defaults, and `@concurrent` for opt-in background work) and that strict concurrency checking is enabled.
 
-1. State the file and line number(s).
-2. Name the rule being violated (e.g. _"Use `foregroundStyle()` instead of `foregroundColor()`"_).
-3. Show a short before/after code block.
+## How to use this skill
 
-Skip files with no issues. End with a **prioritized summary** ordered by impact (accessibility bugs and data-flow errors first; style nits last).
+The skill ships eighteen reference files. Do not load them all. A typical review needs three or four — load them on demand, when the code you are reading actually contains the patterns a reference covers. Start with the anti-patterns sweep because grep is fast, then load whichever category turned up real signal.
 
-Example:
+The rules below are defaults for new code. For legacy code, recommend changes only when you are already touching those lines for some other reason. Working `@StateObject` infrastructure in a codebase that targets iOS 16 is not something to rewrite during a review of a network bug.
+
+Where a project consistently uses one pattern across all its files (say, `ObservableObject` everywhere on an iOS 16 target), note the migration suggestion once at the project level. Do not flag every instance individually — that produces noise instead of insight.
+
+## When you do not know, say so
+
+This is the meta-rule that everything else depends on. Most of what an AI reviewer gets wrong comes from sounding confident about a thing it has not verified — inventing a Feedback ticket number, citing a deprecation date that does not exist, naming an API that turned out to be a Swift-side name for a UIKit-side concept that does not work the same way. Once those inventions land in someone's code, they cost real time to unwind.
+
+Three habits stop this.
+
+First, when an API name, a deprecation, or a version requirement is load-bearing for the recommendation, name your source. "Apple's `View.glassEffect(_:in:)` page on developer.apple.com" is verifiable. "I recall this from a blog post" is a hedge that should make you double-check before publishing.
+
+Second, when you are not sure, write that out instead of inventing precision. "I do not know whether this API exists in iOS 25 — check the SDK before relying on it" is genuinely helpful. "Available since iOS 25.3" with no source is misleading even when it happens to be right.
+
+Third, do not invent numerical thresholds to give qualitative advice a fake spine. Decisions like "should we modularize" or "should we adopt TCA" depend on whether the team is in pain, not on whether the project has crossed a specific line count. Describe the pain (long build times, project-file merge conflicts, hires struggling to find feature boundaries) and let the developer decide whether their situation matches.
+
+Apply the same standard in your output: when a finding rests on a precise claim you cannot verify, soften the precision (not the finding) and tell the developer how to verify it.
+
+## The five non-negotiables
+
+These are the rules where the entire corpus agrees and where a reviewer should state the position clearly when they see violations.
+
+### 1. The MV pattern is the default
+
+In modern SwiftUI the `View` struct *is* the view model. It composes from sources of truth — `@State` for view-local values, `@Environment` for shared `@Observable` instances, `@Bindable` for binding extraction, `@Query` for SwiftData — and the AttributeGraph re-renders the view precisely when any property the view reads mutates. The keypath-precise tracking that arrived with `@Observable` in iOS 17 means a per-screen ViewModel wrapper adds an indirection without adding precision.
+
+Use a ViewModel only when the screen has genuine orchestration complexity: an explicit state machine with loading / loaded / error / empty states plus retry, pagination, and optimistic updates; a real plan to test orchestration logic in isolation from the view; or a UIKit-to-SwiftUI migration in flight where an existing ViewModel is the bridge. Apple's Backyard Birds, Food Truck, and Landmarks samples ship zero ViewModels. IceCubesApp, whose own `CLAUDE.md` bans them, still ships them on its most complex screens (the timeline, the conversation view, the profile editor) — because those screens hit the triggers above. Match the rule to the trigger.
+
+See `references/architecture.md`.
+
+### 2. `App.swift` owns shared `@Observable` singletons
+
+App-level shared state — theme, router, auth store, appearance store — lives as `@State` in your `@main App` struct and propagates down through `.environment(_:)`. Consumers read it with `@Environment(Type.self)`.
+
+```swift
+@main
+struct MyApp: App {
+    @State private var theme = Theme.shared
+    @State private var router = AppRouter()
+    @State private var auth = AuthStore()
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environment(theme)
+                .environment(router)
+                .environment(auth)
+        }
+    }
+}
+```
+
+Use `@State`, not `@StateObject`. `@StateObject` is the wrapper for `ObservableObject`, which is legacy now; `@Observable` instances belong in `@State`. And do not register these primary singletons through a custom `EnvironmentKey` — custom keys are useful for defaultable values like a font or a feature flag, not for shared mutable state.
+
+This is the pattern IceCubesApp, IcySky, and Apple's Backyard Birds all use. See `references/architecture.md` and `references/state-and-observation.md`.
+
+### 3. `NavigationStack` with typed routes, one stack per tab
+
+Use `NavigationStack(path:)` bound to a `NavigationPath`, with a typed `Hashable` route enum. Put exactly one stack and one `@Observable` router behind each tab. Deep links and state restoration come for free once the path is bound.
+
+```swift
+enum Route: Hashable {
+    case profile(UserID)
+    case settings
+}
+
+@Observable @MainActor
+final class Router {
+    var path = NavigationPath()
+}
+
+NavigationStack(path: $router.path) {
+    HomeView()
+        .navigationDestination(for: Route.self) { route in
+            switch route {
+            case .profile(let id): ProfileView(id: id)
+            case .settings:        SettingsView()
+            }
+        }
+}
+```
+
+`NavigationView` has been deprecated since iOS 16. `NavigationLink(destination:)` is still legal but does eager pushes; in new code use `NavigationLink(value:)` with `navigationDestination(for:)`. String-based routes give up the type system for no gain — keep routes typed. See `references/navigation.md`.
+
+### 4. Liquid Glass adoption is your call
+
+The April 28, 2026 deadline often cited as "the Liquid Glass mandate" is actually the SDK 26 build requirement for new App Store submissions. When you build against SDK 26, your app's system chrome — `TabView`, `NavigationStack` toolbar, sheets, menus — automatically adopts the new material. Your content surfaces stay flat and yours.
+
+Three adoption paths are all valid in 2026:
+
+The default for most apps is **selective glass on your own chrome**: let the system surfaces auto-adopt, and use `.glassEffect()` on your custom accessory chrome where it fits. This is what IceCubesApp does (around ten call sites, conditional on the iOS 26 availability check).
+
+For brand-heavy apps where the chrome is part of the product — fintech, brokerage, custom design language — you can build **entirely custom chrome** that bypasses Apple's glass surfaces. Robinhood does this; nothing about your app needs to render glass.
+
+For creative or pro apps that are not ready this cycle, **set `UIDesignRequiresCompatibility = true` in `Info.plist`**. Apple's own iWork suite, Final Cut Pro, Logic Pro, Pixelmator Pro, iMovie, QuickTime Player, and Chess all shipped with this flag at iOS 26.0 launch (and most updated in early 2026). Apple has said the flag will be ignored in a future Xcode release, but no specific version has been published — so treat it as a one-cycle escape, not a permanent stance.
+
+You can opt out without apology. The "you must adopt or look outdated" framing that surfaced in some early coverage was overstated. See `references/liquid-glass.md` for the full decision matrix.
+
+### 5. Approachable Concurrency for app targets
+
+For new app targets in 2026, turn on Approachable Concurrency: default actor isolation set to `MainActor`, `nonisolated(nonsending)` defaults, and `@concurrent` for opt-in background work. Most app code already lives on the main actor, and the new defaults let you stop writing `@MainActor` annotations everywhere.
+
+For non-UI Swift Package Manager packages — a networking layer, a parser, anything that should be callable off the main thread — opt out per-target in `Package.swift` so those packages stay nonisolated and can be called from background work without a main-actor hop.
+
+Migrate existing codebases to Swift 6 strict mode module by module — never the whole repo in one PR. And when you reach for `@unchecked Sendable`, treat it as a synchronization claim you owe a comment for: name the synchronization mechanism in the code, and prefer `final class { let ... } : Sendable`, an `actor`, or a value type when one of those would work.
+
+See `references/concurrency.md`.
+
+## Crosscutting principles
+
+A small number of broad principles apply across every category and should color every review.
+
+**Latest stable iOS / Swift / Xcode unless the project specifies otherwise.** Verify the deployment target from `Package.swift`, the Xcode build settings, and `Info.plist` before suggesting any version-gated API. A recommendation to use `Observations { }` in a codebase that targets iOS 24 is a recommendation that will not compile.
+
+**Prefer SwiftUI-native solutions, but hybrid SwiftUI / UIKit is mainstream in 2026.** Do not apologize for `NSViewRepresentable` or `UIViewRepresentable` when SwiftUI has a genuine gap — `NSTextView` for rich text editing, advanced `UICollectionView` layouts that `LazyVGrid` cannot express, PDFKit, mature components without a SwiftUI peer. Reach for SwiftUI first; bridge to UIKit / AppKit when SwiftUI fights back.
+
+**Apple's guidance and Apple's marketing are not the same.** When the HIG says one thing and the community ships another, surface the disagreement honestly. The clearest example in 2026 is Liquid Glass: Apple's developer-relations framing pushes adoption, but Apple's own pro apps shipped with `UIDesignRequiresCompatibility = true` and the named Mac critic blogs (Daring Fireball, inessential.com, lapcatsoftware) are loud and right. State the trade-off; do not pretend the question is settled when the community's lived experience says otherwise.
+
+**macOS is not iOS with a bigger screen.** Mac users live in the menu bar and the keyboard. A Mac app shipping with an empty `.commands { }` and no keyboard shortcuts on its primary actions reads as an iPad port. Drag-and-drop via `Transferable`, document handling via `DocumentGroup`, and AppKit interop where SwiftUI has gaps — all of these are normal in shipping Mac apps. Critique any Mac SwiftUI app missing these on sight.
+
+**One primary public type per file.** Don't enforce strict "one type per file" — every popular OSS codebase violates it pragmatically when private helpers live alongside the type they serve. The rule is "one main public type; co-locate the helpers that exist only for it."
+
+**Feature-first folder structure.** Top-level grouping by feature, not by layer (no `ViewModels/`, `Views/`, `Models/` at the root). Inside a feature, layer-style sub-folders are fine when the feature is large enough to need them. Promote to local SPM packages when iteration time hurts — project-file merge conflicts becoming routine, build times growing past tolerable, feature boundaries stable enough to extract. Do not modularize for its own sake.
+
+## iOS platform — what every app must do
+
+These are the iOS-specific rules that should appear in nearly every iOS app review.
+
+**Privacy Manifest.** Since May 1, 2024 (`ITMS-91053`), every app needs a `PrivacyInfo.xcprivacy` file at its root. Submissions without it fail in App Store Connect. Third-party SDKs need their own signed manifest with the same signature across versions, since February 12, 2025 (`ITMS-91061`). The manifest declares the Required Reason APIs you call (file timestamps, UserDefaults, system boot time, disk space, active keyboards) and the tracking domains you contact; the App Store derives your privacy nutrition labels from it.
+
+**Sign in with Apple.** Apple's January 2024 policy update requires Sign in with Apple alongside any third-party social login. If your app shows a "Continue with Google" button, it must also show "Continue with Apple."
+
+**App Intents are the unification API.** A single `AppIntent` exposes the action to Siri, Shortcuts, Spotlight, Focus filters, Action Button, Apple Pencil Pro squeeze, and Visual Intelligence (iOS 26). WWDC25 Session 244 covers this directly. For most consumer apps, App Intents are the realistic on-ramp into Apple Intelligence features — implement the verbs you already support and they get surfaced everywhere automatically.
+
+**Prefer scoped permission APIs over Info.plist prompts.** Several iOS APIs let users grant access to a single item without an Info.plist usage string and without a prompt: `PhotosPicker` for photos, `LocationButton` for one-tap location, `ContactAccessButton` for a single contact (iOS 18+), `EKEventEditViewController` for write-only Calendar (iOS 17+), `DataScannerViewController` for camera scanning. Reach for these first. Full-permission APIs and Info.plist usage strings are for cases where the scoped API genuinely does not fit.
+
+**App Tracking Transparency, only if you actually track.** If your app does not track users across other apps and websites, do not call `ATTrackingManager.requestTrackingAuthorization()`. And do not implement a fingerprinting fallback after a denied prompt — Apple's human reviewers reject this under App Store Review Guidelines 5.1.1 and 5.1.2. (`ITMS-91008` is sometimes cited here but it is actually the "Invalid API reason declaration" code, a sibling of `ITMS-91053`; fingerprinting rejections come through human review and do not have a single fixed code.)
+
+**Interactive widgets.** Since iOS 17, widgets can host `Button` and `Toggle` controls bound to an `AppIntent`. Static read-only widgets are legacy. If your app shows up on a user's Home Screen or Lock Screen daily, it should have a widget that lets them do something from there.
+
+**Background work with `BGContinuedProcessingTask`.** New in iOS 26. Long-running uploads, exports, and rendering tasks now have a system-presented progress UI and can keep running after the user backgrounds the app. Productivity apps that today silently fail when the user switches away should adopt this — it is one of the most useful and most overlooked iOS 26 additions.
+
+**App Attest and DeviceCheck.** Around fifty lines of code, free, Secure-Enclave-backed proof that a request to your server came from the unmodified binary you actually shipped. Most apps with a backend skip this and end up reinventing fraud detection later. If your app has trial abuse, sign-up spam, or any reverse-engineered-client risk, adopt App Attest before building any of those workarounds.
+
+**Use the modern variants.** `PhotosPicker` rather than `UIImagePickerController` for any new code. SwiftUI `Map { Marker; Annotation }` rather than `UIViewRepresentable(MKMapView)`. `TipKit` rather than rolling your own tooltip system. `StoreKit 2` (async/await with JWS receipt validation) rather than StoreKit 1.
+
+**Foundation Models for narrow tasks only.** iOS 26 ships an on-device three-billion-parameter language model that you call via the `FoundationModels` framework. It is good for structured output (via the `@Generable` macro), summarization, classification, and other narrow tasks. It is *not* a GPT-class chatbot, its context window is small, and one developer's testing showed it underperforms similarly-sized open-source models. Use it where it fits; do not pitch it as the AI feature.
+
+**Permissions, in general.** Never ask on first launch. Prime the user before the prompt by showing what the permission unlocks. Ask one permission per moment, never stack three prompts at the start of onboarding. When the user denies, give them a clear path back via `UIApplication.openSettingsURLString` (or `openNotificationSettingsURLString` for notifications).
+
+See `references/ios-platform.md` for the full per-API treatment.
+
+## macOS platform — make it feel native
+
+macOS is not iOS with a bigger screen. Mac users live in the menu bar and the keyboard, and apps that ignore those conventions read as iPad ports — flag this on sight in any Mac code review.
+
+**A real main menu.** Use `.commands { }` on the `Scene` with `CommandGroup` to populate File, Edit, View, Window, and Help with the actions your app actually supports. Scale to the app: a 2-action clipboard utility does not need a full Edit menu, but a document app without Cut/Copy/Paste shortcuts is broken. Every primary command gets a `.keyboardShortcut`. Use `.focusedSceneValue` and `@FocusedValue` so commands target the front window's selection rather than a global state.
+
+**Drag-and-drop via `Transferable`.** With `Transferable` plus `.draggable` and `.dropDestination`, your app can accept drops from Finder, send items to Mail, and receive data from any other Mac app. This is the Mac power-user superpower most ports neglect.
+
+**Login items, agents, and daemons via `SMAppService`.** macOS 13+ replaces `SMLoginItemSetEnabled` and `SMJobBless`. New code should not use the deprecated APIs.
+
+**Notarization with `notarytool`.** Apple stopped accepting `altool` uploads on November 1, 2023. Use `xcrun notarytool submit --keychain-profile ... --wait` followed by `xcrun stapler staple` and `spctl --assess --type execute --verbose=4` for verification.
+
+**Hardened Runtime, the least permissive that works.** Hardened Runtime is mandatory for notarization. The entitlement hierarchy is `com.apple.security.cs.allow-jit` (for JIT compilers like JavaScriptCore-based scripting), then `allow-unsigned-executable-memory` (broader), then `disable-executable-page-protection` (broadest, weakest). Pick the least permissive that lets your app launch.
+
+**Auto-update with Sparkle 2.x.** EdDSA signatures are the modern signature scheme, and Sparkle 2.x supports sandboxed apps. New direct-distribution apps should use Sparkle 2 from day one — Sparkle 1 is legacy.
+
+**MenuBarExtra and its missing state API.** `MenuBarExtra` (macOS 13+) gives you a SwiftUI menu bar app in a few lines, but it has no first-party API for controlling the popover programmatically. Real-world menu bar apps either use the third-party `MenuBarExtraAccess` / `FluidMenuBarExtra` packages, or drop to raw `NSStatusItem` (this is what Ice and MeetingBar do).
+
+**Document-based apps.** `DocumentGroup` with `FileDocument` (for value types) or `ReferenceFileDocument` (for class semantics) gets you Open / Save / Recent / Versions and iCloud Drive sync without custom code. Skip the boilerplate.
+
+**AppKit interop is fine — bridge without guilt.** `NSViewRepresentable`, `NSHostingView`, and `NSHostingController` are everyday tools in shipping Mac SwiftUI apps. Drop to AppKit when you need `NSTextView` (rich text, code editing), `NSDocument` semantics SwiftUI does not match, `NSXPC` privilege separation, or low-level window and accessibility APIs.
+
+**macOS Privacy Manifest is formally exempt, but ship one anyway.** As of 2026 the manifest requirement is iOS-only. macOS submissions are not rejected for missing it. For shared SwiftPM packages that get embedded into iOS targets, you still want to ship one — and shipping it on macOS too costs nothing and prepares for any future requirement.
+
+**TCC, signing identity, and re-prompts.** TCC permissions are bound to the bundle ID and the code signature. If you change signing identity between releases, users lose their grants. Sequoia and Tahoe re-prompt for Screen Recording monthly even on apps that previously had permission. Local Network access on macOS is a NetworkExtension packet filter, not TCC — different prompt, different recovery.
+
+**Info.plist usage strings actually crash.** On macOS, accessing a TCC-protected resource without the corresponding Info.plist usage string crashes the app at first access. There is no graceful fallback to a denied state.
+
+**AppKit is alive in 2026.** Pure AppKit utility, menu-bar, and media apps still ship and still thrive: IINA (44.9k stars), Rectangle (29k), Stats (38.8k), Ice (28k), MeetingBar (5.2k). Do not push SwiftUI where AppKit is the right call. For an all-windows-and-status-bar utility, AppKit is often cleaner.
+
+See `references/macos-platform.md`.
+
+## Other golden findings worth surfacing
+
+A few smaller patterns are worth mentioning when relevant.
+
+**The IceCubesApp `@AppStorage` workaround is the canonical pattern for combining `@Observable` with persistent storage.** A plain (non-`@Observable`) inner `Storage` class holds the `@AppStorage`-marked properties; the outer `@Observable` class has stored `var` properties with `didSet` that mirror writes to storage; a private `init()` seeds the outer values from storage at startup. The macro instruments the outer stored properties normally, so observation tracking works. See `references/state-and-observation.md` for the full code.
+
+**`Self._printChanges()` is the fastest "why is this view re-rendering" debug.** Place it inside `body` behind `#if DEBUG`. It logs the dependency that caused the body to re-evaluate. Strip before ship.
+
+**Instruments 26 SwiftUI template with the Cause & Effect Graph (WWDC25 Session 306) is the modern way to profile view-update performance.** Stop guessing at re-render reasons — the graph shows which state mutation caused which AttributeGraph invalidation.
+
+**Liquid Glass also exists in UIKit.** Apple shipped `UIGlassEffect` and `UIGlassContainerEffect` for UIKit alongside the SwiftUI surface. Amperfy (a music app, around 1.5k stars) uses the UIKit form in production. UIKit-majority apps do not need to bridge to SwiftUI just for glass.
+
+**`sosumi.ai` serves Apple developer docs as Markdown.** Apple's docs are JavaScript-rendered and invisible to most LLM-based tooling. `sosumi.ai` proxies them as plain Markdown — useful when you are working with an AI assistant that needs to read Apple's source material directly.
+
+**AppKit is alive at scale.** When critique surfaces "this Mac app uses too much AppKit," check whether the AppKit usage is solving a real SwiftUI gap before recommending a rewrite.
+
+**CocoaPods is not dead.** AltStore and other large active repos still use it. Do not flag a `Podfile` as legacy unless the project is actively migrating to SPM.
+
+**Apple's Backyard Birds is the minimal-architecture reference.** Zero ViewModels, pure `@Query` + `@State` + `@Environment`. Cite it when a developer asks "what does Apple recommend" for SwiftData-heavy apps.
+
+**The Xcode 26 tab fix.** Settings → Navigation → Pin Editor Tabs: When Tab Is Created restores the old tab behavior that many users prefer. Worth knowing when a developer complains about the new tab system.
+
+## Conditional decisions — defaults and when to switch
+
+When a developer asks "should I use X?" the honest answer is usually "default to Y, switch to X when the situation has these specific shapes." Below are the most common conditional decisions in modern SwiftUI work.
+
+### MV pattern vs. MVVM
+
+Default to MV. The `View` is the view model. Use a per-screen `@Observable` ViewModel only when the screen has an explicit state machine (loading, loaded, error, empty, with retry and pagination), when you have a real plan to test orchestration logic in isolation from the view, or when you are bridging from an existing UIKit ViewModel during migration. Apple's samples ship zero ViewModels; IceCubesApp ships forty-four on its most complex screens. Match the rule to the trigger.
+
+### TCA vs. vanilla SwiftUI
+
+Default to vanilla SwiftUI plus `@Observable` plus an `@Observable` router. The Composable Architecture is the right call when the app has many screens with real cross-screen state coordination, when the team is large enough that standardization across hires pays back the learning curve, when a regulated context (fintech, healthtech, government) makes TCA's exhaustive `TestStore` action testing a compliance win, and when the team has FP or Redux experience or has explicitly budgeted for the learning curve. Adoption among popular maintained Swift OSS apps is rare outside Point-Free's own ecosystem; the canonical TCA reference is their `isowords` repository. There have been widely-covered large-team migrations to TCA that reported real wins in performance and testability, but those are case studies, not a general signal. For most apps, TCA is overkill and locks the project to a third-party dependency the team may not control.
+
+### Persistence — SwiftData vs. Core Data vs. SQLiteData vs. GRDB
+
+There is no one right answer, but each option fits a specific shape.
+
+**SwiftData** is the default for a new iOS 17+ app with a small to mid-sized data model, no need for shared or public CloudKit sync, and a greenfield codebase. Wrap every `@Model` in a `VersionedSchema` from v1.0.0 — without it, the first migration attempt in production fails with no path forward except a bridge release.
+
+**Core Data** remains the right call for shared or public CloudKit sync (SwiftData supports only the private database in 2026), for large relational models, for codebases with existing Core Data investment, and for apps that need `NSCompoundPredicate` or `NSFetchedResultsController`.
+
+**SQLiteData** (Point-Free) gives you SwiftData-style ergonomics on top of GRDB, with support for shared and public CloudKit. It is newer; production maturity is still settling. Useful when you want SwiftData's API surface but need the CloudKit scopes SwiftData does not yet support.
+
+**GRDB** is the right call when SQL is genuinely the right abstraction for the data, when you need fine-grained query control, or when datasets are large enough that SwiftData's main-thread cost starts to show.
+
+See `references/persistence.md` for production rules (the `0xdead10cc` backgrounding crash and its fix, the CloudKit constraints, the `@AppStorage` + `@Observable` workaround).
+
+### AppKit vs. SwiftUI for macOS
+
+Default to a SwiftUI shell with strategic AppKit drops. Use `NSViewRepresentable` and friends for `NSTextView`, `NSDocument`, `NSXPC`, and low-level window or accessibility APIs.
+
+Stay pure AppKit when you are building a utility, menu-bar, or media app where SwiftUI gaps would force you to fight the framework on the most important surfaces. IINA, Rectangle, Stats, Ice, and MeetingBar combined ship tens of thousands of stars of "no SwiftUI here" — and they are all excellent Mac apps. The "rewrite to SwiftUI" instinct is sometimes wrong.
+
+### Liquid Glass — three paths
+
+Path A (selective glass on your own chrome) is the default for roughly nine out of ten apps. Path B (entirely custom chrome) fits brand-heavy apps like fintech, brokerage, and banking — the Robinhood model. Path C (`UIDesignRequiresCompatibility = true`) fits creative and pro apps that are not ready this cycle; Apple's own iWork, Final Cut, Logic, and Pixelmator all shipped this way at launch. Pick the path that matches your app's relationship to its chrome, not what blog posts tell you Apple wants.
+
+### Local SPM packages vs. flat target
+
+Default to a flat target. Modularize into local SPM packages when project-file merge conflicts become routine, when build times start to hurt iteration, when feature boundaries have stabilized and you can name them confidently, or when widget / watch / share-extension targets need to consume the same code. Do not modularize a solo project or a POC where the boundaries are still in flux — the cross-package edit cost burns more time than the modularization saves.
+
+The bottom-up extraction order is `DesignSystem` first (no app dependencies), then `Networking`, then per-feature packages once feature boundaries are stable.
+
+## Review process — the rubric
+
+A code review under this skill works through severity-tiered findings against a known order of categories. The structure below mirrors the one the rust-expert skill uses; it works for the same reasons (signal over volume, named consequences, judgment over checklists).
+
+### Severity tiers
+
+When you record a finding, name its severity. The five tiers below cover everything; do not invent new ones.
+
+**blocking** — the code is wrong in a way that will cause data loss, security failure, crash on plausible input, App Store rejection, or breakage of a core user flow. Fix before merge. Examples: `@AppStorage` placed directly inside an `@Observable` class (the silent-no-updates trap), tokens stored in `UserDefaults`, missing `PrivacyInfo.xcprivacy`, SwiftData `@Model` shipped without `VersionedSchema` from v1, an icon-only `Button` with no accessibility label on a primary action.
+
+**important** — the code works today but creates a real cost: bad performance on a measured path, deprecated API that will break on the next OS, missing tests on non-trivial orchestration, an architectural drift that will hurt a later edit. Worth addressing during this work, not later. Examples: an unstructured `Task { }` inside `body`, an `if-else` flip that creates two structural identities, raw `.spring(response:dampingFraction:)` where a named spring is cleaner, MVVM wrapped around `@Query`, a Mac app shipping with an empty `.commands { }`.
+
+**nit** — a small style or naming issue that the team's conventions cover. Mention briefly, do not lead the review with it. Examples: `.foregroundColor` for `.foregroundStyle`, `.cornerRadius(_:)` for `.clipShape(.rect(...))`, a one-parameter `onChange(of:perform:)` that still compiles.
+
+**suggestion** — an alternative the developer might consider, with a real tradeoff. No action required. Examples: extracting a `DesignSystem` SPM package once boundaries stabilize, switching from XCTest to Swift Testing for a new test file.
+
+**praise** — call out a pattern done well. This is not sycophancy: reinforcing the patterns the team already gets right helps them propagate.
+
+### Order of inspection
+
+For each review, walk these categories in order. Load the matching reference only when the code shows real signal in that category — most reviews touch five or six, not all eighteen.
+
+1. **Anti-patterns sweep** (grep-fast first pass). See `references/anti-patterns.md`.
+2. **Architecture and ownership.** Does `App.swift` own shared singletons via `@State`? Does each tab have one stack and one router? Do `*ViewModel.swift` files exist for reasons that pass the MV-vs-VM triggers? See `references/architecture.md`.
+3. **State and observation.** Are the right wrappers in the right places? Any `@AppStorage` directly inside an `@Observable` class? See `references/state-and-observation.md`.
+4. **Navigation.** Typed routes? One stack per tab? `sheet(item:)` rather than manual booleans? See `references/navigation.md`.
+5. **View composition.** Body extracted into real `View` structs? Modifier ordering sensible? `AnyView` absent from lists? See `references/view-composition.md`.
+6. **View lifecycle.** `.task` rather than `.onAppear { Task { } }`? Identity stable across `if/else` branches? Work moved out of `init`? See `references/lifecycle.md`.
+7. **Concurrency.** Approachable Concurrency posture matches the project? `@unchecked Sendable` carries a comment? `.task` for view-tied async work? See `references/concurrency.md`.
+8. **Design system.** Tokens in a shared module? Dynamic Type ramp respected? Modern API for color and shape? See `references/design-system.md`.
+9. **Accessibility.** VoiceOver labels on every interactive element? Reduce Motion respected? Text off glass surfaces? Audit running in CI? See `references/accessibility.md`.
+10. **Performance.** Identity stable in `ForEach`? Lazy stacks where needed? Expensive work out of `body`? See `references/performance.md`.
+11. **Animation.** Named springs? `@Animatable` rather than hand-rolled `animatableData`? See `references/animation.md`.
+12. **Liquid Glass** (iOS/macOS 26+ only). Glass on chrome rather than content? No nested glass? Path A / B / C posture matches the app's brand needs? See `references/liquid-glass.md`.
+13. **Persistence** (only if SwiftData, Core Data, GRDB show up). `VersionedSchema` from v1? `beginBackgroundTask` around model container work on iOS? See `references/persistence.md`.
+14. **iOS platform** (iOS targets). Privacy Manifest, Sign in with Apple, App Intents, scoped permission APIs. See `references/ios-platform.md`.
+15. **macOS platform** (Mac targets). Main menu with shortcuts on primaries, `SMAppService`, `notarytool`, Hardened Runtime, Sparkle 2.x. See `references/macos-platform.md`.
+16. **Testing and debugging.** Swift Testing for new tests? `os.Logger` rather than `print`? UI tests using accessibility identifiers? See `references/testing-and-debugging.md`.
+17. **Modern API replacements** (any deprecated API found in earlier sweeps). See `references/modern-api.md`.
+18. **Swift language idioms** (optionals, errors, generics, naming). See `references/swift-idioms.md`.
+
+Skip categories with no signal. Do not pad with nits.
+
+### For each finding
+
+Record each finding the same way:
+
+1. **File and line.** Exactly where.
+2. **Severity.** From the tiers above.
+3. **What.** Name the problem in one sentence.
+4. **Why it matters.** Concrete production cost in plain language — what bug appears, what crashes, what gets corrupted, what gets rejected, what becomes harder to change. If you cannot name a concrete consequence, the finding belongs as `suggestion` or should not be raised.
+5. **Fix.** Before / after code block when non-obvious.
+
+### The "what I'm not flagging" pass
+
+Before you write the summary, do a deliberate pass on things you saw that look like they should be flagged but where the right call is to leave them alone. Document this. Examples:
+
+A `*ViewModel.swift` file that exists on a complex screen with a real state machine and tests around it does not need to be removed in the name of MV-pattern purity. Leave it; note that you considered it and the triggers are met.
+
+`@unchecked Sendable` on a type that has a clear comment explaining the synchronization mechanism — say, an actor-replacement helper with `final` plus only `let` properties plus a `NSLock` for one shared cache — is not a smell, it is a documented decision. Note it as praise.
+
+A Mac app that uses pure AppKit instead of SwiftUI for its core surface — if that surface is a text editor (`NSTextView`), a video player (`mpv`-driven), or a system monitor with menu-bar status items — is making a correct call. Do not flag the lack of SwiftUI; if anything, note the choice as appropriate.
+
+`UIDesignRequiresCompatibility = true` in a creative or pro app's `Info.plist` is a deliberate one-cycle choice, not laziness. Apple's own pro apps shipped this way. Leave it; note the choice and what would change it.
+
+A working `ObservableObject` in a codebase that targets iOS 16 is not something to rewrite during a network-bug review. Note the migration suggestion once at project level and move on.
+
+The "what I'm not flagging" section is often more valuable than the findings themselves. It tells the next reviewer (or the same one six months from now) what was already considered and why.
+
+### Summary
+
+End the review with a prioritized summary: blocking issues first, then important, then a brief mention of nits and suggestions. Skip files with no issues. Keep the summary tight — the developer reading it should see the shape of the work in under a minute.
+
+## Quick API replacement table
+
+These are the most common modern-API replacements. The full table lives in `references/modern-api.md`.
+
+| Stale | Modern |
+|---|---|
+| `ObservableObject` | `@Observable` |
+| `NavigationView` | `NavigationStack` / `NavigationSplitView` |
+| `.foregroundColor` | `.foregroundStyle` |
+| `.accentColor` | `.tint` |
+| `.cornerRadius` | `.clipShape(.rect(cornerRadius:, style: .continuous))` |
+| `PreviewProvider` | `#Preview` |
+| `.font(.system(size:))` | `.font(.body)` (Dynamic Type ramp) |
+| `Task.sleep(nanoseconds:)` | `Task.sleep(for:)` |
+| `onChange(of:perform:)` (one-parameter) | `onChange(of:initial:_:)` |
+| `Binding(get:set:)` in body | `@State` + `.onChange(of:initial:_:)` |
+| `AnyView` | `@ViewBuilder`, `Group`, or generics |
+| `UIImagePickerController` | `PhotosPicker` / `PHPickerViewController` |
+| `altool` | `notarytool` |
+| `SMLoginItemSetEnabled` | `SMAppService` |
+
+## The explicit "don't" list
+
+These are the patterns to flag on sight. The full annotated list is in `references/anti-patterns.md`.
+
+For state, do not use `ObservableObject` / `@Published` / `@StateObject` / `@ObservedObject` for new code, do not place `@AppStorage` directly inside an `@Observable` class, and do not write `Binding(get:set:)` inside a body.
+
+For navigation, do not use `NavigationView` or `NavigationLink(destination:)`. Drive sheets with `sheet(item:)` and an `Identifiable` enum rather than `sheet(isPresented:)` with manual booleans.
+
+For modifiers and style, do not use `.foregroundColor`, `.accentColor`, `.cornerRadius(_:)`, or `.font(.system(size:))` without `relativeTo:`. On iOS 26 sheets, do not apply `.presentationBackground(.thinMaterial)` — it suppresses the new presentation style.
+
+For views, do not use `AnyView` in a list, do not default `UUID()` in `ForEach(id:)`, and do not extract reusable subviews as `@ViewBuilder` computed properties (use real `View` structs so the AttributeGraph can preserve identity).
+
+For lifecycle, do not put async data loading in `.onAppear` on a view that can re-appear (use `.task`), and do not start unstructured `Task { }` blocks inside a body.
+
+For concurrency, do not use `DispatchQueue.main.async` or `DispatchQueue.global()` in new code, and do not reach for `@unchecked Sendable` without a comment naming the synchronization mechanism.
+
+For Liquid Glass, do not apply `.glassEffect()` to list rows, content tiles, full-screen backgrounds, or as a background to glass (nested glass). Do not place text directly on a glass surface — text needs an opaque layer underneath.
+
+For iOS, do not ship without a Privacy Manifest, do not ask permissions on first launch, do not fall back to fingerprinting after an ATT denial, and do not use `UIImagePickerController` in new code.
+
+For macOS, do not use `SMLoginItemSetEnabled` / `SMJobBless` (use `SMAppService`), do not run `altool` (use `notarytool`), and do not ship Touch Bar code — the hardware is gone.
+
+For logging and debugging, do not use `print()` in production code paths (use `os.Logger`), do not ship `Self._printChanges()` outside a `#if DEBUG` guard, and do not store tokens or PII in `UserDefaults` (use Keychain).
+
+## Output format for reviews
+
+Group findings by file. For each issue, name the file and line number, state the rule being violated in a short clear sentence, and show a short before / after code block when it helps. Skip files with no issues. End the review with a prioritized summary ordered by impact: accessibility bugs, data-flow errors, and security problems go first; deprecated API and architectural drift in the middle; style nits last (if at all).
+
+For example:
 
 ````
 ### ContentView.swift
 
-**Line 24: Icon-only button is invisible to VoiceOver.**
+**Line 24: The icon-only button has no accessibility label.**
 
 ```swift
 // Before
@@ -50,159 +408,59 @@ Button(action: addUser) { Image(systemName: "plus") }
 
 // After
 Button("Add User", systemImage: "plus", action: addUser)
-````
+```
 
 ### Summary
 
-1. **Accessibility (high):** add button on line 24 has no label.
-2. **Deprecated API (medium):** `foregroundColor` on line 12 → `foregroundStyle`.
-3. **Data flow (low):** manual binding on line 31 should use `onChange`.
+1. **Accessibility (high):** Icon-only button on line 24 has no label.
+2. **State (high):** `@AppStorage` directly inside an `@Observable` class on line 41 will compile but not trigger view updates.
+3. **Deprecated API (medium):** `foregroundColor` on line 12 should be `foregroundStyle`.
+````
+
+## What changed in 2026
+
+A few features are genuinely new and worth surfacing as "new" when they fit.
+
+Approachable Concurrency (Swift 6.2+) makes most app code implicit `@MainActor`. `Observations { }` is an async sequence over `@Observable` changes (iOS 26+). `@Animatable` (iOS 26) replaces hand-written `animatableData` boilerplate. `ConcentricRectangle` plus `.containerShape()` is the modern shape pair for iOS 26 sheets. `BGContinuedProcessingTask` (iOS 26) gives long-running background work a system-presented progress UI. Liquid Glass and the three adoption paths are new in iOS 26 / macOS 26. `PermissionKit` (iOS 26) handles parental approval for child-account apps. `DeclaredAgeRange` ships `requestAgeRange` from iOS 26.0 and `isEligibleForAgeFeatures` from iOS 26.2. Swift Testing is the Xcode 26 default for new test targets. The Xcode 26 SwiftUI instrument with the Cause & Effect Graph is the new way to profile view-update perf. Foundation Models (iOS 26, three-billion-parameter on-device LLM) is for narrow structured-output tasks, not for GPT-class chat. SwiftData CloudKit sync is still private-database-only — use Core Data when you need shared or public.
+
+The `@Entry` macro that some sources mark as "iOS 26" is actually older — it was introduced with Xcode 16 / iOS 18 and is back-deployable through the macro expansion to earlier iOS versions.
+
+## Commands
+
+This skill ships five commands.
+
+`/swift-critique` is the comprehensive code review. It runs through architecture, state, types, concurrency, design, accessibility, performance, security, platform, persistence, and testing in order, and loads the relevant references as it finds signal. This is the command for "review my SwiftUI."
+
+`/swift-architect` is the deeper, architecture-focused review. It skips style nits and concentrates on the MV vs. MVVM call, the TCA decision, App.swift ownership, folder structure, modularization, and navigation patterns. Use this for "review my architecture."
+
+`/swift-ios` is the iOS-focused review. It concentrates on Privacy Manifest, App Tracking Transparency, App Intents, Widgets and Live Activities, scoped permission APIs, App Attest, push notifications, Foundation Models, and StoreKit 2 alongside the cross-cutting rules. Use this for "review my iOS app."
+
+`/swift-mac` is the macOS-focused review. It concentrates on main menu and keyboard shortcuts, MenuBarExtra, document apps, drag-and-drop via Transferable, sandboxing and Hardened Runtime, notarization with notarytool, Sparkle 2.x, SMAppService, and AppKit interop. Use this for "review my Mac app" or "does this app feel like a Mac app?"
+
+`/swift-teach` explains a SwiftUI or Swift concept like a teacher — strong opinion, modern patterns, working code, pointers to the deeper references. Use this for "explain `@Observable` to me."
+
+## References
+
+The skill ships eighteen reference files. Load them on demand.
 
 ```
-
-## Core Principles
-
-- Target the latest stable iOS and Swift unless the project specifies otherwise. Check the deployment target before suggesting version-gated APIs.
-- Prefer SwiftUI-native solutions. Avoid UIKit unless explicitly needed or for gaps SwiftUI cannot fill.
-- Do not introduce third-party frameworks without asking first.
-- Each type (struct, class, enum) belongs in its own file. Flag files with multiple type definitions.
-- Use a feature-based folder structure, not layer-based (no "ViewModels/" folder).
-- Code must adhere to Apple's Human Interface Guidelines.
-
-## Modern API — Always Use
-
-Replace deprecated API immediately. See `references/modern-api.md` for the complete table.
-
-Key replacements:
-- `foregroundStyle()` not `foregroundColor()`
-- `clipShape(.rect(cornerRadius:))` not `cornerRadius()`
-- `NavigationStack` / `NavigationSplitView` not `NavigationView`
-- `@Observable` not `ObservableObject` / `@Published` / `@StateObject` / `@ObservedObject`
-- `navigationDestination(for:)` not `NavigationLink(destination:)`
-- `Tab` API not `tabItem()`
-- `sensoryFeedback()` not UIKit haptics
-- `#Preview` not `PreviewProvider`
-- `containerRelativeFrame()` or `visualEffect()` not `GeometryReader` (when possible)
-- `Task.sleep(for:)` not `Task.sleep(nanoseconds:)`
-- `@Entry` macro for custom environment/focus/transaction keys
-
-## State Management
-
-- `@State` must be `private`. It is owned by the view that creates it.
-- `@Observable` classes are `@MainActor` automatically in Swift 6.2+ projects with default MainActor isolation; in older projects, annotate them explicitly.
-- Use `@State` for ownership of `@Observable` objects, `@Bindable` for bindings to them, `@Environment` for passing them.
-- Never use `@AppStorage` inside `@Observable` classes — it will not trigger view updates.
-- Never create `Binding(get:set:)` in body — use `@State` + `onChange()`.
-- Nested `@Observable` works fine. Nested `ObservableObject` does not propagate changes.
-- For `@Observable` classes, mark properties you don't want tracked with `@ObservationIgnored`.
-- Outside of view bodies, use the `Observations` async sequence (Swift 6.2+) to stream transactional changes from `@Observable` types.
-
-See `references/state-data.md` for property wrapper decision flowchart and SwiftData rules.
-
-## View Composition & Clean Code
-
-- Strongly prefer extracting subviews into separate `View` structs over computed properties or methods returning `some View`. Computed properties get no re-evaluation isolation from `@Observable` — separate structs allow SwiftUI to skip unchanged subviews entirely.
-- Keep `body` short and computation-free. No sorting, filtering, or formatter creation in `body`.
-- Extract button actions into methods. No inline business logic in `task()`, `onAppear()`, or `body`.
-- Apply DRY: repeated styling → `ViewModifier`. Repeated layout → extracted `View`. Repeated logic → model/service method.
-- Apply Single Responsibility: each view does one thing. Each model owns one domain. Each file contains one type.
-- Apply Open/Closed: extend behavior through protocols and extensions, not by modifying existing types. Use `ViewModifier` + `View` extension for reusable styling.
-- Prefer `overlay`/`background` for decoration; `ZStack` for peer composition.
-- Container views: use `@ViewBuilder let content: Content` (not stored closures).
-
-See `references/view-composition.md` for patterns, ordering conventions, and anti-patterns.
-
-## Design Craft
-
-- Establish a clear visual direction — commit to an aesthetic, don't mix styles.
-- Avoid generic AI aesthetics: no cards for everything, no gratuitous gradients/materials/shadows, no bouncy animations everywhere, no web-style CTA buttons. Use native iOS components. Apply the squint test — hierarchy should be visible even blurred.
-- Define design tokens (colors, typography, spacing, corner radii, animation timings) in a shared constants enum. One source of truth.
-- Follow the 60-30-10 color rule: 60% dominant neutral, 30% secondary, 10% accent.
-- Use semantic color names for role, not RGB. Support dark mode with system colors or asset catalog.
-- Establish clear typographic hierarchy: 3-4 levels max. Use weight contrast more than size contrast.
-- Use Dynamic Type fonts exclusively. Never hardcode `.font(.system(size:))`.
-- Minimum 44x44pt tap targets. Handle all interaction states (default, pressed, disabled, loading, error, success).
-- Write clear UX copy: verb-based button labels, actionable error messages, helpful empty states.
-
-See `references/design-craft.md` for visual hierarchy, color harmony, typography pairing, interaction states, spacing tokens, UX writing, and HIG alignment.
-
-## Animation & Motion
-
-- Use `withAnimation { }` (explicit) for control. Use `.animation(_:value:)` for implicit — always with a `value:` parameter.
-- Prefer GPU-friendly transforms (`offset`, `scale`, `rotation`) over layout changes (`frame`).
-- Use `@Animatable` macro (iOS 26+) not manual `animatableData`.
-- Chain animations via `withAnimation` completion closures, not delays.
-- `matchedGeometryEffect` with `@Namespace` for hero transitions.
-- Respect `accessibilityReduceMotion` — replace motion with opacity.
-- Spring animations for natural feel. `.bouncy` for playful, `.smooth` for subtle.
-
-See `references/animation.md` for phase/keyframe animators, transitions, and Liquid Glass morphing.
-
-## Accessibility
-
-- VoiceOver: every interactive element needs a text label. `Button("Add", systemImage: "plus", action:)` not icon-only.
-- Use `Image(decorative:)` or `accessibilityHidden()` for decorative images.
-- Never use `onTapGesture()` when `Button` works. If you must, add `.accessibilityAddTraits(.isButton)`.
-- Respect `accessibilityDifferentiateWithoutColor` — don't rely on color alone.
-- Use `accessibilityInputLabels()` for complex/changing button labels.
-- Test with VoiceOver and Accessibility Inspector.
-
-See `references/accessibility.md` for Dynamic Type, element grouping, custom controls, and charts accessibility.
-
-## Performance
-
-- Ternary expressions over `if/else` view branching (avoids `_ConditionalContent`).
-- No `AnyView`. Use `@ViewBuilder`, `Group`, or generics.
-- Fine-grained `@Observable` models — avoid broad dependencies on arrays.
-- Use `LazyVStack`/`LazyHStack` for large data sets.
-- `task()` over `onAppear()` for async (auto-cancellation).
-- Keep view initializers trivial. Defer work to `task()`.
-- Debug with `Self._printChanges()` and random background colors.
-
-See `references/performance.md` for the full code smell catalog and remediation patterns.
-
-## Concurrency
-
-- Always `async`/`await` over closures. Never use GCD (`DispatchQueue`).
-- For new Swift 6.2+ projects, enable **default MainActor isolation**, **`nonisolated(nonsending)` by default**, and use **`@concurrent`** to opt into background execution. With these on, most `@MainActor` annotations disappear.
-- Use `.task` modifier for async work in views.
-- Prefer `Task` over `Task.detached` (inherits actor context).
-- Flag unprotected mutable shared state.
-- Assume strict concurrency. Flag `@Sendable` violations.
-- Prefer typed `NotificationCenter` messages (`MainActorMessage` / `AsyncMessage`) over stringly-typed `userInfo` dictionaries.
-
-See `references/concurrency.md` for actor patterns, Sendable, Swift 6.2/6.3 changes, and typed notifications.
-
-## Navigation & Presentation
-
-- `NavigationStack` with `navigationDestination(for:)`. Never mix with `NavigationLink(destination:)`.
-- `sheet(item:)` over `sheet(isPresented:)` for optional data.
-- Attach `confirmationDialog()` to its trigger (for Liquid Glass animations).
-- Single "OK" alert buttons can be omitted.
-- `TabView(selection:)` binds to an enum, not Int/String.
-
-See `references/navigation.md` for split views, inspector patterns, and deep links.
-
-## Liquid Glass (iOS 26+)
-
-- Recompile with Xcode 26 for automatic adoption on NavigationBar, TabBar, Toolbar.
-- Apply `.glassEffect()` **after** layout and visual modifiers.
-- Use `GlassEffectContainer` when multiple glass elements coexist.
-- `.interactive()` only on tappable/focusable elements.
-- `.buttonStyle(.glass)` / `.buttonStyle(.glassProminent)` for actions.
-- Gate with `#available(iOS 26, *)` and provide `.ultraThinMaterial` fallback.
-
-See `references/liquid-glass.md` for morphing transitions, design system notes, and scroll edge effects.
-
-## Modern Swift Idioms
-
-Empirically agreed quick wins that compound across a codebase: prefer `Double` over `CGFloat`, static member lookup (`.circle` not `Circle()`), `if let value {` shorthand, omit `return` for single expressions, `localizedStandardContains()` for user search, `URL.documentsDirectory`, `Date.now`, no force unwraps, and surface errors instead of swallowing them.
-
-See `references/swift-idioms.md` for the full list with examples.
-
-## Metal Shaders (iOS 17+)
-
-For custom GPU effects (refractions, distortions, holographic cards, generative backgrounds), use `.colorEffect`, `.distortionEffect`, or `.layerEffect` with `ShaderLibrary` and a `.metal` file. Drive time-based shaders with `TimelineView(.animation)`. Wrap the timeline tightly around the affected view, never the whole screen.
-
-See `references/animation.md` ("Metal Shaders") for argument passing, performance rules, and Liquid Glass interplay.
+references/
+├── anti-patterns.md           the explicit "don't" list — consulted first
+├── architecture.md            MV pattern, App.swift singletons, folders, TCA/SPM triggers
+├── state-and-observation.md   @Observable, ownership matrix, @AppStorage trap
+├── navigation.md              NavigationStack + Router pattern
+├── view-composition.md        extraction, modifiers, body rules
+├── lifecycle.md               init traps, .task vs onAppear, identity, scene phase
+├── concurrency.md             Approachable Concurrency, MainActor, Sendable
+├── design-system.md           tokens, typography, Dynamic Type, @Entry
+├── liquid-glass.md            three paths, opt-outs, anti-glass voices
+├── animation.md               named springs, @Animatable, Reduce Motion
+├── accessibility.md           CI audits, Dynamic Type, contrast, text-on-glass
+├── performance.md             identity, lazy stacks, Instruments SwiftUI
+├── persistence.md             SwiftData/CoreData/SQLiteData/GRDB triggers, traps
+├── ios-platform.md            App Intents, Widgets, Live Activities, permissions
+├── macos-platform.md          menus, MenuBarExtra, sandbox, notarytool, Sparkle
+├── modern-api.md              deprecation/replacement table (iOS 26 entries)
+├── swift-idioms.md            language patterns (Swift 6.2/6.3)
+└── testing-and-debugging.md   Swift Testing, previews, Instruments, os.Logger
 ```
