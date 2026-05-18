@@ -194,7 +194,7 @@ Existing code mostly still works — migrate when natural, not urgently.
 | `sled` (for new projects) | Beta forever — ~6 years pre-1.0, known memory issues | `redb` 4.x (B-tree) or `fjall` 3.x (LSM) |
 | GPUI (third-party use) | Zed-tied, pre-1.0, breaking changes, sparse docs | Pick a different Rust UI framework (Tauri/egui/Iced/Slint) |
 | Floem (for i18n apps) | IME bugs | Iced for serious app architecture |
-| `chrono` (for new code touching tz) | Still receiving releases (0.4.44, Feb 2026), but maintainer Dirkjan Ochtman signaled intent to wind down chrono and chrono-tz in his Jan 2026 year-in-review and now recommends jiff | `jiff` (still pre-1.0 in May 2026 — see Rule 5 in decision-rules.md) |
+| `chrono` (for new code touching tz) | Still receiving releases (0.4.44, Feb 2026), but the maintainer signaled intent to wind down chrono and chrono-tz in a Jan 2026 year-in-review and now recommends jiff | `jiff` (still pre-1.0 in May 2026 — see Rule 5 in decision-rules.md) |
 
 ---
 
@@ -255,6 +255,6 @@ Reach for these by default; alternatives need justification.
 - Per-release stabilizations — [blog.rust-lang.org/releases](https://blog.rust-lang.org/releases/)
 - Tokio LTS schedule — [tokio.rs releases](https://github.com/tokio-rs/tokio/releases)
 - Tokio merge-back history — [Tokio issue #1318](https://github.com/tokio-rs/tokio/issues/1318)
-- matklad's workspace guidance — [Large Rust Workspaces](https://matklad.github.io/2021/08/22/large-rust-workspaces.html)
-- BurntSushi on unwrap — [Using unwrap() in Rust is Okay](https://burntsushi.net/unwrap/)
-- Ryhl's actor pattern — [Actors with Tokio](https://ryhl.io/blog/actors-with-tokio/)
+- Workspace guidance — [Large Rust Workspaces](https://matklad.github.io/2021/08/22/large-rust-workspaces.html)
+- Unwrap as invariant assertion — [Using unwrap() in Rust is Okay](https://burntsushi.net/unwrap/)
+- Actor pattern — [Actors with Tokio](https://ryhl.io/blog/actors-with-tokio/)

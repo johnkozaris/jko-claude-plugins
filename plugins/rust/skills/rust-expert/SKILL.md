@@ -42,7 +42,7 @@ When a compiler error appears, reframe it as a design question:
 **DO**: Use `?` with `.context()` at every propagation point.
 **DO**: Use `thiserror` (v2) for libraries, `anyhow` (v2) for applications.
 **DO**: Use `#[non_exhaustive]` on public error enums.
-**DO**: Use `.expect("invariant X holds because Y")` to assert what the type system cannot express — invariant assertion is OK (per BurntSushi).
+**DO**: Use `.expect("invariant X holds because Y")` to assert what the type system cannot express — invariant assertion is fine; lazy error handling is not.
 **DON'T**: Use `.unwrap()` or `.expect()` on Results from outside the program (parse, IO, env, deserialize, network) — this is what took down [Cloudflare on Nov 18, 2025](https://blog.cloudflare.com/18-november-2025-outage/): a hard-coded 200-feature limit hit unexpected input, `.unwrap()` on the `Err` panicked in `fl2_worker_thread`, 5xx globally for hours.
 **DON'T**: Implement `From` for fallible conversions — use `TryFrom`.
 **DON'T**: Both log AND propagate an error — pick one.

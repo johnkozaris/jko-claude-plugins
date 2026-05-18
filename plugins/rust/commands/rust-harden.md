@@ -39,7 +39,7 @@ For each match, classify it:
 - Unwrap on `Result`: replace with `?` and add `.context("description")` if anyhow is available
 - Unwrap on `Option`: replace with `.ok_or_else(|| Error::...)` then `?`
 
-**Genuine invariant** (programmer guarantee, e.g., after a length check or freshly-inserted map key) — keep but document. Change to `.expect("invariant X holds because Y")` with the reason in the message. Per BurntSushi: unwrap-as-assertion is OK; unwrap-as-error-handling is not.
+**Genuine invariant** (programmer guarantee, e.g., after a length check or freshly-inserted map key) — keep but document. Change to `.expect("invariant X holds because Y")` with the reason in the message. The rule: unwrap-as-assertion is OK; unwrap-as-error-handling is not.
 
 **Mutex::lock() poison case** — `.expect("mutex poisoned — programmer error elsewhere")` is acceptable. Or migrate to `parking_lot::Mutex` which doesn't poison.
 

@@ -11,7 +11,7 @@
 
 `unsafe` does NOT disable the borrow checker. References inside unsafe blocks are still checked.
 
-## The Tootsie Pop Model (Niko Matsakis)
+## The Tootsie Pop Model
 
 The unsafe boundary is the **entire module**, not just the `unsafe {}` block. Even safe code within the same module can break invariants that unsafe code depends on. Use Rust's privacy system to strictly limit which code can access raw fields.
 

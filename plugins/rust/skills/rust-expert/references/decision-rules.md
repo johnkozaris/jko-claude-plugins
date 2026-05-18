@@ -19,7 +19,7 @@ The rules below tell you what to do, and they're honest about when the default d
 | Tests, benchmarks, doc examples | `.unwrap()` is fine — tests should panic on unexpected state. |
 | Main function's startup initialization that MUST succeed | `.expect("could not load config")` is acceptable — the program can't proceed without it. |
 
-**Source**: [BurntSushi — Using unwrap() in Rust is Okay](https://burntsushi.net/unwrap/). The rule isn't "no unwrap"; it's "unwrap as documented assertion of invariant, never as error handling on external input."
+**Source**: [Using unwrap() in Rust is Okay](https://burntsushi.net/unwrap/). The rule isn't "no unwrap"; it's "unwrap as documented assertion of invariant, never as error handling on external input."
 
 ---
 
@@ -72,8 +72,8 @@ A newtype with no methods and no validation invariants is pure noise. The questi
 
 | Situation | Answer |
 |---|---|
-| New application code touching timezones / DST, can tolerate minor API churn | `jiff` (BurntSushi). Best DST/timezone handling. Pre-1.0 in May 2026; maintainer committed to indefinite API stability post-1.0. |
-| Library with strict public API stability | `chrono` (still releasing — 0.4.44 in Feb 2026 — but maintainer Dirkjan Ochtman signaled wind-down intent in his Jan 2026 year-in-review and now recommends jiff). Re-evaluate when `jiff` 1.0 ships. |
+| New application code touching timezones / DST, can tolerate minor API churn | `jiff`. Best DST/timezone handling. Pre-1.0 in May 2026; the maintainer committed to indefinite API stability post-1.0. |
+| Library with strict public API stability | `chrono` (still releasing — 0.4.44 in Feb 2026 — but the maintainer signaled wind-down intent in a Jan 2026 year-in-review and now recommends jiff). Re-evaluate when `jiff` 1.0 ships. |
 | `no_std` / embedded | `time` crate. |
 | Existing chrono code | Don't migrate without reason. chrono is still being released and compiles fine; the wind-down is signaled, not done. |
 
@@ -94,7 +94,7 @@ The jiff caveat is real: 1.0 was originally targeted for Summer 2025, then Sprin
 | Multiple teams own different subsystems with frequent merge conflicts | Split: crate boundaries enforce ownership. |
 | You think "splitting will be cleaner" without one of the above triggers | DON'T split. [Tokio merged sub-crates back in 2019 (#1318)](https://github.com/tokio-rs/tokio/issues/1318) for exactly this reason — splitting for tidiness added maintenance and user-confusion overhead. |
 
-See [workspace-organization.md](workspace-organization.md) for the Zellij case study, matklad's flat layout, and the feature-unification trap.
+See [workspace-organization.md](workspace-organization.md) for the Zellij case study, the flat layout, and the feature-unification trap.
 
 ---
 
@@ -145,7 +145,7 @@ Document the unbounded choice with a comment naming the reason. Unexplained `mps
 
 ## Rule 10 — Test ratios
 
-Drop the "60/30/10 unit/integration/E2E" hedge. matklad's framing replaces it:
+Drop the "60/30/10 unit/integration/E2E" hedge. A purity-and-extent framing replaces it:
 
 | Concept | Rule |
 |---|---|

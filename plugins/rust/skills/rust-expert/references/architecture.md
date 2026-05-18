@@ -85,7 +85,7 @@ impl CounterHandle {
 }
 ```
 
-This is the canonical [Ryhl pattern](https://ryhl.io/blog/actors-with-tokio/). Used in most non-trivial Tokio codebases. Frameworks exist (Actix, ractor) but the hand-rolled version is short enough that most teams write it directly.
+This is the canonical [Actors with Tokio](https://ryhl.io/blog/actors-with-tokio/) pattern. Used in most non-trivial Tokio codebases. Frameworks exist (Actix, ractor) but the hand-rolled version is short enough that most teams write it directly.
 
 **Watch for**: `unbounded_channel` replacing the bounded one (someone got tired of senders blocking under load, and now the system has no backpressure — OOM under sustained overload). Actors that take too long to process a message and block subsequent messages (long-running work should move to a worker actor or `spawn_blocking`). `Handle` types accreting fields beyond the channel sender (they're turning back into the shared-state object the pattern avoids).
 
@@ -214,8 +214,8 @@ These are the things to push back on regardless of which architecture the codeba
 
 ## Sources
 
-- [Alice Ryhl — Actors with Tokio](https://ryhl.io/blog/actors-with-tokio/)
-- [matklad — Large Rust Workspaces](https://matklad.github.io/2021/08/22/large-rust-workspaces.html)
+- [Actors with Tokio](https://ryhl.io/blog/actors-with-tokio/)
+- [Large Rust Workspaces](https://matklad.github.io/2021/08/22/large-rust-workspaces.html)
 - Sans-IO examples: [quinn-proto](https://docs.rs/quinn-proto), [rustls](https://docs.rs/rustls), [httparse](https://docs.rs/httparse), [h2](https://docs.rs/h2)
 - WASM Component Model: [wit-bindgen](https://github.com/bytecodealliance/wit-bindgen)
 - "Master Hexagonal Architecture in Rust" (howtocodeit) and "Hexagonal Architecture in Rust" (Cogs and Levers) — well-cited Rust hexagonal tutorials; search for current URLs

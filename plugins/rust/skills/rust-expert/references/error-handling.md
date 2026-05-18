@@ -64,7 +64,7 @@ Always — for any function that can fail due to input, environment, or external
 | Context | Allowed? | Notes |
 |---|---|---|
 | Result/Option from outside the program (parse, IO, env, deserialize, network, user input) | **NEVER** | Propagate with `?` and `.context()`. This is what took down Cloudflare on Nov 18, 2025. |
-| Invariant the type system can't express (e.g., "I just inserted, so .get() is Some") | `expect("documented reason")` | Per BurntSushi: assertion-of-invariant is OK; lazy error handling is not. |
+| Invariant the type system can't express (e.g., "I just inserted, so .get() is Some") | `expect("documented reason")` | Assertion-of-invariant is OK; lazy error handling is not. |
 | Mutex::lock() poison case | `expect("mutex poisoned")` acceptable | Or use `parking_lot` which doesn't poison. |
 | Startup init that MUST succeed | `expect("could not load config")` acceptable | Program can't proceed without it. |
 | Tests, benchmarks | `unwrap()` fine | Tests should panic on unexpected state. |
@@ -84,9 +84,9 @@ The panic cascaded through the proxy, and Cloudflare served 5xx responses global
 
 The full postmortem is at [blog.cloudflare.com/18-november-2025-outage](https://blog.cloudflare.com/18-november-2025-outage/). When you flag a `.unwrap()` on external input in code review, this is the incident to point at.
 
-### BurntSushi's take on when unwrap is okay
+### When unwrap is acceptable as an invariant assertion
 
-Andrew Gallant (the author of ripgrep) wrote a post called [Using unwrap() in Rust is Okay](https://burntsushi.net/unwrap/) that's worth knowing about. His position is that panicking shouldn't be used for error handling, but `unwrap()` as an assertion of an invariant the type system can't express is fine. So the rule isn't "no unwrap ever." It's "prefer `?` for error propagation; restrict `.unwrap()` to tests, benchmarks, and cases where you're asserting an invariant the type system can't capture." And when you do use it for an invariant, prefer `.expect("reason")` over `.unwrap()` — the panic message documents what was assumed, which is useful when something does go wrong.
+There's a well-known post called [Using unwrap() in Rust is Okay](https://burntsushi.net/unwrap/) that's worth knowing about. The position is that panicking shouldn't be used for error handling, but `unwrap()` as an assertion of an invariant the type system can't express is fine. So the rule isn't "no unwrap ever." It's "prefer `?` for error propagation; restrict `.unwrap()` to tests, benchmarks, and cases where you're asserting an invariant the type system can't capture." And when you do use it for an invariant, prefer `.expect("reason")` over `.unwrap()` — the panic message documents what was assumed, which is useful when something does go wrong.
 
 ## The `?` Operator
 

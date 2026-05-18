@@ -24,7 +24,7 @@
 
 No task should spend more than **10-100 microseconds** between `.await` points.
 
-## Blocking Taxonomy (Alice Ryhl)
+## Blocking Taxonomy
 
 | Blocking type | Fix |
 |---|---|

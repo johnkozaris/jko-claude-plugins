@@ -35,8 +35,8 @@ The `rust-expert` skill activates automatically when working with Rust code. It 
 - 3-layer thinking model (Language Mechanics / Design Choices / Domain Constraints)
 - 14-step ordered review process (soundness first, style last)
 - Error-to-design-question reframing (E0382 → "Who should own this data?")
-- 5 severity levels (blocking / important / nit / suggestion / praise)
-- 17 reference files covering every major Rust domain
+- 7 severity levels (blocking / important / architecture / nit / polish / suggestion / praise)
+- 22 reference files covering every major Rust domain
 
 ## Hook
 

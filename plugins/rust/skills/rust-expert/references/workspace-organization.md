@@ -77,7 +77,7 @@ Why each:
 - **`zellij-utils`** is the shared code. Without it, every change to a utility would force both client and server to recompile.
 - **`zellij-tile`** is the **only published crate**. Plugin authors take a dep on `zellij-tile`; everything else is implementation detail.
 - **Built-in plugins** are workspace members because they each compile to a separate WASM artifact. Their boundaries are real.
-- **`xtask`** is build automation (matklad's pattern). Not shipped; just runs locally.
+- **`xtask`** is build automation (the cargo-xtask pattern). Not shipped; just runs locally.
 
 Plugin communication uses Protobuf via `.proto` files compiled at build time — the boundary between host and plugins is across the WASM ABI, not Rust types.
 
@@ -85,7 +85,7 @@ This is **purposeful**, not ornamental. Every crate has a *consumer* that requir
 
 ---
 
-## matklad's flat layout
+## The flat workspace layout
 
 From [Large Rust Workspaces](https://matklad.github.io/2021/08/22/large-rust-workspaces.html), based on rust-analyzer (~200k LOC, ~50 crates):
 
@@ -223,9 +223,9 @@ Do not split for tidiness, for "future flexibility," or because the architecture
 When you do split: flat layout (`crates/<name>/`), internal crates `publish = false`, shared config via `[workspace.*]` inheritance, automation in an `xtask` crate, `cargo-semver-checks` before publishing the public surface.
 
 Sources:
-- [matklad — Large Rust Workspaces](https://matklad.github.io/2021/08/22/large-rust-workspaces.html)
+- [Large Rust Workspaces](https://matklad.github.io/2021/08/22/large-rust-workspaces.html)
 - [Tokio issue #1318 — collapse sub-crates](https://github.com/tokio-rs/tokio/issues/1318)
-- [matklad/cargo-xtask](https://github.com/matklad/cargo-xtask) — the xtask pattern
+- [cargo-xtask](https://github.com/matklad/cargo-xtask) — the xtask pattern
 - [benw.is — Compile times case study](https://benw.is/posts/how-i-improved-my-rust-compile-times-part2)
 - [cargo-hakari](https://docs.rs/cargo-hakari) — for pathological feature-unification cases
 - [The Cargo Book — Workspaces](https://doc.rust-lang.org/cargo/reference/workspaces.html)

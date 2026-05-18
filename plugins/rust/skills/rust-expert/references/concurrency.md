@@ -284,7 +284,7 @@ std::thread::scope(|s| {
 }); // all scoped threads joined here, even on panic
 ```
 
-`JoinHandle` is **not** `#[must_use]` (rejected for being too noisy). Forgetting `.join()` is a real footgun: cleanup work in spawned threads may never finish before the process exits. See matklad, ["Join Your Threads"](https://matklad.github.io/2019/08/23/join-your-threads.html).
+`JoinHandle` is **not** `#[must_use]` (rejected for being too noisy). Forgetting `.join()` is a real footgun: cleanup work in spawned threads may never finish before the process exits. See ["Join Your Threads"](https://matklad.github.io/2019/08/23/join-your-threads.html).
 
 ## ArcSwap — Lock-Free Hot-Swapping
 

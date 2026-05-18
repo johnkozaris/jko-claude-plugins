@@ -193,7 +193,7 @@ Provocative questions that might unlock better design:
 - "Does this need to be this complex?"
 - "What would happen if this input is malformed?"
 - "Could the type system enforce this invariant?"
-- "What would BurntSushi / Niko / Ryhl do here?"
+- "Would a senior Rust engineer write this, or would they push back?"
 - "If this codebase had to swap Postgres for DynamoDB tomorrow, where does the work happen?"
 
 ### Suggested Follow-up Commands
