@@ -1,7 +1,7 @@
 {
   "name": "python-backend",
-  "description": "Python backend architecture for Litestar and FastAPI with SQLAlchemy and SOLID patterns",
-  "version": "1.0.0",
+  "description": "Python backend architecture for FastAPI with SQLAlchemy 2.0, Pydantic v2, and SOLID/hexagonal patterns",
+  "version": "1.1.0",
   "license": "MIT",
   "author": {
     "name": "John Kozaris"
@@ -10,10 +10,8 @@
   "repository": "https://github.com/johnkozaris/jko-claude-plugins",
   "keywords": [
     "python",
-    "litestar",
     "fastapi",
     "sqlalchemy",
-    "advanced-alchemy",
     "solid",
     "hexagonal",
     "clean-architecture",
@@ -23,7 +21,12 @@
     "pydantic",
     "backend",
     "api",
-    "orm"
+    "orm",
+    "pydantic-v2",
+    "uv",
+    "ruff",
+    "asyncio",
+    "performance"
   ],
   "skills": "./skills",
   "commands": "./commands"

@@ -1,10 +1,10 @@
 # Python Backend Expert Plugin
 
-Expert Python backend architecture with Litestar and FastAPI, SQLAlchemy, hexagonal patterns, and SOLID principles.
+Expert FastAPI backend critique: async correctness, SQLAlchemy 2.0 async, Pydantic v2, project structure, and the AI-generated patterns you want to catch.
 
 ## What It Does
 
-A senior Python architect skill that reviews backend code for architecture, SOLID compliance, async correctness, ORM usage, and anti-pattern detection. Dual-framework support for Litestar (OOP controllers) and FastAPI (functional routers).
+A senior Python reviewer for FastAPI backends. Catches the #1 production bug class (blocking the event loop inside `async def`), the #1 ORM async bug class (MissingGreenlet / N+1), Pydantic v2 mistakes, ORM-models-as-API-schemas, lifecycle gaps (startup ordering, graceful shutdown, idempotency), and the 20 most common AI-generated code and architecture mistakes. Updates the project to current versions and deprecations.
 
 ## Installation
 
@@ -22,28 +22,30 @@ claude --plugin-dir /path/to/myClaudeSkills/plugins/python-backend
 | Command | Purpose |
 |---|---|
 | `/py-critique` | Architecture review with scorecard across all dimensions |
-| `/py-harden` | Scan for anti-patterns (AP-01 through AP-22) and fix |
+| `/py-harden` | Scan for anti-patterns and fix |
 | `/py-structure` | Project layout analysis and restructuring guidance |
 
 ## Skill
 
-The `python-backend-expert` skill activates automatically when working with Python backend code. It provides:
+The `python-backend-expert` skill activates automatically when working with Python backend code. It covers:
 
-- Dual-framework detection (Litestar vs FastAPI)
-- Hexagonal architecture enforcement
-- 13 reference files covering architecture through testing
-- 22 anti-patterns catalog with BAD/GOOD code examples
-- AI slop detection for backend code
-
-## Hook
-
-No active runtime hooks. `hooks/hooks.json` is reserved for future hook-based checks.
+- FastAPI runtime correctness (Depends/Annotated, lifespan, response_model)
+- Async correctness (event-loop blocking, route coloring, ExceptionGroup)
+- SQLAlchemy 2.0 async (MissingGreenlet, N+1, pool sizing)
+- Backend lifecycle (startup, graceful shutdown, request flow, idempotency, observability)
+- Runtimes that aren't web (workers, ETL, CLI tools, daemons): signals, atomic writes, multiprocessing, file locking, scheduling, containers
+- Validation (parse-don't-validate, smart constructors, strict vs lax)
+- Class and data-structure DOs and DON'Ts (dataclass vs attrs vs Pydantic, error design, naming)
+- Two project layouts (file-type for ≤5 domains, per-domain otherwise)
+- Performance (Uvicorn tuning, orjson, SQLAlchemy pool, profilers)
+- Current library versions and deprecations (uv, ruff, PEP 735, ORJSONResponse, etc.)
+- Top 20 AI-generated anti-patterns (10 code + 10 architecture) with BAD/GOOD examples
 
 ## References
 
-13 reference files organized by domain:
+14 reference files organized by domain:
 
-architecture, solid-principles, repository-patterns, dependency-injection, sqlalchemy, async-patterns, api-design, error-handling, modern-python, anti-patterns, testing, project-structure, ai-slop
+architecture, dependency-injection, sqlalchemy, async-patterns, fastapi, lifecycle, validation (covers request/response, pagination, versioning, validation layers), modern-python (covers pure-Python fundamentals plus error design), testing, project-structure, performance, 2026-currency, ai-slop, runtimes
 
 ## License
 

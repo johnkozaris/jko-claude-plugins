@@ -1,313 +1,231 @@
 # Project Structure
 
-## Recommended Layout
+Pick one of two layouts. The full hexagonal/clean layout lives in `architecture.md` and is a last resort.
 
-### Hexagonal / Clean Architecture (Preferred)
+## Layout A: file-type (≤ 5 domains)
+
+What `fastapi/full-stack-fastapi-template` ships with. Right for small apps:
 
 ```
 project_root/
-  backend/
-    pyproject.toml
-    alembic/
-      env.py
-      versions/
-    src/
-      app_name/
-        __init__.py
-        __main__.py            # Entry point
-        main.py                # App creation (or app.py)
-
-        domain/
-          __init__.py
-          entities/             # Domain models (dataclasses)
-            __init__.py
-            user.py
-            order.py
-          ports/                # Protocol/ABC interfaces
-            __init__.py
-            user_repository.py
-            encryption.py
-            email_service.py
-          exceptions.py         # Domain exception hierarchy
-          validation.py         # Domain validation rules
-
-        application/
-          __init__.py
-          services/             # Business logic orchestrators
-            __init__.py
-            user_service.py
-            order_service.py
-
-        entrypoints/
-          __init__.py
-          http/
-            __init__.py
-            controllers/        # Litestar Controllers or FastAPI routers
-              __init__.py
-              users.py
-              orders.py
-              health.py
-            schemas/            # Request/response Pydantic models
-              __init__.py
-              users.py
-              orders.py
-            dependencies.py     # DI wiring for HTTP layer
-            middleware.py
-            exception_handlers.py
-          cli/
-            __init__.py
-            commands.py
-
-        infrastructure/
-          __init__.py
-          persistence/
-            __init__.py
-            orm_models.py       # SQLAlchemy models (single file or split)
-            repositories/
-              __init__.py
-              user_repository.py
-              order_repository.py
-          clients/              # External HTTP/API clients
-            __init__.py
-            base_client.py
-            github_client.py
-          encryption/
-            __init__.py
-            fernet_encryption.py
-
-        composition/            # Wiring layer
-          __init__.py
-          settings.py           # Pydantic Settings
-          container.py          # DI container (if using dependency-injector)
-          bootstrap.py          # App startup sequence
-
-        shared/                 # Cross-cutting utilities
-          __init__.py
-          logging.py
-          errors.py
-
-    tests/
-      conftest.py
-      unit/
-        test_user_service.py
-      integration/
-        test_user_repository.py
-      api/
-        test_user_endpoints.py
+pyproject.toml
+uv.lock
+alembic/
+env.py
+versions/
+alembic.ini
+app/
+api/
+deps.py # Annotated[T, Depends(...)] aliases
+routes/
+users.py
+items.py
+login.py
+core/
+config.py # Pydantic BaseSettings()
+security.py
+models.py # ORM models (flat)
+schemas.py # Pydantic DTOs (flat)
+crud.py # data-access functions (flat)
+main.py
+tests/
+conftest.py
+api/test_users.py
 ```
 
-## File Size Guidelines
+## Layout B: per-domain (> 5 domains)
 
-| Component Type | Target | Max | Split Signal |
-|---|---|---|---|
-| Controller | 50-150 | 300 | Multiple unrelated resource groups |
-| Service | 50-200 | 400 | Methods spanning multiple sub-domains |
-| Repository | 30-100 | 200 | >10 custom query methods |
-| Schema file | 20-100 | 200 | Schemas for unrelated endpoints |
-| ORM models | 20-80 per model | 300 total | Always one model per file if >3 models |
-| Settings | 30-80 | 150 | Split into sub-settings classes |
-| **Any module** | --- | **500** | **Always split above 500 lines** |
-
-## Module Organization Rules
-
-### 1. One Class Per File (For Major Classes)
+Per-domain modules at scale: Each domain owns a folder:
 
 ```
-# BAD -- everything in one file
-services.py  # UserService, OrderService, PaymentService (800 lines)
-
-# GOOD -- one service per file
-services/
-  __init__.py
-  user_service.py
-  order_service.py
-  payment_service.py
+project_root/
+pyproject.toml
+uv.lock
+alembic/
+env.py
+versions/
+alembic.ini
+src/
+core/ # cross-cutting only: config, database, exceptions, logging
+config.py
+database.py
+exceptions.py
+logging.py
+auth/ # one folder per domain
+router.py # APIRouter for /auth
+service.py # business logic
+models.py # ORM models for auth
+schemas.py # Pydantic request/response
+dependencies.py # FastAPI deps (require_admin, current_user,...)
+exceptions.py # domain exceptions
+posts/
+router.py service.py models.py schemas.py dependencies.py exceptions.py
+payments/...
+main.py # FastAPI app + lifespan
+tests/
+conftest.py
+auth/test_router.py test_service.py
+posts/test_router.py test_service.py
 ```
 
-### 2. Group by Layer, Then by Domain
+### When to switch from A to B
 
-```
-# BAD -- flat structure
-controllers.py
-services.py
-repositories.py
-models.py
-schemas.py
+- A domain's `models.py` or `schemas.py` is mostly one logical thing: it wants its own folder.
+- `crud.py` exceeds ~300 lines or has two service-ish functions per domain: split into per-domain `service.py`.
+- New people can't locate where a feature lives in under 30 seconds.
 
-# GOOD -- layered with domain grouping
-entrypoints/http/controllers/users.py
-entrypoints/http/controllers/orders.py
-application/services/user_service.py
-application/services/order_service.py
-infrastructure/persistence/repositories/user_repository.py
-```
+Moving from A to B is mechanical: create the domain folder, move files in, update imports: No business-logic rewrite.
 
-### 3. __init__.py as Public API
+## Cross-domain imports go through the module name
+
+Whichever layout you pick, this rule keeps coupling shallow:
 
 ```python
-# infrastructure/persistence/__init__.py
-# Re-export what consumers need
-from .repositories.user_repository import UserRepository
-from .repositories.order_repository import OrderRepository
+# GOOD
+from src.auth import service as auth_service
 
-__all__ = ["UserRepository", "OrderRepository"]
+# BAD: welds the caller to internal file structure
+from src.auth.service.tokens.jwt import create_access_token
 ```
 
-### 4. Avoid Deep Nesting
+`auth/__init__.py` can rename internal files freely. Callers depend only on `src.auth.service`.
 
-Max 4 levels deep: `src/app/layer/sublayer/module.py`. If deeper, flatten.
+## Anti-patterns no real production repo uses
 
-```
-# BAD -- too deep
-src/app/infrastructure/persistence/postgres/repositories/users/queries/complex.py
+These folders show up in AI-generated FastAPI projects and in no real production codebase:
 
-# GOOD -- flatten
-src/app/infrastructure/persistence/user_repository.py
-```
+| AI generates | Use instead |
+| --- | --- |
+| `controllers/` | `routers/` or per-domain `router.py` |
+| `helpers/` at root | `utils/` per-domain, or `core/utils.py` |
+| `models/` mixing ORM and Pydantic | `models.py` (ORM) and `schemas.py` (Pydantic) per domain |
+| `services/` at root | per-domain `service.py`, or `crud.py` for small apps |
+| `repositories/` at root | data-access in `service.py` directly, or nested under a persistence package |
+| `middleware/` package | register middleware in `main.py`; define inline |
 
-## Import Order Convention (PEP 8 + isort)
+## File size
 
-```python
-# 1. Standard library
-import asyncio
-from collections.abc import Sequence
-from uuid import UUID
+Treat these as the time to look hard, not as hard limits.
 
-# 2. Third-party
-import structlog
-from litestar import Controller, get, post
-from sqlalchemy.ext.asyncio import AsyncSession
+| File | Comfortable | Look hard | Must split |
+| --- | --- | --- | --- |
+| `router.py` | 50-200 | 300 | 400 |
+| `service.py` | 100-300 | 400 | 600 |
+| `models.py` (per domain) | 50-200 | 250 | 350 |
+| `schemas.py` (per domain) | 30-150 | 200 | 300 |
+| Any single file | -- | 400 | 600 |
 
-# 3. Local application
-from domain.entities.user import User
-from domain.exceptions import UserNotFoundError
-from domain.ports.user_repository import IUserRepository
-```
+When a file hits "must split", turn it into a package and re-export the public names from `__init__.py`. Callers don't change.
 
-## pyproject.toml -- The Single Source of Truth
+## src/ layout
 
-`pyproject.toml` replaces `setup.py`, `setup.cfg`, `MANIFEST.in`, and `requirements.txt`. One file. Declarative. No executable code.
+For an application that's only deployed in Docker and never installed via `pip install`, `src/` is optional: The most-starred FastAPI template (`fastapi/full-stack-fastapi-template`) doesn't use it.
 
-### Production Backend Template
+For anything published to PyPI, use `src/`. Without it, `pytest` can import your local checkout directory instead of the installed package, hiding packaging bugs.
+
+## pyproject.toml: the single source of truth
+
+`pyproject.toml` replaces `setup.py`, `setup.cfg`, `MANIFEST.in`, and `requirements.txt`. One file. Declarative: No code at install time.
+
+Canonical structure. **Don't copy the version pins literally**; let `uv add <pkg>` resolve them. The lockfile (`uv.lock`) is the single source of truth for versions, and `pip-audit` in CI is the source of truth for CVEs.
 
 ```toml
-[project]
-name = "my-backend"
-version = "0.1.0"
-description = "My backend service"
-requires-python = ">=3.14"
-dependencies = [
-    "litestar[sqlalchemy]>=2.21",   # or "fastapi>=0.135"
-    "advanced-alchemy>=1.8",
-    "pydantic-settings>=2.7",
-    "structlog>=25.1",
-    "httpx>=0.28",
-    "uvicorn>=0.34",
-]
-
-[project.optional-dependencies]
-# User-facing feature extras (installed via pip install my-backend[postgres])
-postgres = ["asyncpg>=0.30"]
-mysql = ["asyncmy>=0.2"]
-
-[dependency-groups]
-# Dev-only -- never published to PyPI
-dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=1.0",
-    "ruff>=0.9",
-    "mypy>=1.14",
-    "testcontainers[postgresql]>=4.0",
-]
-
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[project]
+name = "myapp"
+version = "1.0.0"
+description = "A production FastAPI backend service."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic",
+    "pydantic-settings",
+    "sqlalchemy[asyncio]",
+    "asyncpg",                     # or "psycopg[binary,pool]"
+    "alembic",
+    "httpx",
+    "pyjwt[crypto]",
+    "pwdlib[argon2]",              # or "argon2-cffi" directly
+    "structlog",
+    "orjson",
+]
+
+[project.scripts]
+myapp = "myapp.cli:main"
+
+[dependency-groups]                # PEP 735 dev deps; not shipped to PyPI
+dev = [
+    "pytest",
+    "anyio[trio]",
+    "pytest-cov",
+    "httpx",
+    "testcontainers[postgres]",
+    "ruff",
+    "pip-audit",
+    "mypy",
+]
+
+[tool.uv]
+default-groups = ["dev"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py314"
+target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "A", "C4", "SIM", "TCH", "RUF"]
+select = ["E","W","F","I","UP","B","SIM","C4","DTZ","S","RUF","FAST"]
+ignore = ["E501","B008","S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401","F403"]
+"tests/**/*.py" = ["S101","SIM"]
+"scripts/**/*.py" = ["T201"]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
+minversion = "8.0"
 testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = ["--strict-config","--strict-markers","-ra"]
+filterwarnings = ["error","ignore::DeprecationWarning:httpx"]
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.12"
 strict = true
-plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
+plugins = ["pydantic.mypy"]
 ```
 
-### pyproject.toml Rules
+### Rules
 
-**DO**: Always include `[build-system]` -- without it, uv won't install the project itself
-**DO**: Use `[project]` table for all metadata (PEP 621) -- not `[tool.poetry]`
-**DO**: Use `[dependency-groups]` for dev tooling (pytest, ruff, mypy)
-**DO**: Use `[project.optional-dependencies]` for user-facing feature extras (postgres, redis)
-**DO**: Use SPDX license expressions (`license = "MIT"`) per PEP 639
-**DO**: Pin `requires-python = ">=3.14"` to prevent running on unsupported versions
-**DON'T**: Use `setup.py` or `setup.cfg` for new projects -- `pyproject.toml` is the standard
-**DON'T**: Use `[tool.poetry]` for metadata on new projects -- Poetry 2.0+ supports `[project]`
-**DON'T**: Mix `requirements.txt` and `pyproject.toml` -- use one source of truth
-**DON'T**: Put dev dependencies in `[project.dependencies]` -- they bloat production installs
-**DON'T**: Use `..` parent directory paths in `pyproject.toml` -- paths are relative to the file
-**DON'T**: Forget `build-backend` value must match `requires` (e.g., `hatchling` -> `hatchling.build`)
+**DO**: Always include `[build-system]`. Without it, uv won't install the project itself.
+**DO**: Use `[project]` (PEP 621) for metadata: Not `[tool.poetry]`.
+**DO**: Use `[dependency-groups]` (PEP 735) for dev tooling: Not `[project.optional-dependencies]`.
+**DO**: Use `[project.optional-dependencies]` only for user-facing feature extras (postgres, redis, aws).
+**DO**: Pin `requires-python = ">=3.12"` (or your floor). Prevents installs on unsupported versions.
+**DON'T**: Use `setup.py` or `setup.cfg` for new projects.
+**DON'T**: Use `[tool.uv.dev-dependencies]`. Deprecated in favor of `[dependency-groups]`.
+**DON'T**: Mix `requirements.txt` and `pyproject.toml`.
+**DON'T**: Commit `uv.lock` for libraries (only for apps/services).
 
-### `optional-dependencies` vs `dependency-groups`
-
-| Feature | `[project.optional-dependencies]` | `[dependency-groups]` |
-|---|---|---|
-| Purpose | User-facing feature extras | Dev-only tooling |
-| Published to PyPI | Yes | No |
-| Install syntax | `pip install pkg[extra]` | `uv sync --group dev` |
-| Examples | `postgres`, `redis`, `aws` | `dev`, `test`, `lint`, `docs` |
-
-## uv -- Package Management
-
-Use `uv` exclusively. Never `pip install`. Never install packages globally. uv manages Python versions, virtual environments, dependencies, and lockfiles in one tool.
-
-### Project Lifecycle
+## uv basics
 
 ```bash
-# Start a new project
-uv init my-backend               # Scaffolds pyproject.toml, .python-version, .gitignore
-uv python pin 3.14               # Pin Python version
-uv add litestar[sqlalchemy]      # Add production dependency
-uv add --dev pytest ruff mypy    # Add dev-only dependency
-uv add --optional postgres asyncpg  # Add to optional-dependencies
+uv init my-backend # scaffold
+uv python pin 3.12
+uv add fastapi "uvicorn[standard]" sqlalchemy pydantic-settings
+uv add --dev pytest ruff mypy
 
-# Day-to-day development
-uv run python -m my_app          # Run with correct env (auto-syncs)
-uv run pytest                    # Run tests with correct env
-uv run ruff check src/           # Run linter with correct env
-uv sync                          # Sync env from lockfile explicitly
+uv sync # install from pyproject + lock
+uv lock # refresh the lock
+uv run pytest # run in the project env
 
-# Dependency management
-uv lock                          # Update lockfile from pyproject.toml
-uv lock --upgrade-package httpx  # Upgrade one package only
-uv remove old-package            # Remove a dependency
-uv add -r requirements.txt       # Migrate from legacy requirements.txt
-
-# Docker
-uv sync --frozen --no-dev        # Production install (no dev deps, no lockfile update)
+# CI / Docker
+uv sync --frozen --no-dev
 ```
 
-### uv Rules
-
-**DO**: Commit `uv.lock` to version control -- it ensures reproducible builds across machines
-**DO**: Use `uv run` for everything -- it auto-syncs the env before execution
-**DO**: Use `.python-version` file -- collaborators auto-get the right interpreter on `uv sync`
-**DO**: Use `uv sync --frozen --no-dev` in Docker -- fast, reproducible, no dev bloat
-**DO**: Use `uv lock --upgrade-package <pkg>` for targeted updates without touching the rest
-**DO**: Use `uv add --dev` for test/lint/type-check tooling
-**DON'T**: Edit `uv.lock` manually -- it's machine-managed
-**DON'T**: Run `python script.py` directly -- you might hit system Python, not the project venv
-**DON'T**: Use `pip install` in uv-managed projects -- it bypasses the lockfile entirely
-**DON'T**: Use `pip install --user` or global installs -- isolate everything in projects
-**DON'T**: Skip `[build-system]` -- uv needs it to install the project package itself
-**DON'T**: Manually activate venvs (`source .venv/bin/activate`) -- `uv run` handles it
-**DON'T**: Nest `uv init` inside a repo that already has a `pyproject.toml` -- it creates an unintended workspace
-
+Never `pip install` directly inside a uv project: it bypasses the lockfile.

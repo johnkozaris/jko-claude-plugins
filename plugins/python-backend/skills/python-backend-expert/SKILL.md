@@ -1,174 +1,249 @@
 ---
 name: python-backend-expert
-description: This skill should be used when the user is writing, reviewing, debugging, or architecting Python backend code using Litestar or FastAPI with SQLAlchemy or Advanced Alchemy. Provides expert critique covering SOLID principles, hexagonal architecture, repository/service patterns, dependency injection, async correctness, ORM usage, API design, anti-pattern detection, and modern Python patterns for mature production backends. Use when the user asks "critique my Python backend", "review this controller", "fix my SQLAlchemy query", "structure my project", "is this SOLID", "review my repository", "optimize my API", "design my service layer", "help with dependency injection", "set up a Litestar project", "set up a FastAPI project", "create a repository pattern", "fix my async code", "review my database models", or "fix N+1 query".
+description: Activates when the user is writing, reviewing, debugging, or architecting Python code that runs as a service (FastAPI + SQLAlchemy 2.0 + Pydantic v2 backend) or as a long-running process (worker, batch ETL, CLI tool, daemon, scheduled job). Assumes Python 3.13+ (often 3.14+). Detects the project's installed libraries from `pyproject.toml`/`uv.lock` and adapts. Covers async correctness, dependency injection with `Annotated[T, Depends]`, Pydantic v2, SQLAlchemy 2.0 async (N+1, MissingGreenlet, pool config), backend lifecycle (startup, graceful shutdown, idempotency), runtime process concerns (signals, subprocess, atomic file writes, multiprocessing, file locking, CLI), domain/module project structure, validation strategy, error handling, testing, the top 20 AI-generated anti-patterns, and timeless pure-Python idioms. Use when the user asks "critique my FastAPI backend", "review this router", "fix my SQLAlchemy query", "why am I getting MissingGreenlet", "structure my FastAPI project", "is this blocking the event loop", "review my Pydantic models", "set up a FastAPI project", "fix my async code", "should this route be async or sync", "review my dependencies", "design my service layer", "fix N+1 query", "review my startup or shutdown", "review my idempotency", "write a Python worker", "review my CLI", "set up multiprocessing", "subprocess deadlock", "process keeps growing in memory", or "review my Python style".
 ---
 
-Write production-grade Python backends. Not scripts. Not notebooks. Not prototypes. Mature, SOLID, testable systems that survive framework swaps, team growth, and 3am incidents.
+This skill guides expert Python development for two project shapes: **web backends** (FastAPI + SQLAlchemy 2.0 + Pydantic v2) and **runtime processes** (workers, CLIs, ETL, daemons, scheduled jobs). The patterns differ; classify the project first, apply the right subset.
 
-## Design Direction
+Assume Python 3.13+ for all new code unless the project explicitly pins lower. 3.14 is the current production-recommended release (free-threaded build, deferred annotations, asyncio introspection). The skill notes when a feature requires a specific version. Detect the actual version from `requires-python` in `pyproject.toml` before recommending a feature.
 
-Commit to an architectural stance before writing code:
+Do not invent APIs. Verify a method or pattern exists in the project's installed library versions before suggesting it. Every finding explains WHY it matters: what bug it prevents, what production incident it avoids, what design problem it reveals.
 
-- **Purpose**: What domain does this service own? What is its single bounded context?
-- **Boundaries**: Where does the domain end and infrastructure begin? Draw the line.
-- **DI Strategy**: How do dependencies flow? Constructor injection, framework DI, or container?
-- **Data Flow**: Request -> Controller -> Service -> Repository -> Domain Entity -> Response DTO. Never skip layers.
+## First, Classify the Project
 
-**CRITICAL**: The architecture serves the domain, not the framework. If replacing Litestar with FastAPI would require rewriting business logic, the boundaries are wrong.
+Different defaults apply to different project shapes. Detect from the project before applying rules.
 
-## Architecture
+| Signal | Project shape | Apply |
+| --- | --- | --- |
+| Imports `fastapi` or `starlette`; has `app = FastAPI(...)` | **Web backend** | All references below |
+| Has `pydantic-settings` and `sqlalchemy[asyncio]` and an HTTP framework | **Web backend** | Same |
+| `[project.scripts]` entry point + no HTTP framework | **CLI / runtime** | Skip `fastapi.md` and `lifecycle.md`. Use `runtimes.md`. |
+| Long-running script with `signal.signal`, `multiprocessing`, file processing, scheduled task | **Runtime process** | Same as CLI |
+| Notebook, prototype, glue script | **Out of scope** | Most patterns are overkill; flag only blocking issues |
 
-> *Consult [architecture reference](references/architecture.md) for hexagonal patterns, layer rules, and directory structure.*
+If both apply (a backend with a CLI sidecar, an admin script, a Celery worker), apply both: backend rules to the HTTP code, runtime rules to the workers and CLIs.
 
-Dependencies point inward. Domain imports nothing from infrastructure. Controllers are thin. Services orchestrate. Repositories hide persistence. The composition root wires everything together.
+## How to Reason About Findings
 
-**DO**: Separate domain entities from ORM models with explicit mapping
-**DO**: Use Protocol or ABC for all ports -- repository interfaces, encryption, email, external APIs
-**DO**: Keep controllers under 150 lines -- they parse input, call a service, shape output
-**DON'T**: Import SQLAlchemy in your domain layer
-**DON'T**: Put business logic in route handlers -- that's a fat controller (AP-01)
-**DON'T**: Let framework types (`Request`, `Response`, `AsyncSession`) leak into services
+Every finding follows the same shape. Discover, then evaluate, then propose with a verification plan.
 
-## SOLID Principles
+**Discover.** Read the code before suggesting anything. Look for the shape of state, the I/O boundaries, what's already imported, whether there's a service layer, where transactions begin and end, what the tests cover. A finding that ignores what the code is actually doing is noise.
 
-> *Consult [SOLID reference](references/solid-principles.md) for Python-specific patterns and file size guidelines.*
+**Evaluate against named consequences.** When you see a blocking call inside `async def`, name the failure mode: the event loop stalls, every concurrent request on the worker times out, the sync `TestClient` doesn't catch it. When you see a relationship accessed without `selectinload`, name `MissingGreenlet` and where it raises. When you see `os.replace` across filesystems, name the `OSError(EXDEV)`. Findings backed by a concrete consequence get stated directly. Findings without one usually aren't worth reporting.
 
-Every class has one reason to change. New behavior arrives via new code, not modified old code. Subtypes honor parent contracts. Interfaces stay small. High-level modules depend on abstractions.
+**Understand before recommending.** A pattern that looks wrong might be deliberate (a single-implementor `Protocol` may be the planned seam for a second adapter; an `Arc<Mutex<>>`-equivalent shared dict may be a cache with proven short critical sections). If you can't tell whether the pattern is justified, ask one specific question instead of inventing a confident wrong answer.
 
-**DO**: Split services by domain -- `UserService`, `OrderService`, not `AppService`
-**DO**: Use `Protocol` for structural typing at boundaries -- no inheritance required
-**DO**: Inject abstractions, never concretions
-**DON'T**: Create god modules >500 lines -- split by responsibility
-**DON'T**: Add `raise NotImplementedError` stubs -- that's ISP violation, split the interface
-**DON'T**: Pass concrete repository classes through your service constructors
+**Verify the fix.** Every fix should come with a way to confirm it worked: the test that now passes, the load-test behavior that now holds, the `py-spy` profile that no longer shows the hot path. A fix without verification is a guess. If a test doesn't exist, write it.
 
-## Repository & Service Patterns
+**Be opinionated, not hedgy.** "Consider whether X applies to your context" is a sentence with no information. The honest form is specific: "I can't tell whether the `UserRepository` is positioned for a second backend. If it is, the interface is justified; if not, it's overhead. Which is it?" Vague hedging wastes the developer's time.
 
-> *Consult [repository reference](references/repository-patterns.md) for Advanced Alchemy, transaction boundaries, and Unit of Work.*
+## Three Questions to Ask Before Any Fix
 
-Repositories return domain entities, not ORM models. Repositories flush, not commit. Services own business logic. Controllers own HTTP concerns. Transaction boundaries live at the service call boundary.
+1. **What concrete bug does this prevent?** If you can't name it (a class of production incident, a wrong-result scenario, a measurable perf cliff), the fix may not be worth the complexity.
+2. **What would happen in production?** Reason in incidents, not in style preferences.
+3. **Is the type system doing enough work?** Every runtime `assert` is a type waiting to be born.
 
-**DO**: Map ORM model <-> domain entity in the repository (`_to_entity`, `_to_model`)
-**DO**: Use Advanced Alchemy's `SQLAlchemyAsyncRepository` when it fits -- it handles bulk ops, pagination, filtering
-**DON'T**: Write anemic services that just proxy repository calls -- add real logic or remove the layer
-**DON'T**: Call `session.commit()` inside repositories -- the controller or UoW commits
+## How to Think About Backend Problems
 
-## Dependency Injection
+Trace every issue through three layers before fixing:
 
-> *Consult [DI reference](references/dependency-injection.md) for Litestar Provide(), FastAPI Depends(), and anti-patterns.*
+- **Layer 3, Domain (WHY)**: Business rules, consistency requirements, latency budget, deployment shape. These constrain everything below.
+- **Layer 2, Design (WHAT)**: Module boundaries, error strategy, schema/DTO design, transaction boundaries, where async lives. Check against SOLID and the boundary rules.
+- **Layer 1, Mechanics (HOW)**: The immediate bug; a blocking call, a lazy load, a missing `await`. Fix it, but always trace UP to the design decision that allowed it.
 
-**Litestar**: `Provide()` at app/router/controller/handler level. Layered, overridable, composable.
-**FastAPI**: `Depends()` with generator functions for session lifecycle. Cached per-request.
-**Advanced Alchemy + Litestar**: `providers.create_service_dependencies()` wires session, service, and filters automatically.
+Reframe the common runtime errors as design questions:
 
-**DO**: Wire all dependencies in the composition root -- one place, one truth
-**DON'T**: Use Service Locator pattern (runtime container lookups)
-**DON'T**: Inject >5 dependencies into one class -- it violates SRP, split it
+| Symptom | Don't Just Say | Ask Instead |
+| --- | --- | --- |
+| `MissingGreenlet` / `DetachedInstanceError` | "Add `selectinload`" | Where is the load boundary? Should this be eager? |
+| Endpoint freezes under load | "Add more workers" | Is a blocking call running inside `async def`? |
+| `response_model` validates twice | "Ignore it" | Should the route return an ORM row/dict instead of a model? |
+| 500s hidden as generic errors | "Catch `Exception`" | Which specific domain exception maps to which HTTP status? |
+| Settings sprawl across modules | "One big `Settings`" | Which domain actually owns this config? |
+| Subprocess hangs at random | "Add a timeout" | Is the parent reading both stdout and stderr while the child writes? |
+| Worker leaks memory over days | "Restart it" | What's holding references across the loop? `lru_cache` on an instance method? Logger handler accumulation? |
 
-## SQLAlchemy & ORM
+## Async Correctness: Start Here
 
-> *Consult [SQLAlchemy reference](references/sqlalchemy.md) for 2.0 patterns, loading strategies, and session management.*
+This is the **#1 source of FastAPI production bugs**. A single blocking call inside `async def` freezes the entire event loop; every concurrent request on that worker stalls. It passes every test (the sync `TestClient` hides it) and only melts down under production load.
 
-Use `mapped_column`, not `Column`. Use `select()`, not `session.query()`. Set `expire_on_commit=False` always in async. Set `lazy="noload"` or `lazy="raise"` on all relationships -- opt in to loading per query.
+→ _Consult [async-patterns reference](references/async-patterns.md) for the blocking taxonomy, threadpool limits, TaskGroup, and cancellation safety._
 
-**DO**: Use `selectinload` for one-to-many, `joinedload` for many-to-one
-**DO**: Use `Annotated` type aliases for reusable column definitions
-**DON'T**: Access relationships without explicit loading in async -- `MissingGreenlet` awaits
-**DON'T**: Write `db.execute(select(...))` in controllers -- that's naked SQLAlchemy (AP-06)
+**DO**: Decide route color by what it does (see the table below).
+**DO**: Use `await run_in_threadpool(sync_fn,...)` (or `asyncio.to_thread`) when you must call a sync SDK (boto3, a legacy client) from an `async def` route.
+**DO**: Offload CPU-bound work (>~50ms: image processing, ML, crypto hashing) to a worker process (Celery/Arq/RQ) or `ProcessPoolExecutor`: the GIL means threads don't help.
+**DO**: Use `asyncio.TaskGroup` (3.11+) for concurrent independent calls; structured concurrency cancels siblings on failure, unlike bare `gather`.
+**DON'T**: Call `time.sleep`, `requests.*`, a sync DB driver, or blocking file I/O inside `async def`.
+**DON'T**: Make a dependency `def` when it does no I/O. FastAPI runs sync dependencies in the 40-thread pool, wasting threads. Make pure-compute dependencies `async def`.
+**DON'T**: Fire-and-forget with `asyncio.create_task` without catching exceptions: they vanish silently.
 
-## Async Correctness
+| Route does this | Use |
+| --- | --- |
+| `await`able non-blocking I/O (httpx, AsyncSession) | `async def` |
+| Blocking I/O with no async client available | `def` (FastAPI runs it in the threadpool) |
+| Mix of async I/O and a blocking call | `async def` + `run_in_threadpool` for the blocking part |
+| CPU-bound > ~50ms | Offload to a Celery/Arq/RQ worker process |
 
-> *Consult [async reference](references/async-patterns.md) for blocking detection, TaskGroup, and cancellation safety.*
+## Dependency Injection (Depends)
 
-Never block the event loop. Never share sessions across tasks. Never lazy-load in async context.
+→ _Consult [dependency-injection reference](references/dependency-injection.md) for `Annotated` aliases, chained validation dependencies, and DI anti-patterns._
 
-**DO**: Use `httpx.AsyncClient`, not `requests`
-**DO**: Use `asyncio.to_thread()` for CPU-bound or blocking-sync operations
-**DO**: Use `asyncio.TaskGroup` for concurrent independent operations
-**DON'T**: Call `time.sleep()` in async handlers -- use `asyncio.sleep()`
-**DON'T**: Fire-and-forget tasks without error handling -- exceptions vanish silently
+**DO**: Use `Annotated[T, Depends(...)]`, the idiomatic form since FastAPI 0.95: not the legacy `T = Depends(...)` default-argument form.
+**DO**: Put DB/ownership validation in dependencies (`valid_post_id`, `valid_owned_post`): they raise the right HTTP error and keep routes thin. Results are cached per request, so chain small dependencies freely.
+**DO**: Yield the session from a `get_db` dependency and commit/rollback at that boundary.
+**DON'T**: Use a service-locator/global container that classes reach into at runtime; inject explicitly via the constructor or `Depends`.
+**DON'T**: Inject a raw `AsyncSession` into a route and do ORM work there; inject a service or a repository.
+**DON'T**: Inject more than ~5 dependencies into one class: that's an SRP smell; split it.
 
-## API Design & Error Handling
+## Pydantic v2 & API Schemas
 
-> *Consult [API reference](references/api-design.md) and [error handling reference](references/error-handling.md) for schemas, DTOs, and exception patterns.*
+→ _Consult [validation reference](references/validation.md) for request/response separation, schema organization, the validation-layers table, pagination, versioning, parse-don't-validate, smart constructors, NewType wrappers, and strict vs lax Pydantic._
 
-Separate request schemas from response schemas. Use machine-readable error codes. Domain exceptions map to HTTP at the boundary. Never expose internal details in error responses.
+Pydantic v1 is gone; LLMs hallucinate v1 constantly. Use `model_dump` not `.dict`, `model_validate` not `parse_obj`, `model_config = ConfigDict(...)` not `class Config`, `from_attributes=True` not `orm_mode`, `@field_validator`/`@field_serializer` not `@validator`/`json_encoders`.
 
-**DO**: Prefer `msgspec.Struct` for request/response schemas in Litestar -- native support, 5-12x faster than Pydantic
-**DO**: Use `from_entity()` factory methods on response schemas
-**DO**: Build a domain exception hierarchy (`DomainError -> NotFoundError`, `ConflictError`, etc.)
-**DO**: Register exception handlers at the app level for clean domain-to-HTTP mapping
-**DON'T**: Raise `HTTPException` in services -- that's framework coupling
-**DON'T**: Return `dict[str, Any]` from handlers -- use typed response models
-**DON'T**: Default to Pydantic in Litestar projects when msgspec does the job -- Pydantic is for FastAPI or when you need rich validators
+**DO**: Separate request schemas from response schemas: never one model with half-optional fields.
+**DO**: Set `model_config = ConfigDict(from_attributes=True)` on response models and return the ORM row; let `response_model` do the serialization.
+**DO**: Keep Pydantic at the edges (API I/O, settings). Use `@dataclass(slots=True, frozen=True)` for domain entities; re-validating data read from a trusted DB is wasted work.
+**DON'T**: Return a `Pydantic` instance AND set `response_model=` to the same class. FastAPI then constructs it twice. Return a dict or ORM row instead.
+**DON'T**: Write `Field(ge=18, default=None)`: a constraint that contradicts its default. Pick `int = Field(ge=18)` or `int | None = Field(default=None, ge=18)`.
+**DON'T**: Return `dict[str, Any]` from a handler; declare a typed `response_model`.
 
-## Modern Python
+## SQLAlchemy 2.0 (Async)
 
-> *Consult [modern Python reference](references/modern-python.md) for modern Python features, Protocol, deferred annotations, uv, and dataclass patterns.*
+→ _Consult [sqlalchemy reference](references/sqlalchemy.md) for 2.0 mapping, loading strategies, and session management._
 
-Detect the project's Python version from `pyproject.toml` (`requires-python`), `.python-version`, or runtime. Latest stable Python (3.14+) brings deferred annotations, free-threaded builds, and TypeVar defaults. Use the latest features available at the project's version. `str | None` not `Optional[str]`. `class Repo[T]` not `Generic[T]`. `StrEnum` not string constants. `match/case` for complex dispatch. Use `uv` for all package management -- never `pip install`.
+Use `Mapped`/`mapped_column`, `select` (never `session.query`), `AsyncSession`, `async_sessionmaker`, `create_async_engine`.
 
-**DO**: Use `Protocol` for ports, `dataclass(slots=True, frozen=True)` for value objects, Pydantic at API boundaries only
-**DO**: Use `datetime.now(timezone.utc)` not `datetime.utcnow()` (deprecated since 3.12)
-**DO**: Use `TypeVar` defaults (3.13+) to simplify generic APIs
-**DON'T**: Use Pydantic for domain entities in hot paths -- several times slower than dataclasses
-**DON'T**: Use `from __future__ import annotations` on Python 3.14+ -- deferred annotations are native
+**DO**: Set `expire_on_commit=False` on the async sessionmaker; otherwise attribute access after commit triggers implicit lazy I/O and raises `MissingGreenlet`.
+**DO**: Eager-load every relationship you touch: `selectinload` for collections (one-to-many), `joinedload` for many-to-one. Default relationships to `lazy="raise"` so unintended loads fail loudly in tests, not in production.
+**DO**: Use one `AsyncSession` per request; never share a session across tasks or store it on a long-lived object.
+**DON'T**: Access a relationship that wasn't explicitly loaded in async: this is the #1 cause of `MissingGreenlet`/`DetachedInstanceError` in FastAPI deployments.
+**DON'T**: Use a sync `Session` inside an `async def` route: it blocks the loop and can deadlock the pool.
+**DON'T**: Write `session.execute(select(...))` in a router: that's naked ORM in the wrong layer.
 
-## Anti-Patterns
+## Project Structure & Settings
 
-> *Consult [anti-patterns reference](references/anti-patterns.md) for the full AP-01 through AP-22 catalog.*
+→ _Consult [project-structure](references/project-structure.md) for the canonical layouts and pyproject template; [architecture](references/architecture.md) for layer rules and when hexagonal is overkill._
 
-The most dangerous patterns that appear in every Python backend. Know them, detect them, kill them:
+The FastAPI-idiomatic default is **domain/module-based**, not file-type folders. Each domain owns its slice:
 
-- **AP-01 Fat controller** -- business logic in handlers
-- **AP-05 N+1 query** -- lazy loads in loops
-- **AP-09 Blocking in async** -- `requests`, `time.sleep()`, sync I/O on event loop
-- **AP-11 Bare except** -- `except: pass` swallows `SystemExit`
-- **AP-14 Global mutable state** -- module-level dicts mutated across requests
-- **AP-19 God class** -- one class, thirty methods, eight responsibilities
+```
+src/
+  auth/    router.py schemas.py models.py service.py dependencies.py exceptions.py config.py
+  posts/   router.py schemas.py models.py service.py dependencies.py exceptions.py
+  core/    config.py database.py exceptions.py logging.py
+  main.py
+```
 
----
+**DO**: Organize by domain. When one file grows a second concern, split into a package and re-export from `__init__.py`.
+**DO**: Import across domains at the module level (`from src.auth import service as auth_service`), never deep (`from src.auth.service.user import create_access_token`).
+**DO**: Split settings by domain. `AuthConfig(BaseSettings)` with `env_prefix="AUTH_"` in `src/auth/config.py`; a small `core/config.py` for cross-cutting (DB, Redis, CORS). Instantiate once at module load.
+**DON'T**: Put business logic, auth, or schemas in `router.py`. Routers are HTTP-only.
+**DON'T**: Funnel every environment variable through one god `Settings` that every module imports.
+**DON'T**: Let a file pass ~400 LOC without a hard look; treat ~600 as a must-split.
 
-## The AI Slop Test
+## Application Lifecycle (Backend)
 
-> *Consult [AI slop reference](references/ai-slop.md) for the full catalog of AI-generated code tells.*
+→ _Consult [fastapi.md](references/fastapi.md) for lifespan, middleware, response_model, runtime footguns; [lifecycle.md](references/lifecycle.md) for the full startup→ready→drain flow, request lifecycle, retries, idempotency, observability; [performance.md](references/performance.md) for Uvicorn tuning and JSON serialization._
 
-**CRITICAL**: AI coding tools generate 1.7x more issues than human code. 40% of enterprise codebases are now AI-generated. The patterns below are the fingerprints of LLM-generated Python from 2024-2025 -- if your backend exhibits them, it needs human architecture review.
+**DO**: Use the `lifespan` async context manager for startup/shutdown. `@app.on_event("startup")` is deprecated. Yield shared resources as typed lifespan state.
+**DO**: Install `uvicorn[standard]` (uvloop + httptools). It's the production default; alternatives are only worth evaluating if you've measured Uvicorn as the bottleneck.
+**DO**: Return a typed Pydantic model from your route. FastAPI 0.130+ Rust-serializes via pydantic-core. `ORJSONResponse`/`UJSONResponse` are deprecated as of 0.131.
+**DO**: Use **PyJWT** for tokens, **pwdlib** (Argon2 default) or **argon2-cffi** for passwords. FastAPI's tutorial moved off `python-jose` long ago; `passlib` broke on Python 3.13.
+**DO**: Separate **liveness** (trivial) from **readiness** (touches the DB). Otherwise a slow DB kills healthy pods.
+**DO**: Set `terminationGracePeriodSeconds ≥ uvicorn --timeout-graceful-shutdown`. Otherwise SIGKILL mid-drain → 5xx spike on every deploy.
+**DON'T**: Use `BaseHTTPMiddleware` on the hot path; Starlette #1012 (unbounded queue under back-pressure) is still open and the perf gap vs pure ASGI middleware remains.
+**DON'T**: Expose `/docs` and `/redoc` in production; set `openapi_url=None` outside dev/staging.
+**DON'T**: Run DB migrations from inside `lifespan`. A bad migration becomes a crash-loop with no migration owner. Run them in a separate one-shot job.
 
-**The test**: Could a senior engineer look at this code and immediately say "an AI wrote this"? If yes, that's the problem. Production code should look like it was designed by someone who understands the domain, not pattern-matched from Stack Overflow's greatest hits.
+## Runtime Processes (Worker, CLI, ETL, Daemon)
 
-**DO**: Write code that reflects deliberate architectural decisions
-**DO**: Use domain-specific abstractions, not generic boilerplate
-**DO**: Let the type system and project structure communicate intent
-**DON'T**: Leave AI's favorite crutches: over-commenting, `dict[str, Any]` everywhere, monolithic single-file apps
-**DON'T**: Accept "looks correct, compiles, passes tests" as the quality bar -- AI code that works but compounds technical debt is worse than no code
+→ _Consult [runtimes.md](references/runtimes.md) for subprocess pitfalls (pipe deadlock, timeout/check, kill the process group), filesystem (atomic writes, fsync, FD leaks, scandir), process model (signals, exit codes, restart, cleanup), CLI patterns, and a 10-item review checklist._
+
+**DO**: Set `timeout=` AND `check=True` on every `subprocess.run`. Without timeout, a hung child blocks the worker forever; without check, a failing command is silently ignored.
+**DO**: Read both `stdout` and `stderr` concurrently (or use `subprocess.run(capture_output=True)`). `Popen.wait()` without draining pipes deadlocks once the child writes more than the pipe buffer.
+**DO**: Install signal handlers that just set a flag. Exit the loop in normal code; never call `logging` or acquire a lock inside a signal handler.
+**DO**: Write atomic files with `os.replace()` and a temp file in the **same directory** as the destination. Across filesystems `os.replace` raises `OSError(EXDEV)`; `shutil.move` silently degrades to non-atomic copy-then-delete.
+**DON'T**: Use `time.time()` to measure elapsed time. NTP can move the wall clock backward. `time.monotonic()` for durations.
+**DON'T**: Use `shell=True` with any dynamic input. It's a remote-code-execution primitive. Use the list form `["cmd", "arg"]`.
+**DON'T**: Open files in a loop without `with` (FD leak), or rely on `__del__` for cleanup (unreliable; use `weakref.finalize` or `try/finally`).
+
+## Error Handling
+
+→ _Consult the **Error design** section of [modern-python reference](references/modern-python.md) for the typed exception hierarchy, handler registration, error-response shape, and structured logging on failures._
+
+**DO**: Define typed domain exceptions and register app-level handlers that map them to HTTP. keep routes free of try/except plumbing.
+**DO**: Override `RequestValidationError` for a stable client-facing error contract.
+**DON'T**: Catch bare `Exception` in a route to silence 500s; catch the specific error or let the handler do its job.
+**DON'T**: Raise `HTTPException` deep inside a service: that couples business logic to the web framework. Raise a domain error; map it at the boundary.
+
+## Testing
+
+→ _Consult [testing reference](references/testing.md) for fixtures, real-DB integration, and override patterns._
+
+**DO**: Test with `httpx.AsyncClient` + `ASGITransport`: the sync `TestClient` masks async bugs and skips lifespan state.
+**DO**: Pair pytest with `anyio[trio]` (FastAPI/Starlette run on AnyIO) and set `asyncio_mode = "auto"`. Treat `filterwarnings = ["error"]` as the deprecation trip-wire.
+**DO**: Use `app.dependency_overrides` to swap auth/external deps; run integration tests against a real database (testcontainers), not mocks.
+**DON'T**: Use `async_asgi_testclient` (unmaintained) or `python-jose` (FastAPI moved its tutorial off it long ago; use `PyJWT`).
+**DON'T**: Mock the database in integration tests; mock/prod divergence surfaces as a production incident.
+
+## Modern Python & Tooling
+
+→ _Consult [modern-python reference](references/modern-python.md) for pure-Python idioms (EAFP, truthiness, closures, scope, generators, match, walrus) and class/data design. See [2026-currency reference](references/2026-currency.md) for the per-version PEP table and the stop-doing list._
+
+Target 3.13+ for new code; 3.14 brings deferred annotations, free-threaded build, asyncio introspection. `str | None` not `Optional[str]`; `list[int]` not `List[int]`; `class Repo[T]` (PEP 695) not `Generic[T]`; `StrEnum`; `@override`; `datetime.now(UTC)`. Prefer `TypeIs` over `TypeGuard` (3.13+); it narrows in both branches.
+
+**DO**: Manage everything with `uv` (never global `pip install`); lint and format with `ruff`; type-check with mypy/pyright (or Astral's `ty`, Beta). Treat the **Astral monopoly** as real concentration risk; keep alternatives viable.
+**DO**: Use `[dependency-groups]` (PEP 735) for dev tooling. Not `[project.optional-dependencies]`. Dev deps aren't a shipped feature.
+**DO**: Use `@dataclass(slots=True, frozen=True, kw_only=True)` for value objects, `Protocol` for ports, `Self`/`TypeIs` where they sharpen types.
+**DO**: Use `asyncio.run(main(), loop_factory=uvloop.new_event_loop)` (or `uvloop.run(main())`). The asyncio policy system is deprecated in 3.14, removed in 3.16. No more `uvloop.install()`.
+**DON'T**: Use `assert` for production validation; stripped under `python -O`.
+**DON'T**: Use mutable default args, bare `except:`, star imports, or `os.path` where `pathlib` fits.
+**DON'T**: Use `asyncio.get_event_loop()` at module level; it raises `RuntimeError` in 3.14+ if no loop is running. Use `asyncio.get_running_loop()` inside a coroutine; `asyncio.run(main())` at the entry point.
+
+## Anti-Patterns & AI Slop
+
+→ _Consult [ai-slop.md](references/ai-slop.md) for the top 20 AI-generated patterns (10 code + 10 architectural) with WHY/BAD/GOOD examples._
+
+**The AI Slop Test**: could a senior Python engineer immediately say "an AI wrote this"? The most common tells: `dict[str, Any]` tunneling through layers, blocking calls inside `async def`, lazy loads in async, ORM models doubling as response schemas, Pydantic v1 ghosts (`.dict()`, `class Config`, `@validator`, `orm_mode`), inline `if not user.is_admin: raise HTTPException(403)` instead of a router dependency, `BackgroundTasks` for work that needs a queue, generic variable names (`data`, `result`, `item`), and "compiles + passes the sync test" treated as the quality bar.
+
+## Still in Motion (Mid-2026)
+
+These are not yet stable as of 3.14. Use the workaround; don't recommend the new thing.
+
+- **Free-threaded Python (`python3.14t`, PEP 779)**: officially supported but most C extensions aren't compatible yet. Use it only for measured CPU-bound workloads with verified extension support. Default to GIL builds.
+- **`ty` (Astral type checker)**: Beta, fast, but not yet a drop-in replacement for mypy/pyright on large codebases. Keep mypy or pyright as the conservative default.
+- **PEP 810 lazy imports**: accepted, shipping in 3.15. Until then, use manual function-local imports for heavy optional deps.
+- **`InterpreterPoolExecutor` (PEP 734, 3.14)**: works, but third-party C extensions are mostly not yet subinterpreter-safe. Stick with `ProcessPoolExecutor` for shipped CPU work.
+- **`httpx2` (Pydantic team's continuation of `httpx`)**: real and active, but `httpx` is still installed everywhere. Don't recommend migration without need.
 
 ## Review Process
 
-When critiquing, work through these in order:
+Five passes. Correctness first, style last. Different passes apply depending on what you classified the project as.
 
-1. **AI Slop Detection** -> `references/ai-slop.md` **(start here)**
-2. **Architecture & Boundaries** -> `references/architecture.md`
-3. **SOLID Compliance** -> `references/solid-principles.md`
-4. **Repository & Service** -> `references/repository-patterns.md`
-5. **Dependency Injection** -> `references/dependency-injection.md`
-6. **SQLAlchemy & ORM** -> `references/sqlalchemy.md`
-7. **Async Correctness** -> `references/async-patterns.md`
-8. **API Design** -> `references/api-design.md`
-9. **Error Handling** -> `references/error-handling.md`
-10. **Modern Python** -> `references/modern-python.md`
-11. **Anti-Patterns** -> `references/anti-patterns.md`
-12. **Testing** -> `references/testing.md`
-13. **Project Structure** -> `references/project-structure.md`
+1. **AI slop sweep** (always): `references/ai-slop.md`. Check the detection checklist.
+2. **Correctness** (always):
+   - Backend: `async-patterns.md`, `sqlalchemy.md`, `fastapi.md`, `lifecycle.md`.
+   - Runtime/CLI: `runtimes.md` (subprocess, filesystem, process lifecycle, IPC). Skip the FastAPI/lifecycle pair.
+3. **Boundaries** (always): `validation.md` (includes request/response, pagination, versioning, validation layers), `dependency-injection.md` (backend), and the **Error design** section of `modern-python.md`.
+4. **Design** (always): `architecture.md`, `project-structure.md`.
+5. **Style and currency** (always): `modern-python.md` (start here for pure-Python issues), `performance.md`, `2026-currency.md` for deprecations, `testing.md`.
 
-Label every finding: **blocking** (production bug), **important** (architectural debt), **nit** (style), **suggestion** (alternative), **praise** (reinforce good patterns).
+## Severity Levels
 
-Group by file. Show file:line, severity, WHY it matters, and before/after code when non-obvious. Skip clean files. End with a prioritized summary.
+Label every finding:
 
-**NEVER**:
-- Suggest patterns you haven't verified exist in the current Python/framework version
-- Recommend restructuring without understanding the project's actual architecture first
-- Fix symptoms without tracing to the design decision that caused them
-- Add complexity that doesn't prevent a concrete bug or maintenance burden
+- **blocking**: Guaranteed production bug (blocking call in `async def`, lazy load in async, session shared across tasks, secret or `/docs` exposed, SQL/auth flaw, data-loss on cancellation, subprocess pipe deadlock, atomic-write across filesystems). Must fix before merge.
+- **important**: Wrong error handling on external input, N+1 in a real path, `BackgroundTasks` for critical work, unmaintained dependency, missing tests for non-trivial logic, FD leak under sustained load.
+- **architecture**: Misfit structure, fat router, leaked boundary, premature abstraction, file over the LOC cap.
+- **nit**: Style, naming, minor idiom. Fix if convenient.
+- **polish**: Pre-merge cleanup (ruff warnings, dead code, debug prints, missing type hints).
+- **suggestion**: Alternative worth considering. No action required.
+- **praise**: Highlight well-built code. Reinforce good patterns.
 
-Remember: You are a senior Python architect with deep experience in production systems. Your critique is precise, evidence-based, and always explains WHY. Good architecture feels obvious in hindsight -- make it obvious.
+## Output Format
+
+Group findings by file. For each: file path and line, severity label, the rule or anti-pattern ID, **WHY it matters** (the concrete consequence), and a before/after block when the fix isn't obvious. Skip clean files. End with a prioritized summary.
+
+Be direct. Be specific (line 42 of routers/posts.py, not "some routes"). Say what's wrong and why. Prioritize ruthlessly: if everything is important, nothing is. Verify patterns exist in the project's actual versions before recommending them. Pair every fix with how to verify it worked (the test that should now pass, the load behavior that should now hold).
+behavior that should now hold).

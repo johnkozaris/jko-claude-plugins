@@ -13,12 +13,12 @@ Analyze the Python backend project structure and recommend improvements. If $ARG
 
 1. **Map the project**:
    - List all Python files with line counts
-   - Identify the architectural pattern (hexagonal, layered, flat, feature-based)
-   - Detect framework (Litestar/FastAPI)
+   - Identify the architectural pattern (domain-module, layered, hexagonal, flat)
+   - Confirm the stack (FastAPI, Pydantic v2, SQLAlchemy 2.0 async)
 
 2. **File size audit**:
-   - Flag files >300 lines (candidate for split)
-   - Flag files >500 lines (must split)
+   - Flag files >400 lines (candidate for split)
+   - Flag files >600 lines (must split)
    - For each oversized file, suggest specific split strategy
 
 3. **Layer boundary check**:

@@ -40,8 +40,8 @@
     {
       "name": "python-backend",
       "source": "./plugins/python-backend",
-      "description": "Python backend architecture for Litestar and FastAPI with SQLAlchemy and SOLID patterns",
-      "version": "1.0.0",
+      "description": "Python backend and runtime expert: FastAPI + SQLAlchemy 2.0 + Pydantic v2 backends and long-running processes (workers, CLIs, ETL, daemons). Python 3.13+/3.14+.",
+      "version": "1.1.0",
       "category": "development",
       "tags": [
         "python",
