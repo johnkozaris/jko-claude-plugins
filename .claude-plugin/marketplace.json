@@ -45,9 +45,11 @@
       "category": "development",
       "tags": [
         "python",
-        "litestar",
         "fastapi",
         "sqlalchemy",
+        "pydantic-v2",
+        "async",
+        "runtime",
         "backend",
         "api"
       ]
