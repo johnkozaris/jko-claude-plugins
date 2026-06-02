@@ -2,6 +2,9 @@
 .claude/*.local.md
 .claude/memory/
 
+# GitHub Copilot CLI local state
+.github/copilot/
+
 # OS
 .DS_Store
 Thumbs.db
