@@ -72,7 +72,7 @@ A newtype with no methods and no validation invariants is pure noise. The questi
 
 | Situation | Answer |
 |---|---|
-| New application code touching timezones / DST, can tolerate minor API churn | `jiff`. Best DST/timezone handling. Pre-1.0 in May 2026; the maintainer committed to indefinite API stability post-1.0. |
+| New application code touching timezones / DST, can tolerate minor API churn | `jiff`. Best DST/timezone handling. Pre-1.0 in June 2026; the maintainer committed to indefinite API stability post-1.0. |
 | Library with strict public API stability | `chrono` (still releasing — 0.4.44 in Feb 2026 — but the maintainer signaled wind-down intent in a Jan 2026 year-in-review and now recommends jiff). Re-evaluate when `jiff` 1.0 ships. |
 | `no_std` / embedded | `time` crate. |
 | Existing chrono code | Don't migrate without reason. chrono is still being released and compiles fine; the wind-down is signaled, not done. |

@@ -42,6 +42,36 @@ impl Email {
 }
 ```
 
+## Copy-able Ranges (`core::range`)
+
+The legacy range types in `core::ops` (`Range`, `RangeFrom`, `RangeInclusive`) implement `Iterator` directly, which makes them deliberately non-`Copy` — copying an iterator is a classic footgun. That cost is real: any struct that stores a range can't be `Copy` either, and you end up splitting `start`/`end` into separate fields.
+
+`core::range` (stable in Rust 1.96) introduces replacements that implement `IntoIterator` instead of `Iterator`, so they can be `Copy` when the bound type is `Copy`:
+
+```rust
+use core::range::Range;
+
+#[derive(Clone, Copy)]
+pub struct Span(Range<usize>);
+
+impl Span {
+    pub fn of(self, s: &str) -> &str {
+        &s[self.0]  // Range<usize>: SliceIndex<str>
+    }
+}
+
+let s = Span(Range { start: 0, end: 5 });
+let _ = s.of("hello world");
+let _ = s.of("again");  // works — `s` was Copy, not moved
+```
+
+Rules:
+
+- The `0..n` syntax **still produces legacy `core::ops` types** for backward compatibility. A future edition will switch the default. For now, convert via `let r: core::range::Range<usize> = (0..n).into();` or construct directly with struct literals.
+- New ranges are `IntoIterator`, not `Iterator` — call `.into_iter()` before chaining iterator adapters: `(Range { start: 0, end: 5 }).into_iter().map(|n| n * 2)`.
+- **Library authors writing public APIs**: prefer `impl RangeBounds<T>` so callers can pass either legacy or new ranges. Reach for a concrete `core::range::Range<T>` only when you actually need `Copy` on the parameter.
+- The new `RangeInclusive` makes its `start`/`end` fields public, unlike the legacy version which hid the exhausted-iterator state.
+
 ## Typestate Pattern (Zero-Cost State Machines)
 
 Encode state transitions into the type system. Invalid transitions become compile errors:

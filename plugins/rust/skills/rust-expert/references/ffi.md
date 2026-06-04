@@ -217,6 +217,28 @@ Quick decision:
 - Custom WIT or component dependencies → `cargo-component`
 - Browser → `wasm-bindgen` + `wasm-pack`
 
+### Undefined symbols are linker errors (Rust 1.96)
+
+Before 1.96, `rustc` passed `--allow-undefined` to the linker on WebAssembly targets. Any undefined symbol at link time was silently converted to a WebAssembly import from the `"env"` module. This frequently hid typos, missing `extern` declarations, and stale build configuration.
+
+As of 1.96 the flag is no longer passed — **undefined symbols are hard linker errors on `wasm32-*`**. Two ways to opt back in if the old behavior was intentional:
+
+```toml
+# Project-wide: re-enable for the whole crate.
+[target.'cfg(target_family = "wasm")']
+rustflags = ["-Clink-arg=--allow-undefined"]
+```
+
+```rust
+// Surgical: mark the specific block of imports as `env` lookups.
+#[link(wasm_import_module = "env")]
+unsafe extern "C" {
+    fn host_fn(arg: u32);
+}
+```
+
+Prefer the per-block annotation. The blanket `RUSTFLAGS` form re-introduces the original footgun for every undeclared symbol in the dep tree.
+
 ---
 
 ## Unsafe Rust patterns at FFI boundaries

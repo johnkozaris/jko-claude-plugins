@@ -2,16 +2,17 @@
 
 > Single file with version anchors for rustc, Tokio, Axum, Edition, and the deprecation list. When new content is added elsewhere referencing versions, point here. Update this file when Rust releases or LTS lines roll.
 
-Last updated: May 2026 (Rust 1.95 stable, 1.96 beta).
+Last updated: June 2026 (Rust 1.96 stable, 1.97 beta).
 
 ---
 
 ## Rust toolchain
 
-- **Stable**: 1.95.0 (April 16, 2026). [Release notes](https://blog.rust-lang.org/2026/04/16/Rust-1.95.0/).
-- **Beta**: 1.96.0 (stable May 28, 2026).
-- **Nightly**: 1.97.x.
+- **Stable**: 1.96.0 (May 28, 2026). [Release notes](https://blog.rust-lang.org/2026/05/28/Rust-1.96.0/).
+- **Beta**: 1.97.0 (stable July 9, 2026).
+- **Nightly**: 1.98.x.
 - **Current Edition**: 2024 (stable since Rust 1.85, Feb 2025). No 2025 or 2026 edition planned.
+- **Minimum external LLVM bumped to 21** (1.96). Distributors building rustc against system LLVM must upgrade.
 
 ## Tokio LTS
 
@@ -27,7 +28,7 @@ Last updated: May 2026 (Rust 1.95 stable, 1.96 beta).
   - `Option<T>` extractor no longer swallows all rejections — types must implement `OptionalFromRequestParts`/`OptionalFromRequest`
   - WebSocket messages use `Bytes`/`Utf8Bytes` instead of `Vec<u8>`/`String`
   - `#[async_trait]` removed — uses native async-fn-in-trait
-- **0.9** in development as of May 2026.
+- **0.9** in development as of June 2026.
 
 ## cargo-dist
 
@@ -36,7 +37,7 @@ Last updated: May 2026 (Rust 1.95 stable, 1.96 beta).
 
 ---
 
-## Per-release feature index (1.75 → 1.95)
+## Per-release feature index (1.75 → 1.96)
 
 Every stabilization that matters for code recommendations. When suggesting an API or syntax, verify it's stable as of the project's `rust-version`.
 
@@ -97,18 +98,27 @@ Every stabilization that matters for code recommendations. When suggesting an AP
 | `AtomicPtr/AtomicBool/AtomicIsize/AtomicUsize::update` / `try_update` | 1.95 | Hand-rolled `compare_exchange` CAS loops (other Atomic widths remain unstable) |
 | `Vec::push_mut`, `VecDeque::push_*_mut`, `LinkedList::push_*_mut` | 1.95 | `vec.push(x); vec.last_mut().unwrap()` |
 | `bool: TryFrom<{integer}>` | 1.95 | Manual `n == 0 \|\| n == 1` checks |
-| `core::range::{RangeInclusive, RangeInclusiveIter}` module | 1.95 | Old `Range` types — only `RangeInclusive` and its iterator are stabilized in `core::range` so far; full migration is staged |
+| `core::range::{RangeInclusive, RangeInclusiveIter}` | 1.95 | First piece of the new `Copy`-able range family in `core::range` |
 | `core::hint::cold_path()` | 1.95 | `#[cold]` on the whole function when only one branch is cold |
 | `MaybeUninit<[T;N]>` ↔ `[MaybeUninit<T>;N]` via `From`/`AsRef`/`AsMut` | 1.95 | `transmute` between the two |
+| **`assert_matches!` / `debug_assert_matches!`** macros | 1.96 | `assert!(matches!(..))` — print the actual `Debug` repr of the value when the pattern doesn't match. Not in prelude (collision with `mockall`, `claims`); import via `use std::assert_matches;` |
+| **`core::range::{Range, RangeFrom, RangeToInclusive}`** + associated `*Iter` types | 1.96 | Legacy `core::ops` ranges (which are not `Copy`). New types implement `IntoIterator` (not `Iterator`), so they can be `Copy` when bounds are `Copy`. Syntax `0..n` still produces legacy types — a future edition will switch. Library APIs should accept `impl RangeBounds<T>` to take both |
+| `From<T> for AssertUnwindSafe<T>` | 1.96 | `AssertUnwindSafe(x)` tuple-struct call — use `.into()` at API boundaries |
+| `From<T> for LazyCell<T, F>` / `From<T> for LazyLock<T, F>` | 1.96 | Manually wrapping a pre-computed value when an API demands a `LazyLock` (useful in tests and fixtures) |
+| Iteration over `Range<NonZero<{integer}>>` | 1.96 | `(start.get()..end.get()).map(NonZero::new_unchecked)` workarounds for typed indexing |
+| `expr` metavariable passed to `cfg(..)` | 1.96 | Helpers wrapping `cfg!()` in declarative macros that previously couldn't accept an `expr` fragment |
 
 ### Build / tooling
 
 - **LLVM 22 bundled with Rust 1.95** — newer auto-vectorization.
+- **Minimum external LLVM bumped to 21 in 1.96.**
 - **`rust-lld` default on x86_64-linux since 1.90.** Don't override unless measured reason.
 - **Apple ARM platforms Tier 2 since 1.95** (`aarch64-apple-tvos`, `-watchos`, `-visionos` + sims).
 - **`x86_64-apple-darwin` demoted to Tier 2 since 1.90** — Intel Mac no longer guaranteed (1.89 was last Tier 1 release).
 - **`aarch64-pc-windows-msvc` Tier 1 since 1.91.**
 - **JSON target specs destabilized since 1.95** — require `-Z unstable-options`.
+- **WebAssembly targets: `rustc` no longer passes `--allow-undefined` to the linker (1.96).** Undefined symbols are now linker errors instead of being silently converted to imports from the `"env"` module. Re-enable with `RUSTFLAGS=-Clink-arg=--allow-undefined` or annotate the declaring block with `#[link(wasm_import_module = "env")]`. See `references/ffi.md` for the migration story.
+- **AVR `c_double` is now `f32`** (1.96). Matches the C ABI on AVR. Breaking for FFI consumers that assumed `c_double = f64`.
 
 ### New default lints
 
@@ -123,10 +133,26 @@ Every stabilization that matters for code recommendations. When suggesting an AP
 | `const_item_interior_mutations` | warn | 1.93 | Mutating interior-mutable `const` items |
 | `unused_visibilities` | warn | 1.94 | Visibility on `const _` |
 | `ambiguous_glob_imported_traits` | future-incompat | 1.95 | Glob-imported traits with ambiguous resolution |
+| `uninhabited_static` | **deny** (was warn); now reports through dependencies | 1.96 | `static` items of uninhabited type — was a warn in your own crate only, now blocks builds and surfaces inside deps |
+
+### Clippy 1.96 new lints
+
+| Lint | Group | Catches |
+|---|---|---|
+| `manual_noop_waker` | `complexity` | Hand-rolled no-op `Waker` constructions (`Waker::noop()` exists since 1.85) |
+| `manual_option_zip` | `complexity` | `(a, b)` constructions from two `Option`s that could be `Option::zip` |
+| `manual_pop_if` | `complexity` | `if pred(vec.last()) { vec.pop() }` patterns — use `Vec::pop_if` (1.86) |
+
+### 1.96 compatibility/breaking notes
+
+- **Pin coercion narrowed**: unsize-coercing into `Pin<Foo>` where `Foo: !Deref` is now rejected. Such coercions previously compiled but produced a type with no useful public API.
+- **RPITIT (return-position `impl Trait` in trait) leaking too-private types is now an error.** Public traits whose async fns or `-> impl Trait` return types name a private concrete type used to fail later, silently, or `pub`-leak the hidden type — they now fail to compile. See the RPITIT note in `references/async.md`.
+- **`use S::{self as Other}` for non-modules is rejected.** `{self}` imports require a module parent.
+- **Cargo CVE-2026-5222 (low)** — authentication issues with normalized URLs. **CVE-2026-5223 (medium)** — symlink extraction from crate tarballs. crates.io users are unaffected; users of third-party registries should upgrade to 1.96+ and re-run `cargo audit`.
 
 ---
 
-## Still nightly in May 2026
+## Still nightly in June 2026
 
 Don't recommend these for production code; describe workarounds instead.
 
@@ -194,7 +220,7 @@ Existing code mostly still works — migrate when natural, not urgently.
 | `sled` (for new projects) | Beta forever — ~6 years pre-1.0, known memory issues | `redb` 4.x (B-tree) or `fjall` 3.x (LSM) |
 | GPUI (third-party use) | Zed-tied, pre-1.0, breaking changes, sparse docs | Pick a different Rust UI framework (Tauri/egui/Iced/Slint) |
 | Floem (for i18n apps) | IME bugs | Iced for serious app architecture |
-| `chrono` (for new code touching tz) | Still receiving releases (0.4.44, Feb 2026), but the maintainer signaled intent to wind down chrono and chrono-tz in a Jan 2026 year-in-review and now recommends jiff | `jiff` (still pre-1.0 in May 2026 — see Rule 5 in decision-rules.md) |
+| `chrono` (for new code touching tz) | Still receiving releases (0.4.44, Feb 2026), but the maintainer signaled intent to wind down chrono and chrono-tz in a Jan 2026 year-in-review and now recommends jiff | `jiff` (still pre-1.0 in June 2026 — see Rule 5 in decision-rules.md) |
 
 ---
 

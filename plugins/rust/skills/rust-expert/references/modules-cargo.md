@@ -85,6 +85,17 @@ no_std = []
 - Pin git deps to `rev = "sha"`, not just a branch
 - Set up Dependabot or Renovate for automated upgrade PRs
 
+### Git + registry on the same dependency (Rust 1.96+)
+
+Cargo 1.96 allows a single dependency to specify both `git` and `registry` simultaneously. Locally, the git source is used; on `cargo publish`, the registry version is recorded. Use this when you need to test an unreleased fix from a fork or branch but the consuming crate must still publish to an alternate registry with a real version pin.
+
+```toml
+[dependencies]
+my-internal-crate = { version = "0.4", git = "https://github.com/acme/my-internal-crate", branch = "fix/leak", registry = "acme-private" }
+```
+
+Keep `version` set — it's what publish uses. Prefer a `rev = "<sha>"` over `branch` for reproducible local builds. Don't use this combo for normal third-party deps — it confuses the resolver story for downstream consumers.
+
 ## Build Profiles
 
 ```toml

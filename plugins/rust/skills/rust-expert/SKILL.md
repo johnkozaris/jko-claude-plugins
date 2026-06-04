@@ -53,6 +53,7 @@ When a compiler error appears, reframe it as a design question:
 
 **DO**: Parse, don't validate — convert raw inputs into types that carry their validity.
 **DO**: Replace boolean parameters with enums — `process(data, true, false)` is unreadable.
+**DO**: Use `core::range::Range` (and `core::range::RangeFrom` / `RangeToInclusive`) when you need a `Copy`-able range — e.g., storing slice indices in a `Copy` newtype like `Span(core::range::Range<usize>)`. Legacy `core::ops::Range` is not `Copy` because it implements `Iterator` directly. The `0..n` syntax still produces legacy types; convert with `.into()` until a future edition flips the default.
 **DO**: Use `#[must_use]` on functions returning values callers must handle.
 **DON'T**: Use `..Default::default()` — silently wrong when fields are added.
 **DON'T**: Use catch-all `_` in match on owned enums — swallows new variants.
@@ -116,8 +117,8 @@ The anti-pattern is `Arc<Mutex<WholeAppState>>` as a god-object. Split by concer
 
 **DO**: Profile before optimizing — `cargo flamegraph`, DHAT, samply.
 **DO**: Use `overflow-checks = true` in release profiles (CVE-2018-1000810).
-**DO**: Use `strict_add` / `strict_sub` (1.91) instead of `checked_add().unwrap()`.
-**DO**: Use `core::hint::cold_path()` (1.95) inside rare branches when `#[cold]` on the whole function is too coarse.
+**DO**: Use `strict_add` / `strict_sub` instead of `checked_add().unwrap()` — they always panic on overflow, even in release.
+**DO**: Use `core::hint::cold_path()` inside rare branches when `#[cold]` on the whole function is too coarse.
 **DON'T**: Optimize without a measured bottleneck.
 
 ## Security & Robustness
@@ -136,6 +137,8 @@ The anti-pattern is `Arc<Mutex<WholeAppState>>` as a god-object. Split by concer
 ## Testing & Documentation
 
 → _Consult [testing](references/testing.md) and [documentation](references/documentation.md) references for test frameworks, property testing, and API docs guidelines._
+
+**DO**: Use `assert_matches!` / `debug_assert_matches!` for pattern assertions in tests — they print the actual `Debug` repr of the failing value, unlike `assert!(matches!(..))`. Not in the prelude (collides with `mockall` / `claims`); import explicitly via `use std::assert_matches;`.
 
 ## Modules, Macros & Serde
 
@@ -159,7 +162,7 @@ Headline deprecations to flag in Cargo.toml scans: `async-std` ([RUSTSEC-2025-00
 
 Existing code mostly still works — migrate when natural, not urgently. **`jiff` is the new datetime canon for IANA tz correctness but still pre-1.0**, so libraries with strict public-API stability should stay on `chrono` until jiff 1.0 ships.
 
-## Still in Motion (May 2026)
+## Still in Motion (June 2026)
 
 These remain unstable or actively-debated. Use the workaround; don't pick winners.
 

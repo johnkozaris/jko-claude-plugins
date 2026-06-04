@@ -18,6 +18,29 @@ mod tests {
 - Can access private functions via `use super::*`
 - Descriptive names: `should_X_when_Y` or `given_X_when_Y_expect_Z`
 
+## Pattern Assertions: `assert_matches!` / `debug_assert_matches!`
+
+Stable since Rust 1.96. Preferable to `assert!(matches!(value, pat))` because the macro prints the actual `Debug` representation of the value when the pattern doesn't match — turning "assertion failed" into "left does not match pattern: `Err(NotFound)`".
+
+```rust
+use std::assert_matches::assert_matches;       // std build
+// use core::assert_matches::assert_matches;   // no_std build
+
+#[test]
+fn parses_to_expected_shape() {
+    let parsed = parse_event(input);
+    assert_matches!(parsed, Event::Login { user, .. } if user == "alice");
+}
+```
+
+Rules:
+
+- **Not in the prelude.** It collides with `mockall`, `claims`, and other third-party crates that ship a same-named macro. Always import explicitly.
+- **The value must implement `Debug`** so the failure path can print it.
+- **`assert_matches!` runs in debug and release**; **`debug_assert_matches!` follows `-C debug-assertions`** (debug only by default).
+- **Supports `if` guards**, just like a `match` arm: `assert_matches!(x, Some(n) if n > 0)`.
+- **Inside `proptest!`** keep using `prop_assert!` / `prop_assert_eq!` — `assert_matches!` panics and doesn't integrate with proptest's shrinker.
+
 ## Integration Tests
 
 Live in top-level `tests/` directory. Each file is a separate crate — can only access public API.

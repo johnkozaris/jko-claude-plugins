@@ -118,6 +118,23 @@ tokio::spawn(async move {
 
 **Default to native async fn in trait.** Only reach for `async-trait` when you need `dyn Trait`.
 
+### RPITIT and private types (Rust 1.96)
+
+Public traits that return `-> impl Trait` (return-position `impl Trait` in trait, what `async fn` desugars to) must not hide a concrete return type that is itself less-public than the trait. As of 1.96 this is a **hard error** instead of a delayed bug or silent privacy leak. Fix by either making the hidden type public, naming the trait return type explicitly with a public bound, or moving the offending method to a private (`pub(crate)`) trait.
+
+```rust
+// Compiles in 1.95, errors in 1.96 — `Repo` is pub but `Connection` is not.
+struct Connection { /* ... */ }
+pub trait Repo {
+    async fn open(&self) -> Connection;   // leaks private `Connection` via RPITIT
+}
+
+// Fix: make Connection public, OR keep it private and don't expose it:
+pub trait Repo {
+    async fn touch(&self) -> ();          // no leak
+}
+```
+
 ## JoinSet — Structured Task Groups
 
 `JoinSet` manages dynamic task groups with RAII cleanup — all tasks abort when the set is dropped:

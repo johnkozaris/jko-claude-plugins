@@ -12,7 +12,7 @@
       "name": "rust",
       "source": "./plugins/rust",
       "description": "Rust code critique, architecture guidance, and idiomatic pattern enforcement",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "development",
       "tags": [
         "rust",
