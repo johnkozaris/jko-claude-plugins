@@ -39,7 +39,7 @@ When a compiler error appears, reframe it as a design question:
 
 → _Consult [error-handling reference](references/error-handling.md) for thiserror/anyhow/snafu decision matrix._
 
-**DO**: Use `?` with `.context()` at every propagation point.
+**DO**: Use `?` to propagate, and `.context()` **where the frame adds information** (the file path, the query, the record id) — not mechanically at every layer. Context at every propagation point produces russian-doll messages ("failed to handle request: failed to process order: failed to query db: …") that bury the one frame that knew something.
 **DO**: Use `thiserror` (v2) for libraries, `anyhow` (v2) for applications.
 **DO**: Use `#[non_exhaustive]` on public error enums.
 **DO**: Use `.expect("invariant X holds because Y")` to assert what the type system cannot express — invariant assertion is fine; lazy error handling is not.
@@ -138,11 +138,19 @@ The anti-pattern is `Arc<Mutex<WholeAppState>>` as a god-object. Split by concer
 
 → _Consult [testing](references/testing.md) and [documentation](references/documentation.md) references for test frameworks, property testing, and API docs guidelines._
 
-**DO**: Use `assert_matches!` / `debug_assert_matches!` for pattern assertions in tests — they print the actual `Debug` repr of the failing value, unlike `assert!(matches!(..))`. Not in the prelude (collides with `mockall` / `claims`); import explicitly via `use std::assert_matches;`.
+**DO**: Use `assert_matches!` / `debug_assert_matches!` for pattern assertions in tests — they print the actual `Debug` repr of the failing value, unlike `assert!(matches!(..))`. Not in the prelude (collides with `mockall` / `claims`); import explicitly via `use std::assert_matches::assert_matches;` (it lives in a module of the same name — verify it is stable on the project's toolchain before recommending; on older stable use the `assert_matches` crate).
 
 ## Modules, Macros & Serde
 
 → _Consult [modules-cargo](references/modules-cargo.md), [macros](references/macros.md), and [serde](references/serde.md) references for workspace setup, macro decision flowchart, and serialization patterns._
+
+## FFI & Cross-Language Boundaries
+
+→ _Consult [ffi reference](references/ffi.md) when the code touches `extern "C"`, cdylib/staticlib targets, wasm, PyO3, napi-rs, UniFFI, or any cross-language boundary — panic/unwind rules, Edition 2024 `unsafe extern`, per-ecosystem crate guidance._
+
+## Cross-Cutting Decision Rules
+
+→ _Consult [decision-rules reference](references/decision-rules.md) for the ten numbered judgment calls other references delegate to: unwrap/expect policy, shared-state primitive, newtype-or-not, builder crate, date/time crate, workspace split, Edition 2024 migration, parking_lot vs std Mutex, bounded vs unbounded channels, test ratios._
 
 ## Architecture Patterns
 
@@ -152,7 +160,7 @@ The posture: **detect what the codebase is using, stay consistent with it, flag 
 
 **Bad patterns to flag regardless of architecture**: mixed architectures in one repo, OOP inheritance via `Deref` chains, god-object `Arc<Mutex<AppState>>`, stringly-typed domains, premature workspace splits with no consumer, one-implementor trait obsession, `Box<dyn Error>` in library APIs, mock-only tests. Full descriptions in the architecture reference.
 
-**Workspace split** is a separate decision with objective signals: compile-time pain, two binaries sharing code, a published plugin SDK (Zellij's `zellij-tile`), an FFI shim, or team ownership. [Tokio #1318](https://github.com/tokio-rs/tokio/issues/1318) is the "don't split for tidiness" warning. Flat layout when warranted; centralize with `[workspace.package]`, `[workspace.dependencies]`, `[workspace.lints]`.
+**Workspace split** is a separate decision with objective signals: compile-time pain, two binaries sharing code, a published SDK crate that third parties consume, an FFI shim, or team ownership. [Tokio #1318](https://github.com/tokio-rs/tokio/issues/1318) is the "don't split for tidiness" warning. Flat layout when warranted; centralize with `[workspace.package]`, `[workspace.dependencies]`, `[workspace.lints]`.
 
 ## 2026 Deprecation Watchlist
 
@@ -178,6 +186,29 @@ These remain unstable or actively-debated. Use the workaround; don't pick winner
 ## Anti-Patterns
 
 → _Consult [anti-patterns reference](references/anti-patterns.md) for the full severity-labeled catalog._
+
+## Hard-won opinions the catalog doesn't cover
+
+- **A dropped `JoinHandle` is a detached task.** `tokio::spawn` keeps running after the handle is gone, and its panics vanish into the runtime. Hold the handle, use `JoinSet`, or write a comment saying why fire-and-forget is intended. Silent orphan tasks are the async equivalent of a leaked thread.
+- **`let _ = fallible();` is error-swallowing with extra steps.** Either handle the `Result`, `.expect("invariant …")` it, or log it — an underscore is a decision to lose the failure, and it should look like one (`.ok(); // deliberately ignored: <why>`).
+- **`Instant` for durations, `SystemTime` for wall-clock, never mixed.** `SystemTime` can go backwards (NTP); subtracting two of them returns a `Result` for a reason. Elapsed-time logic on `SystemTime` is a clock-skew bug waiting for deployment.
+- **Floats have no total order.** `sort_by(|a, b| a.partial_cmp(b).unwrap())` panics on the first NaN that arrives from real data — use `total_cmp`. A float as a `HashMap` key is a design error, not a style issue.
+- **On public APIs, prefer named generics over `impl Trait` in argument position.** `fn f(x: impl Iterator<Item = u8>)` cannot be turbofished by callers and can't be referenced in `where` clauses. `impl Trait` in *return* position is fine and idiomatic.
+- **`use x::*` is for preludes and test modules only.** Anywhere else it hides where names come from and turns dependency bumps into mystery compile errors.
+- **File-named modules over `mod.rs`.** Eight `mod.rs` files in an editor tab bar is self-inflicted pain; the 2018-edition style (`foo.rs` + `foo/` directory) exists — use it consistently.
+- **`#[derive(Clone)]` is not free on aggregate types.** A reflexive `Clone` on a struct holding `Vec`s and `String`s hands every future caller a deep-copy escape hatch for borrow-checker friction — exactly the AI-slop clone pattern, but blessed at the type. Derive it when the type is *meant* to be duplicated, not by habit.
+- **Default to `pub(crate)`; promote to `pub` deliberately.** Every `pub` item in a library is a semver contract. A module tree where everything is `pub` has no interior — nothing can be refactored without a major version.
+- **Exhaustive error enums beat `#[from]` soup.** `thiserror` with a `#[from]` for every dependency error type turns your error into a mirror of your dependency graph; callers can't tell which variants are actionable. Group by what the *caller* can do (retryable / bad-input / bug), not by what library failed.
+
+## Zoom out before you edit
+
+Sessions that skip this produce split-brain code (a second implementation of an existing helper) and orphans. Non-negotiable sequence for any change:
+
+1. **Before adding a function, type, or trait: search for an existing one** — `rg -i` the concept, not just the name you were about to pick, and check the crate's existing `util`/`common` modules. A second implementation is a drift bug on a timer.
+2. **Read the whole module and its callers before editing**, not just the flagged lines — in Rust especially, ownership decisions upstream are usually the cause of the symptom downstream.
+3. **After the change, grep the old symbol names**; delete anything now unreferenced in the same change (the compiler's `dead_code` lint will only catch the private cases).
+4. **Say in one sentence where the change sits in the crate's architecture.** If you can't name the layer or boundary, you don't understand the change yet.
+5. **Verification is output, not assertion.** `cargo build`/`cargo test`/`cargo clippy` results pasted into the report are verification; the word "verified" without them is not. If you didn't run it, write "unverified".
 
 ## The Rust AI Slop Test
 

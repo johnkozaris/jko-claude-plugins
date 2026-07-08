@@ -53,17 +53,14 @@ jobs:
 
 ### Retry on flakes
 
-```bash
-# Run each flow up to 3 times before reporting failure
-maestro test --retry 2 tests/maestro/
-```
+Historically, automatic retries were a Maestro Cloud / workspace-config feature, not an open-source CLI flag. Check `maestro test --help` on the installed version before assuming a `--retry` flag exists; if it doesn't, wrap the invocation in a shell retry loop or use the `retry` YAML command (verify with `maestro --help` / MCP `listDocumentation` first).
 
 Use sparingly — retries hide real regressions. Prefer fixing the flake.
 
 ## Debugging a flaky flow
 
 1. **Reproduce locally.** `maestro test --continuous flow.yaml` — Maestro re-runs on file save. Tighten the flow until it passes 10 runs in a row.
-2. **Inspect hierarchy at the failing step.** Add `takeScreenshot` and `- runScript: |\n  output.tree = maestro.copy()` to dump the tree right before the failure.
+2. **Inspect hierarchy at the failing step.** Add a `takeScreenshot` right before the failing command, and run `maestro hierarchy` in a second terminal while the app sits in the failing state to dump the live view tree. (Do not invent JS APIs inside `runScript` — the GraalJS sandbox exposes only the documented `output`/`http`/env surface; check `maestro --help` or MCP `listDocumentation` before using anything else.)
 3. **Increase timeouts temporarily.** If boosting `extendedWaitUntil.timeout` from 5000 to 30000 fixes it, the UI is slow or the network call is slow — not a Maestro bug.
 4. **Disable animations on the simulator.** `xcrun simctl spawn booted defaults write com.apple.UIKit UIAnimationsEnabled NO` — faster and more deterministic.
 

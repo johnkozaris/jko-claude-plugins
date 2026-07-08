@@ -23,8 +23,7 @@ claude --plugin-dir /path/to/myClaudeSkills/plugins/rust
 | ---------------- | ---------------------------------------------------------------------------------- |
 | `/rust-critique` | Full code review with automated scans, severity-labeled findings, and routing to focused commands. Supports `--pre-merge` and `--harden` modes. |
 | `/rust-architect` | Architecture-level decisions: pick the right pattern (module-driven / actor / sans-IO / hexagonal / etc.) and workspace shape for what you're building |
-| `/rust-harden`   | Replace unwrap, add SAFETY comments, enable overflow-checks, validate inputs (defensive pass) |
-| `/rust-types`    | Strengthen types — newtypes, enums over bools, make illegal states unrepresentable |
+| `/rust-harden`   | Defensive pass, applies fixes: replace unwrap, SAFETY comments, overflow-checks, input validation, and type strengthening (newtypes, enums over bools, illegal states unrepresentable) |
 | `/rust-polish`   | 10-dimension pre-merge checklist (clippy, fmt, dead code, docs, deps)              |
 | `/rust-teach`    | One-time: scan your project, write Rust conventions to CLAUDE.md                   |
 

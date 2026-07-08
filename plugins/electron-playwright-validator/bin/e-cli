@@ -9,6 +9,16 @@ const { spawn, execSync } = require('node:child_process');
 const PROJECT = process.cwd();
 const STATE_FILE = path.join(PROJECT, '.e-cli-state.json');
 const DEFAULT_PORT = 9222;
+// Comma-separated URL substrings of auxiliary windows to skip when picking
+// the main renderer page (e.g. E_CLI_EXCLUDE_URL=splash.html,devtools).
+const EXCLUDE_URLS = (process.env.E_CLI_EXCLUDE_URL || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function pickMainPage(pages) {
+  return pages.find((p) => !EXCLUDE_URLS.some((s) => p.url().includes(s))) || pages[0];
+}
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -101,7 +111,7 @@ async function connect() {
   const chromium = getChromium();
   const browser = await chromium.connectOverCDP(`http://127.0.0.1:${state.port}`);
   const pages = browser.contexts().flatMap((c) => c.pages());
-  const page = pages.find((p) => !p.url().includes('intel.html')) || pages[0];
+  const page = pickMainPage(pages);
   if (!page) {
     await browser.close();
     die('No renderer page found');
@@ -144,11 +154,37 @@ async function launch(args) {
   const electronBin = getElectronPath();
   getChromium();
 
-  const mainEntry = path.join(PROJECT, 'out', 'main', 'index.js');
+  // Main entry: package.json "main" if set, else the electron-vite default.
+  let pkgMain;
+  try {
+    pkgMain = JSON.parse(fs.readFileSync(path.join(PROJECT, 'package.json'), 'utf8')).main;
+  } catch {}
+  const mainEntry = path.join(PROJECT, pkgMain || path.join('out', 'main', 'index.js'));
   if (!fs.existsSync(mainEntry)) {
-    console.log('Building (out/main/index.js not found)...');
-    execSync('npx electron-vite build', { cwd: PROJECT, stdio: 'inherit' });
-    if (!fs.existsSync(mainEntry)) die('Build failed — out/main/index.js not created');
+    // Build command: E_CLI_BUILD_CMD wins; else the project's own build script
+    // via its package manager; else the electron-vite default.
+    let buildCmd = process.env.E_CLI_BUILD_CMD;
+    if (!buildCmd) {
+      let hasBuildScript = false;
+      try {
+        hasBuildScript = !!JSON.parse(
+          fs.readFileSync(path.join(PROJECT, 'package.json'), 'utf8')
+        ).scripts?.build;
+      } catch {}
+      if (hasBuildScript) {
+        const pm = fs.existsSync(path.join(PROJECT, 'pnpm-lock.yaml'))
+          ? 'pnpm'
+          : fs.existsSync(path.join(PROJECT, 'yarn.lock'))
+            ? 'yarn'
+            : 'npm';
+        buildCmd = `${pm} run build`;
+      } else {
+        buildCmd = 'npx electron-vite build';
+      }
+    }
+    console.log(`Building (${mainEntry} not found): ${buildCmd}`);
+    execSync(buildCmd, { cwd: PROJECT, stdio: 'inherit' });
+    if (!fs.existsSync(mainEntry)) die(`Build failed — ${mainEntry} not created`);
   }
 
   console.log(`Launching on CDP port ${port}...`);
@@ -169,7 +205,7 @@ async function launch(args) {
     const deadline = Date.now() + 30_000;
     while (Date.now() < deadline) {
       const pages = browser.contexts().flatMap((c) => c.pages());
-      page = pages.find((p) => !p.url().includes('intel.html')) || pages[0];
+      page = pickMainPage(pages);
       if (page) break;
       await sleep(500);
     }

@@ -86,7 +86,7 @@ When to use each primitive, when NOT to use it, and the anti-patterns that cause
 
 **Rules:**
 - Only ONE task can wait on a notification slot
-- Multiple rapid gives: use `eIncrement` action to count, not `eSetBits` (AP-15 in FreeRTOS anti-patterns -- events collapse)
+- Multiple rapid gives: use `eIncrement` action to count, not `eSetBits` -- with `eSetBits` rapid notifications collapse into one and events are silently lost
 - FreeRTOS 10.4+ supports per-task notification arrays (multiple slots)
 
 ### Critical Section (`portENTER_CRITICAL` / `taskENTER_CRITICAL`)

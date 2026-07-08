@@ -91,9 +91,11 @@ websocat -v -H "Authorization: Bearer $TOKEN" wss://api.example.com/
 ## Close codes
 
 ```bash
-# Send a close frame with specific code
-websocat -n1 --close-code 1000 --close-reason "bye" ws://...
+# Send a close frame with specific code (websocat 1.x flag names)
+websocat -n1 --close-status-code 1000 --close-reason "bye" ws://...
 ```
+
+Note: `--close-reason` only takes effect when `--close-status-code` is also set.
 
 Server-side validation of graceful shutdown.
 

@@ -217,7 +217,7 @@ Existing code mostly still works — migrate when natural, not urgently.
 
 | Crate | Concern | Migration target |
 |---|---|---|
-| `sled` (for new projects) | Beta forever — ~6 years pre-1.0, known memory issues | `redb` 4.x (B-tree) or `fjall` 3.x (LSM) |
+| `sled` (for new projects) | Beta forever — ~6 years pre-1.0, known memory issues | `redb` (B-tree) or `fjall` (LSM) — check crates.io for current major |
 | GPUI (third-party use) | Zed-tied, pre-1.0, breaking changes, sparse docs | Pick a different Rust UI framework (Tauri/egui/Iced/Slint) |
 | Floem (for i18n apps) | IME bugs | Iced for serious app architecture |
 | `chrono` (for new code touching tz) | Still receiving releases (0.4.44, Feb 2026), but the maintainer signaled intent to wind down chrono and chrono-tz in a Jan 2026 year-in-review and now recommends jiff | `jiff` (still pre-1.0 in June 2026 — see Rule 5 in decision-rules.md) |
@@ -244,7 +244,7 @@ Reach for these by default; alternatives need justification.
 | UUID | `uuid` | v7 for ordered IDs, v4 for tokens |
 | Regex | `regex` with `OnceLock<Regex>` | Recompiling is #1 perf foot-gun |
 | Local SQLite | `rusqlite` with `bundled` | |
-| Embedded DB (pure Rust) | `redb` 4.x or `fjall` 3.x | Not `sled` for new projects |
+| Embedded DB (pure Rust) | `redb` or `fjall` | Not `sled` for new projects |
 | Test runner | `cargo-nextest` | Run `cargo test --doc` separately |
 | Snapshot tests | `insta` | `cargo insta review`, never bulk-accept |
 | Property tests | `arbtest` or `proptest` | `arbtest` shares `Arbitrary` with `cargo-fuzz` |

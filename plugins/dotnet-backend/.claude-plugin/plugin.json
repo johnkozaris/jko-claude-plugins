@@ -1,7 +1,7 @@
 {
   "name": "dotnet-backend",
   "description": "Pure .NET 10 backend architecture for Kestrel-hosted REST and real-time services (SignalR, WebSockets, SSE) with DI, data access, and SOLID review",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "license": "MIT",
   "author": {
     "name": "John Kozaris"

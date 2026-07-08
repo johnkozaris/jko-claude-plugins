@@ -333,8 +333,7 @@ When you detect AI slop:
 
 - **Don't just flag it** — rewrite it to show what idiomatic Rust looks like
 - **Explain the WHY** — "this clone exists because the AI couldn't figure out that `&data` is sufficient"
-- **Suggest the `/rust-harden` command** for systematic cleanup
-- **Use the `/rust-types` command** to replace `String` parameters with domain types
+- **Suggest the `/rust-harden` command** for systematic cleanup, including replacing `String` parameters with domain types (its type-strengthening step)
 
 **IMPORTANT**: Any single fingerprint can appear in human code. It is the **clustering** of multiple fingerprints that signals AI generation. Five `.clone()` calls, generic variable names, a trait with one impl, and verbose comments in the same file — that's the pattern.
 

@@ -60,18 +60,10 @@ Conduct a comprehensive critique of the `.NET` backend. If `$ARGUMENTS` is provi
    - `DbContext` lifetime and transaction boundaries (`DN-07`, `DN-11`)
    - EF Core query shape, tracking, and repository tradeoffs (`DN-10`)
 10. **Concurrency review**:
-
-
     - sync-over-async, blocking calls, missing cancellation, shared mutable state (`DN-06`, `DN-12`, `DN-13`, `DN-14`)
-
 11. **Distributed systems review**:
-
-
     - challenge microservice or messaging complexity unless justified (`DN-19`)
-
 12. **File and project size review**:
-
-
     - flag files >300 lines as split candidates
     - flag files >500 lines as urgent
     - flag projects that mix unrelated layers

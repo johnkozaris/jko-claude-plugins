@@ -5,7 +5,7 @@
 # is missing or the OS is not macOS, then exits 0 so the session continues.
 #
 # Why stderr-only-on-failure: every Claude Code session would otherwise emit
-# noise. Shipping a doctor command (/peekaboo:peekaboo-doctor) is the right
+# noise. Shipping a doctor command (/peekaboo-macos-validator:peekaboo-doctor) is the right
 # place for verbose output.
 
 set -u

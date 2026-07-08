@@ -1,5 +1,5 @@
 ---
-description: Harden Rust code — replace unwrap with proper error handling, add safety comments to unsafe blocks, enable overflow checks, validate inputs at boundaries. The defensive hardening pass.
+description: Harden Rust code — replace unwrap with proper error handling, add safety comments to unsafe blocks, enable overflow checks, validate inputs at boundaries, and strengthen the type system (newtypes over primitives, enums over booleans, illegal states unrepresentable). The defensive pass; applies fixes directly.
 allowed-tools:
   - Read
   - Edit
@@ -108,6 +108,41 @@ Consult the [security reference](../skills/rust-expert/references/security.md) a
 - **`Path::join` with absolute argument**: if input is user-controlled, validate `!arg.is_absolute()` first.
 - **Dependency audit**: run `cargo audit` and resolve any `RUSTSEC-*` advisories before merge.
 
+### Step 8: Strengthen the Types
+
+Every runtime `assert!`, `if !valid`, or "this should never happen" comment is a type waiting to be born. Push the checks into the type system:
+
+**Primitive obsession** — find raw primitives carrying domain meaning:
+```bash
+rg --type rust 'fn \w+\(.*: (String|&str|u32|u64|i32|i64|bool|f64)' src/ -n | head -30
+```
+- `String` for an email → `struct Email(String)` with a validated constructor (`Email::new(...) -> Result<Self, ValidationError>`, inner field private so all construction goes through validation)
+- `u64` for IDs → `struct UserId(u64)`, `struct OrderId(u64)` — distinct types so they can't be swapped
+- `f64` for money → integer minor units + currency code; never float for money
+
+**Boolean parameters** → enums. `process(data, true, false)` is unreadable and unswappable-argument-proof only by luck:
+```rust
+enum Direction { Forward, Backward }
+enum OutputMode { Raw, Formatted }
+fn process(data: &Data, dir: Direction, mode: OutputMode)
+```
+
+**Illegal states** → make them unrepresentable. `Option<A>` + `Option<B>` where exactly one must be `Some`, structs whose fields can disagree, state transitions via mutable flags — all become enums (or typestate for compile-time transition checking):
+```rust
+// Before: can be invalid (title set, no body, "published" anyway)
+struct Post { title: Option<String>, body: Option<String>, published: bool }
+// After: invalid states are compile errors
+enum Post {
+    Draft { title: String },
+    Review { title: String, body: String },
+    Published { title: String, body: String, url: Url },
+}
+```
+
+**Attributes**: `#[must_use]` on functions returning values callers must handle; `#[non_exhaustive]` on public enums that may grow.
+
+The litmus test: could a caller misuse this API by passing syntactically-valid but semantically-wrong values? If yes, the types are too weak.
+
 ## Output
 
 Report what was hardened with a count:
@@ -118,3 +153,6 @@ Report what was hardened with a count:
 - X indexing operations reviewed
 - X debug artifacts removed
 - X security findings fixed (TOCTOU / timing / bounds / secret-leak / narrowing / path-traversal / advisory)
+- X types strengthened (newtypes / enums-for-bools / illegal-states / must_use)
+
+Verification is output, not assertion: end with the actual `cargo build` (and `cargo test` if present) results pasted, or the word "unverified" if you could not run them.

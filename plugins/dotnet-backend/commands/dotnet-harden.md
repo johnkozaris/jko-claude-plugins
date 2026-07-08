@@ -26,8 +26,8 @@ rg -n '(\.Result\b|\.Wait\(|GetAwaiter\(\)\.GetResult\()' . --glob '*.cs'
 # Hidden runtime resolution / service locator (DN-04)
 rg -n '(IServiceProvider|GetService\(|GetRequiredService\(|CreateScope\()' . --glob '*.cs'
 
-# Static mutable state (DN-06)
-rg -n 'static\s+(?!readonly)' . --glob '*.cs'
+# Static mutable state (DN-06) — needs PCRE2 for the lookahead
+rg -nP 'static\s+(?!readonly|class|record|void|async|extern|partial)' . --glob '*.cs'
 
 # DbContext misuse in endpoints, hubs, or singletons (DN-07, DN-01, DN-02)
 rg -n '(DbContext|ApplicationDbContext)' . --glob '*.cs'

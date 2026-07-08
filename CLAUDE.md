@@ -14,7 +14,13 @@ myClaudeSkills/
 │   ├── esp32-cpp/                     # ESP32 C++ firmware plugin
 │   ├── python-backend/                # Python backend plugin
 │   ├── dotnet-backend/                # .NET backend plugin
-│   └── dead-code/                     # Dead code detection plugin
+│   ├── dead-code/                     # Dead code detection plugin
+│   ├── backend-validator/             # Token acquisition + HTTP/WS validation (hurl, oauth2c, websocat)
+│   ├── peekaboo-macos-validator/      # macOS app UI validation via peekaboo CLI
+│   ├── electron-playwright-validator/ # Electron app validation via persistent CDP session (e-cli)
+│   ├── maestro-mobile-validator/      # iOS/Android flow validation via Maestro
+│   ├── seam-probe/                    # FFI dylib / UDS seam probing (Rust CLI built on demand)
+│   └── claude-mastery/                # Agent/skill/workflow design guidance
 ```
 
 ## Installing This Marketplace
@@ -45,6 +51,10 @@ claude --plugin-dir /Users/john/Repos/myClaudeSkills/plugins/<plugin-name>
 - In GitHub Copilot CLI, reinstall a local plugin after edits because installed plugins are cached.
 
 ## Conventions
+
+- Before committing plugin changes, run `python3 scripts/lint-plugins.py` (no CI — local only) and include its output. It checks description length limits, pattern-ID citation drift (CODE-/ARCH-/AP-/DN-), marketplace↔plugin.json version sync, orphaned reference files, private project-name leakage, empty hooks stubs, and dangling slash-command references.
+- Never name private projects in plugin content — plugins must be app-agnostic (app specifics go in env vars, manifests, or arguments). The linter's `PRIVATE_NAMES` blocklist enforces this.
+- When a plugin's content changes substantively, bump its version in BOTH plugin.json files and BOTH marketplace.json files (the linter catches mismatches).
 
 - Plugin names: kebab-case
 - Keep GitHub Copilot CLI component paths in `.github/plugin/plugin.json`; when both manifest styles exist, Copilot reads the `.github/plugin/*` manifests.

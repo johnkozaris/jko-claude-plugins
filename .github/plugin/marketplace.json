@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Claude Code plugins for Rust, ESP32 C++, Python backend, .NET backend, SwiftUI, dead code detection, backend validation, mobile validation, Electron validation, macOS app validation, and FFI/UDS seam probing",
-    "version": "1.4.2"
+    "version": "1.5.0"
   },
   "plugins": [
     {
       "name": "rust",
       "source": "./plugins/rust",
-      "description": "Rust code critique, architecture guidance, and idiomatic pattern enforcement",
-      "version": "1.1.0",
+      "description": "Opinionated Rust expert. Code critique, architecture detection, defensive hardening, type strengthening, pre-merge polish. 2026-current (Rust 1.96, Edition 2024, Tokio LTS, RUSTSEC tracking).",
+      "version": "2.2.0",
       "category": "development",
       "tags": [
         "rust",
@@ -26,7 +26,7 @@
       "name": "esp32-cpp",
       "source": "./plugins/esp32-cpp",
       "description": "ESP32 firmware review covering FreeRTOS, memory, peripherals, and all chip variants",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "development",
       "tags": [
         "esp32",
@@ -41,7 +41,7 @@
       "name": "python-backend",
       "source": "./plugins/python-backend",
       "description": "Python backend and runtime expert: FastAPI + SQLAlchemy 2.0 + Pydantic v2 backends and long-running processes (workers, CLIs, ETL, daemons). Python 3.13+/3.14+.",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "category": "development",
       "tags": [
         "python",
@@ -58,7 +58,7 @@
       "name": "dotnet-backend",
       "source": "./plugins/dotnet-backend",
       "description": "Pure .NET 10 backend architecture for Kestrel-hosted REST and SignalR services with DI, data access, and SOLID review",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "category": "development",
       "tags": [
         "dotnet",
@@ -75,7 +75,7 @@
       "name": "swiftui",
       "source": "./plugins/swiftui",
       "description": "Opinionated SwiftUI/Swift expert for iOS, macOS, visionOS apps. MV pattern, @Observable, NavigationStack typed routes, Approachable Concurrency, SwiftData, Liquid Glass selective adoption. Five commands: critique, architect, ios, mac, teach.",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "category": "development",
       "tags": [
         "swift",
@@ -98,7 +98,7 @@
       "name": "dead-code",
       "source": "./plugins/dead-code",
       "description": "Find and remove dead code, duplicates, split-brain implementations, and dead deployment artifacts across any language and stack",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "category": "development",
       "tags": [
         "dead-code",
@@ -114,7 +114,7 @@
       "name": "backend-validator",
       "source": "./plugins/backend-validator",
       "description": "Backend API and WebSocket validation via Hurl, websocat, and oauth2c with OIDC token caching",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "category": "testing",
       "tags": [
         "validation",
@@ -131,7 +131,7 @@
       "name": "maestro-mobile-validator",
       "source": "./plugins/maestro-mobile-validator",
       "description": "iOS and Android mobile app validation via Maestro flows with simulator management and CI patterns",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "category": "testing",
       "tags": [
         "maestro",
@@ -147,7 +147,7 @@
       "name": "electron-playwright-validator",
       "source": "./plugins/electron-playwright-validator",
       "description": "Electron app UI automation and validation via Playwright CDP",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "testing",
       "tags": [
         "electron",
@@ -163,7 +163,7 @@
       "name": "peekaboo-macos-validator",
       "source": "./plugins/peekaboo-macos-validator",
       "description": "macOS app UI automation and visual critique via Peekaboo (no AI keys; agent reads pixels itself)",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "category": "testing",
       "tags": [
         "peekaboo",
@@ -200,8 +200,8 @@
     {
       "name": "claude-mastery",
       "source": "./plugins/claude-mastery",
-      "description": "Master guide for building with Claude Code — battle-tested patterns for agent design, skills, prompt caching, tool design, verification, workflows, and team patterns.",
-      "version": "1.0.0",
+      "description": "Master guide for building with Claude Code \u2014 battle-tested patterns for agent design, skills, prompt caching, tool design, verification, workflows, and team patterns.",
+      "version": "1.0.1",
       "category": "education",
       "tags": [
         "claude-code",

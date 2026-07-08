@@ -27,7 +27,7 @@ short critique against the rubric in the `peekaboo` skill.
 
 ```bash
 peekaboo --version
-peekaboo list permissions --json | jq '.permissions[]|{name,isGranted}'
+peekaboo list permissions --json | jq '.data.permissions[]|{name,isGranted}'
 ```
 
 If permissions are missing OR `peekaboo` is not installed, stop with an

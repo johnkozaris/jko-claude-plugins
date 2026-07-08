@@ -66,7 +66,7 @@ Dump the full accessibility tree of the main renderer page as indented text.
 
 **Output format:**
 ```
-WebArea "Kodosi"
+WebArea "MyApp"
   navigation "Main"
     tab "Sessions" pressed=true
     tab "Rooms"

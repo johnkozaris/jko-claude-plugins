@@ -38,7 +38,7 @@ Peekaboo 3.x targets recent macOS. If this is < 13, warn the user.
 ### 3. Permissions
 
 ```bash
-peekaboo list permissions --json | jq '.permissions[]|{name,isGranted}'
+peekaboo list permissions --json | jq '.data.permissions[]|{name,isGranted}'
 ```
 
 Both **Screen Recording** and **Accessibility** must be granted to the

@@ -37,10 +37,14 @@ Execute a Maestro flow. Handles simulator boot checks and produces human-readabl
    - Read the last N lines of the Maestro log for the specific step that failed
    - Suggest probable causes from the `mobile-flows-maestro` skill's flakiness section
 
-5. **JAVA_HOME sanity check.** If Maestro errors with "Unable to locate a Java Runtime", make sure JAVA_HOME is exported:
+5. **JAVA_HOME sanity check.** If Maestro errors with "Unable to locate a Java Runtime", locate a JDK and export JAVA_HOME (POSIX shell; adapt to the user's shell if different):
 
-   ```fish
-   set -Ux JAVA_HOME /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+   ```bash
+   # macOS: let the system find an installed JDK (17+)
+   export JAVA_HOME="$(/usr/libexec/java_home -v 17+ 2>/dev/null)"
+   # Linux or if java_home is unavailable: derive it from the java on PATH
+   [ -n "$JAVA_HOME" ] || export JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
+   echo "JAVA_HOME=$JAVA_HOME"   # must print a real directory before retrying
    ```
 
 ## Guardrails

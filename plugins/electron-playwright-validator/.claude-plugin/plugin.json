@@ -1,9 +1,11 @@
 {
   "name": "electron-playwright-validator",
   "description": "Electron app UI automation and validation via Playwright CDP",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "license": "MIT",
-  "author": { "name": "John Kozaris" },
+  "author": {
+    "name": "John Kozaris"
+  },
   "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
   "repository": "https://github.com/johnkozaris/jko-claude-plugins",
   "keywords": [

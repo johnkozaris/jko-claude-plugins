@@ -1,6 +1,6 @@
 ---
 name: mobile-flows-maestro
-description: Use this skill when writing or running Maestro flows for iOS or Android apps, driving the Maestro MCP server, diagnosing flaky mobile UI tests, or onboarding a new team to mobile e2e testing. Trigger whenever the user mentions Maestro, mobile testing, iOS Simulator flows, Android emulator flows, "test my app", YAML test flows, GraalJS test scripting, assertVisible / tapOn / launchApp, deep links from tests, or "why is my Maestro test flaky". Applies to Swift/SwiftUI, React Native, Flutter, Kotlin, Java, .NET MAUI, Ionic, and Capacitor apps. Prefer this skill over letting Claude write Maestro flows from scratch — Maestro YAML looks deceptively simple but has many platform-specific gotchas (GraalJS constraints, iOS Keychain persistence, ASWebAuthenticationSession system sheets, permission timing) that first-drafts get wrong.
+description: Use this skill when writing or running Maestro flows for iOS or Android apps, driving the Maestro MCP server, diagnosing flaky mobile UI tests, or onboarding a new team to mobile e2e testing. Trigger whenever the user mentions Maestro, mobile e2e testing, iOS Simulator flows, Android emulator flows, "test my iOS app", "test my Android app", YAML test flows, GraalJS test scripting, assertVisible / tapOn / launchApp, deep links from tests, or "why is my Maestro test flaky". NOT for web, desktop, or backend testing — those have their own validators. Applies to Swift/SwiftUI, React Native, Flutter, Kotlin, Java, .NET MAUI, Ionic, and Capacitor apps. Prefer this skill over letting Claude write Maestro flows from scratch — Maestro YAML looks deceptively simple but has many platform-specific gotchas (GraalJS constraints, iOS Keychain persistence, ASWebAuthenticationSession system sheets, permission timing) that first-drafts get wrong.
 ---
 
 # Maestro Mobile Flows
@@ -63,7 +63,11 @@ xcrun simctl erase <device-id>
 These launch a system sheet that lives outside the app's view tree. Maestro can sometimes drive them, but it's flaky. The robust pattern:
 
 1. Debug-build flag that short-circuits `GIDSignIn` / `ASAuthorizationController` with a pre-built test identity token
-2. Deep-link into the signed-in state (`maestro openLink "myapp://mock-signed-in"`)
+2. Deep-link into the signed-in state — `openLink` is a YAML flow command, not a CLI subcommand:
+
+   ```yaml
+   - openLink: "myapp://mock-signed-in"
+   ```
 3. Let Maestro assert on the post-auth UI
 
 Do not try to drive the live Google consent page through `ASWebAuthenticationSession` in CI. You will regret it.

@@ -13,7 +13,7 @@ LLMs generate embedded code that compiles but fails in the field. AI models lack
 ## Missing Hardware Awareness
 
 - ISR handlers without `IRAM_ATTR` -- AI doesn't know about flash cache
-- No `volatile` on ISR-shared variables -- AI treats it like regular multithreading
+- No `volatile` on ISR-shared variables -- AI treats it like regular multithreading. (`volatile` is correct for ISR↔task visibility of a single flag; it is NOT a synchronization primitive between tasks -- see the Concurrency Naivety entry below, both rules are true and the context is the difference)
 - `char buffer[4096]` on the stack inside a FreeRTOS task -- AI doesn't think about stack limits
 - DMA buffers allocated from PSRAM or stack -- AI doesn't understand DMA constraints
 - `printf` / `std::cout` in production firmware -- AI adds debugging everywhere
@@ -23,7 +23,7 @@ LLMs generate embedded code that compiles but fails in the field. AI models lack
 - `portMAX_DELAY` on every mutex/queue operation -- AI defaults to "wait forever"
 - `xSemaphoreCreateBinary()` to protect shared resources (should be `Mutex`)
 - No mutex on shared I2C/SPI bus -- AI doesn't consider multi-task access
-- `volatile bool flag` for task synchronization -- AI confuses volatile with thread-safe
+- `volatile bool flag` for task-to-task synchronization -- AI confuses volatile with thread-safe (between tasks use a queue, semaphore, or atomic; volatile's legitimate home is ISR-shared flags, per the Hardware Awareness entry above)
 - `xSemaphoreGive()` called from ISR instead of `xSemaphoreGiveFromISR()`
 
 ## Hallucinated APIs (AI invents functions that don't exist)

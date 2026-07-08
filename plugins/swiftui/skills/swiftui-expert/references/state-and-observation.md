@@ -26,7 +26,7 @@ This is the first thing to know. Every property wrapper question reduces to one 
 | Focus management | `@FocusState var field: Field?` (use Hashable enum) |
 | Child mutates a parent value | `@Binding var` |
 
-`@StateObject` / `@ObservedObject` / `@EnvironmentObject` / `@Published` / `ObservableObject` do not appear in this table. They are deprecated for new code. If you see them in a code review, flag them.
+`@StateObject` / `@ObservedObject` / `@EnvironmentObject` / `@Published` / `ObservableObject` do not appear in this table. They are legacy for new code (not formally deprecated by Apple — they still compile without warnings) and superseded by `@Observable`. If you see them in new code, flag them; in existing iOS 16-target code, note the migration once at project level.
 
 ---
 
@@ -599,6 +599,9 @@ For a single boolean focus state (one field), `@FocusState private var isFocused
 `Observations { ... }` is an `AsyncSequence` that emits whenever any `@Observable` keypath read inside the closure changes. Use it when you need to react to observable changes **outside** of SwiftUI's body tracking — in a `Task`, a service, a non-View type.
 
 ```swift
+import AsyncAlgorithms  // .debounce is NOT in the stdlib — add the
+                        // swift-async-algorithms package or this won't compile
+
 @Observable
 final class SearchModel {
     var query = ""
@@ -640,7 +643,7 @@ final class SearchViewModel {
         watchTask = Task { [weak self] in
             guard let self else { return }
             let stream = Observations { self.query }
-                .debounce(for: .milliseconds(300))
+                .debounce(for: .milliseconds(300))  // requires AsyncAlgorithms
             for await query in stream {
                 guard !Task.isCancelled else { return }
                 self.results = await fetch(query)

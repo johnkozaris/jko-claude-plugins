@@ -8,12 +8,25 @@ description: >-
   @playwright/test and electron in devDependencies. Use when the user asks "validate the
   electron app", "check the UI", "click through the app", "take a screenshot", "does the
   app render", "test the electron UI", "launch the app and check", "verify the app works",
-  "is the app broken", or "debug a runtime error".
+  "is the app broken", or "debug a runtime error". NOT for native macOS
+  (SwiftUI/AppKit) apps — use the peekaboo macOS validator — and NOT for
+  mobile apps (use the Maestro validator).
 ---
 
 # Electron Playwright Validator
 
 Validate Electron desktop apps by launching them with Chrome DevTools Protocol (CDP) and automating the UI via Playwright. The `e-cli` tool provides a persistent session model: launch the app once (~5s startup), then run fast CDP-connected commands (~200ms each) to inspect, click, screenshot, and validate.
+
+## Setup — resolve the tool path first
+
+`e-cli` ships inside this plugin and is NOT on PATH. Define this once per session and use it for every invocation:
+
+```bash
+E_CLI="${CLAUDE_PLUGIN_ROOT}/bin/e-cli"
+"$E_CLI" --help
+```
+
+Every `e-cli <cmd>` in this document means `"$E_CLI" <cmd>`. The tool resolves `electron` and `playwright` from the **project's** node_modules — run it from the project root; nothing is installed globally.
 
 ## Core Workflow
 
@@ -32,17 +45,16 @@ Always close the app when done. A lingering Electron process blocks subsequent l
 The `e-cli snapshot` output is your primary tool for understanding the UI. Each line represents a node:
 
 ```
-WebArea "Kodosi"
+WebArea "MyApp"
   navigation "Main"
-    tab "Sessions" pressed=true
-    tab "Rooms"
-    tab "Friends"
-    tab "Public"
+    tab "Library" pressed=true
+    tab "Search"
+    tab "Settings"
   main
-    heading "Sessions" level=1
-    list "Session list"
-      listitem "dev-server"
-      listitem "build-watch"
+    heading "Library" level=1
+    list "Item list"
+      listitem "first-item"
+      listitem "second-item"
 ```
 
 Use this tree to:
@@ -69,8 +81,8 @@ Role selectors are best because they match the accessibility tree directly and s
 Combine accessibility snapshots with screenshots for thorough validation:
 
 ```bash
-e-cli snapshot              # structural check — are the right elements present?
-e-cli screenshot            # visual check — does it look right?
+"$E_CLI" snapshot           # structural check — are the right elements present?
+"$E_CLI" screenshot         # visual check — does it look right?
 ```
 
 After `e-cli screenshot`, use the `Read` tool on the PNG file to visually inspect the result. This catches issues that the accessibility tree cannot: broken layouts, missing styles, overlapping elements, blank screens.
@@ -84,10 +96,10 @@ Electron apps load content asynchronously. Handle this with:
 - **Post-interaction delay** — if a click triggers an async operation (API call, animation), wait for the result element before snapshotting
 
 ```bash
-e-cli wait "role=tab[name=Sessions]"      # wait for nav to render
-e-cli click "role=tab[name=Rooms]"        # switch tab
-e-cli wait "role=heading[name=Rooms]"     # wait for view to load
-e-cli snapshot                             # verify the new view
+"$E_CLI" wait "role=tab[name=Library]"     # wait for nav to render
+"$E_CLI" click "role=tab[name=Settings]"   # switch tab
+"$E_CLI" wait "role=heading[name=Settings]" # wait for view to load
+"$E_CLI" snapshot                           # verify the new view
 ```
 
 > *Consult [electron gotchas reference](references/electron-gotchas.md) for timing issues, xterm quirks, and lazy loading.*
@@ -110,30 +122,30 @@ Use `e-cli` for **exploratory validation** — quick checks, visual inspection, 
 ### Validate all tabs render
 
 ```bash
-e-cli launch
-e-cli snapshot                                    # check initial state
-for tab in Sessions Rooms Friends Public; do
-  e-cli click "role=tab[name=$tab]"
-  e-cli snapshot                                  # verify view content
+"$E_CLI" launch
+"$E_CLI" snapshot                                 # check initial state; read the tab names from it
+for tab in Library Search Settings; do           # substitute the app's actual top-level tabs
+  "$E_CLI" click "role=tab[name=$tab]"
+  "$E_CLI" snapshot                               # verify view content
 done
-e-cli close
+"$E_CLI" close
 ```
 
 ### Check if an error screen shows
 
 ```bash
-e-cli launch
-e-cli snapshot                                    # look for error roles/text
-e-cli screenshot                                  # visual confirmation
-e-cli close
+"$E_CLI" launch
+"$E_CLI" snapshot                                 # look for error roles/text
+"$E_CLI" screenshot                               # visual confirmation
+"$E_CLI" close
 ```
 
 ### Evaluate renderer state
 
 ```bash
-e-cli eval "Object.keys(window.api)"              # check preload bridge
-e-cli eval "document.title"                       # check page title
-e-cli eval "document.querySelectorAll('.error').length"  # count error elements
+"$E_CLI" eval "Object.keys(window.api ?? {})"     # check preload bridge (name varies per app)
+"$E_CLI" eval "document.title"                    # check page title
+"$E_CLI" eval "document.querySelectorAll('.error').length"  # count error elements
 ```
 
 ### Debug broken imports
@@ -141,11 +153,11 @@ e-cli eval "document.querySelectorAll('.error').length"  # count error elements
 If `pnpm typecheck` passes but the app shows a blank screen:
 
 ```bash
-e-cli launch
-e-cli eval "document.querySelector('#root')?.innerHTML?.substring(0, 200)"
-e-cli screenshot
+"$E_CLI" launch
+"$E_CLI" eval "document.querySelector('#root')?.innerHTML?.substring(0, 200)"
+"$E_CLI" screenshot
 # Check the terminal output / DevTools console for import errors
-e-cli close
+"$E_CLI" close
 ```
 
 ## Validation Mindset

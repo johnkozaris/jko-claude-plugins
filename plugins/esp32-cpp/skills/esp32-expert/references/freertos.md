@@ -12,7 +12,7 @@ ESP-IDF uses a modified FreeRTOS (based on v10.5.1) with SMP support on dual-cor
 - Ring buffers are an ESP-IDF extension (not in vanilla FreeRTOS)
 - Critical sections use **spinlocks + mutexes** (not just interrupt disable like vanilla)
 - One idle task **per core** (Idle0 and Idle1) -- both must get CPU time
-- Tick interrupt only runs on Core 0 -- Core 1 has no independent tick
+- Each core takes its own tick interrupt; Core 0 owns the canonical tick count (`xTaskGetTickCount()`), so cross-core tick reads can skew briefly during flash-cache-disabled windows
 - All FreeRTOS memory allocations mapped to ESP-IDF's `heap_caps` API (always internal RAM)
 - Tasks using hardware `float` are **auto-pinned** to their current core (FPU context not saved across cores)
 - `FreeRTOSConfig.h` is private -- configure via `idf.py menuconfig`, not direct edits
@@ -50,8 +50,10 @@ Priority 2:  Normal application tasks (sensor reading, data processing)
 Priority 3:  Communication tasks (WiFi event handling, MQTT, HTTP)
 Priority 4:  Real-time tasks (motor control, fast sensor sampling)
 Priority 5:  Time-critical tasks (hard real-time requirements)
-Priority 24: Timer service task (configTIMER_TASK_PRIORITY, system)
+Priority 22+: System tasks (esp_timer at 22, WiFi/BLE at 23) -- user tasks stay below
 ```
+
+Note: the FreeRTOS **timer service task** (`xTimerCreate` callbacks) runs at `CONFIG_FREERTOS_TIMER_TASK_PRIORITY`, which **defaults to 1** in ESP-IDF -- software-timer callbacks share that one low-priority task, so keep them trivially short or they starve behind normal tasks. Do not confuse it with `esp_timer` (priority 22), which is a separate high-resolution mechanism.
 
 **DO**: Keep most tasks at the same priority (2-3) unless there's a genuine timing requirement.
 **DON'T**: Make everything high priority -- it defeats the scheduler and causes starvation.

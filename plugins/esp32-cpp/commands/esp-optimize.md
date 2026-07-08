@@ -36,7 +36,7 @@ $1 should be one of: `speed`, `memory`, `power`, `size`. Default to a general re
 
 1. **Heap analysis**: Run `idf.py size-components` to identify large consumers
 2. **Stack tuning**: Measure with `uxTaskGetStackHighWaterMark()`, reduce to actual + 25%
-3. **Flash strings**: Use `PROGMEM` (Arduino) or ensure const strings stay in flash
+3. **Flash strings**: Ensure string/lookup data is `const` (const data stays in flash on ESP32). Do NOT recommend `PROGMEM` -- it is a no-op compatibility macro on ESP32, AVR-era advice that signals stale training data
 4. **PSRAM offloading**: Move large buffers to PSRAM (`MALLOC_CAP_SPIRAM`)
 5. **Component pruning**: Disable unused ESP-IDF components in menuconfig
 6. **Static allocation**: Replace dynamic allocation with static for permanent objects

@@ -15,7 +15,7 @@ The skill consuming this file is opinionated by design — an AI invoking critiq
 | `@ObservedObject` for new code | plain `let model: MyModel` (read) or `@Bindable var model` (with bindings) |
 | `.environmentObject(_:)` injection | `.environment(_:)` (typed for `@Observable`) |
 | `Binding(get:set:)` in body | `@State` + `.onChange(of:initial:_:)` |
-| `@AppStorage` directly inside `@Observable` class | Nested `@Observable class StorageClass { @AppStorage var ... }` (IceCubesApp pattern) OR `@ObservationIgnored` + manual `UserDefaults` + `access(keyPath:)` / `withMutation(keyPath:)` |
+| `@AppStorage` directly inside `@Observable` class | IceCubesApp pattern: a **plain (NOT `@Observable`) inner `Storage` class** holds the `@AppStorage` properties; the outer `@Observable` class mirrors them as stored `var`s with `didSet` writing through to storage — full code in `state-and-observation.md`. Or: `@ObservationIgnored` + manual `UserDefaults` + `access(keyPath:)` / `withMutation(keyPath:)` |
 | Mixing `@Published` and `@Observable` in the same type | All-or-nothing; pick `@Observable` |
 | One huge `AppModel` with everything | Decompose: per-domain `@Observable` instances + per-view `@Observable` when warranted |
 | `@State` for receiving from parent | plain `let` (read) or `@Bindable` (with bindings) |

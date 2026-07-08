@@ -52,7 +52,7 @@ crate-type = ["staticlib", "cdylib"]
 
 This builds both flavors from one source. Common for libraries that ship in both static (for binaries) and dynamic (for late-loading plugins) modes.
 
-Practical gotcha: a `cdylib` minimum size is ~2.2 MB even if empty — the Rust panic/alloc machinery comes along. Strip with `panic = "abort"` and `lto = "fat"` in the release profile, plus `strip = "symbols"`.
+Practical gotcha: a default-profile `cdylib` carries the Rust panic/alloc machinery, so even a near-empty one is far larger than its C equivalent (debug builds run into the megabytes; release a few hundred KB). Strip with `panic = "abort"` and `lto = "fat"` in the release profile, plus `strip = "symbols"`.
 
 ---
 
@@ -72,7 +72,7 @@ Canonical layering:
 
 - `extern "C"` + `#[repr(C)]` on every type/function that crosses.
 - `Option<&T>`, `Option<&mut T>`, `Option<NonNull<T>>`, `Option<extern "C" fn()>` are FFI-safe and same-layout as the inner pointer (null-pointer optimization). Use these instead of raw `*mut T` for nullable parameters.
-- Wrap every exported function body in `std::panic::catch_unwind` — letting a Rust panic unwind into C is UB. Convert panics to error codes.
+- Wrap every exported function body in `std::panic::catch_unwind` and convert panics to error codes. Since Rust 1.81 a panic reaching an `extern "C"` boundary is a guaranteed **abort** (no longer UB) — so the failure is defined, but it still tears down the host process; a plugin that aborts its host is a production incident either way.
 - Use `extern "C-unwind"` only if panics may legitimately cross and the caller is prepared.
 - **Never** expose `dyn Trait` or generics across FFI — neither has a stable ABI. Use `#[repr(C)]` vtable structs with function pointers, or opaque handles (`*mut MyOpaque`) with C-ABI functions operating on them.
 - `#[repr(transparent)]` for newtype wrappers around an FFI-compatible inner type.

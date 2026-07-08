@@ -1,7 +1,7 @@
 {
   "name": "esp32-cpp",
   "description": "ESP32 firmware review for all variants, FreeRTOS, ESP-IDF/PlatformIO, peripherals, and memory",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "license": "MIT",
   "author": {
     "name": "John Kozaris"

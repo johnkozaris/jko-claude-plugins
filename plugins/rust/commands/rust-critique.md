@@ -117,11 +117,10 @@ The SKILL.md uses the 5-level scaffold (`blocking / important / nit / suggestion
 3. **What** — name the problem clearly.
 4. **Why it matters** — describe the concrete production cost in plain language: what bug appears, what crashes, what gets corrupted, what slows down, what's hard to change later. When a well-known incident or vulnerability demonstrates the cost on a real codebase, cite it (the Cloudflare Nov 2025 unwrap-panic, a relevant CVE, a RUSTSEC advisory). When no such receipt exists, say so plainly — don't manufacture authority. **If you cannot name a concrete consequence at all, the finding belongs as `suggestion` or shouldn't be raised.**
 5. **Fix** — before/after code block when non-obvious.
-6. **Command routing** — if a focused workflow would help the user, suggest the matching command. Use judgment, not a count: if the unsafe boundaries need a defensive pass, route to `/rust-harden`. If the primitive types are weak, route to `/rust-types`. If the codebase is approaching the seams a workspace split would clarify, route to `/rust-architect`. Don't suggest a follow-up command just because one finding fell into that category.
+6. **Command routing** — if a focused workflow would help the user, suggest the matching command. Use judgment, not a count: if the unsafe boundaries or primitive types need work applied, route to `/rust-harden`. If the codebase is approaching the seams a workspace split would clarify, route to `/rust-architect`. Don't suggest a follow-up command just because one finding fell into that category.
 
 Command map (when the workflow fits):
-- `/rust-harden` — defensive pass: unwrap on external input, unsafe boundaries, input validation, overflow checks
-- `/rust-types` — type-system strengthening: newtypes, illegal states, primitive obsession
+- `/rust-harden` — defensive pass, applies fixes: unwrap on external input, unsafe boundaries, input validation, overflow checks, type strengthening (newtypes, illegal states, primitive obsession)
 - `/rust-polish` — pre-merge cleanup: clippy, formatting, dead code, docs, deps
 - `/rust-architect` — design-level decisions: pattern fit, workspace shape, port-and-adapter boundaries
 - `/rust-teach` — project conventions to CLAUDE.md (one-time setup)
@@ -202,8 +201,7 @@ End with concrete next steps:
 
 ```
 Next steps:
-  - /rust-harden       — N findings about unsafe boundaries and external-input unwraps
-  - /rust-types        — M findings about primitive obsession
+  - /rust-harden       — N findings about unsafe boundaries, external-input unwraps, or weak types
   - /rust-polish       — K findings about pre-merge cleanup
   - /rust-architect    — P findings about pattern fit or workspace shape (if any)
 ```

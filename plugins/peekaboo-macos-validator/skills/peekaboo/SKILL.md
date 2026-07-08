@@ -1,6 +1,6 @@
 ---
 name: peekaboo
-description: "Drive, observe, and critique any running macOS app end-to-end via Peekaboo — the macOS-native equivalent of Playwright + visual-regression review for SwiftUI/AppKit. Use proactively whenever the user mentions UI, screens, screenshots, the app's appearance, layout, spacing, alignment, copy/labels, sidebar, panels, settings, theme, accessibility identifiers, clicking, typing, menus, file pickers, responsive sizing, or animations — or says any of: 'verify it works', 'see what it looks like', 'show me the UI', 'click X', 'take a screenshot', 'critique the design', 'is this still balanced', 'drive the app'. Use after any SwiftUI/AppKit edit, after a rebuild, when fixing a UI bug, or before claiming a UI feature done — even when the user does not explicitly ask. The agent reads pixels itself via `view`; no external AI keys are used."
+description: "Drive, observe, and critique a running native macOS app (SwiftUI/AppKit) end-to-end via Peekaboo — the macOS-native equivalent of Playwright + visual-regression review. Use when the user mentions the Mac app's UI, screens, screenshots, appearance, layout, accessibility identifiers, clicking, typing, or menus — or says 'see what it looks like', 'show me the UI', 'click X', 'take a screenshot of the app', 'critique the design', 'drive the app'. Use after a SwiftUI/AppKit edit or rebuild, and before claiming a UI feature done. NOT for Electron or web apps (use the electron-playwright validator), NOT for iOS simulators (use the Maestro validator), NOT for purely backend work. The agent reads pixels itself via `view`; no external AI keys are used."
 homepage: https://peekaboo.boo
 metadata:
   os: ["darwin"]
@@ -414,7 +414,7 @@ XCUITest queries simpler too.
 
 ```bash
 peekaboo --version                                                     # ≥ 3.0
-peekaboo list permissions --json | jq '.permissions[]|{name,isGranted}'
+peekaboo list permissions --json | jq '.data.permissions[]|{name,isGranted}'
 peekaboo list apps --json | jq '.data.applications[]|{name,bundleIdentifier}|select(.name|test("YourApp";"i"))'
 peekaboo menu list --app $BID                                          # menu bar
 peekaboo learn                                                         # full reference

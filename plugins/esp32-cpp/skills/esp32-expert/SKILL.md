@@ -1,6 +1,6 @@
 ---
 name: esp32-expert
-description: This skill should be used when the user is writing, reviewing, debugging, or architecting C++ firmware for ESP32 and variants (ESP32-S2, S3, C3, C6, H2, P4) using ESP-IDF or PlatformIO. Provides expert critique covering FreeRTOS task design, memory management (IRAM/DRAM/PSRAM), peripheral drivers (I2C/SPI/UART/GPIO), build systems (CMake/platformio.ini), power management, OTA updates, and embedded C++ best practices. Use when the user asks "review my ESP32 code", "fix FreeRTOS crash", "optimize memory usage", "debug I2C issue", "set up PlatformIO project", "review my CMakeLists", "search datasheet for this chip", "why is my task crashing", "configure deep sleep", or "help with ESP-IDF component structure".
+description: This skill should be used when the user is writing, reviewing, debugging, or architecting C++ firmware for ESP32 and variants (ESP32-S2, S3, C3, C5, C6, H2, P4) using ESP-IDF or PlatformIO. Provides expert critique covering FreeRTOS task design, memory management (IRAM/DRAM/PSRAM), peripheral drivers (I2C/SPI/UART/GPIO), build systems (CMake/platformio.ini), power management, OTA updates, and embedded C++ best practices. Use when the user asks "review my ESP32 code", "fix FreeRTOS crash", "optimize memory usage", "debug I2C issue", "set up PlatformIO project", "review my CMakeLists", "search datasheet for this chip", "why is my task crashing", "configure deep sleep", or "help with ESP-IDF component structure".
 ---
 
 # ESP32 C++ Expert
@@ -31,11 +31,24 @@ Check `sdkconfig`, `platformio.ini`, or `CMakeLists.txt` for the target chip:
 - **ESP32-S2** (Xtensa single-core 240MHz) -- USB OTG, no Bluetooth
 - **ESP32-S3** (Xtensa dual-core 240MHz) -- AI/vector instructions, USB OTG
 - **ESP32-C3** (RISC-V single-core 160MHz) -- BLE only, WiFi, low cost
-- **ESP32-C6** (RISC-V single-core 160MHz) -- WiFi 6, Thread/Zigbee, BLE
+- **ESP32-C5** (RISC-V single-core 240MHz) -- first dual-band WiFi 6 (2.4 + 5 GHz), BLE, Thread/Zigbee
+- **ESP32-C6** (RISC-V single-core 160MHz) -- WiFi 6 (2.4 GHz only), Thread/Zigbee, BLE
 - **ESP32-H2** (RISC-V single-core 96MHz) -- Thread/Zigbee, BLE, NO WiFi
 - **ESP32-P4** (RISC-V dual-core 400MHz) -- NO wireless, MIPI-DSI/CSI, H.264, 768KB SRAM
 
+Newer variants ship continuously (C61, H21, ...). If the project targets a chip not listed here, do not guess its capabilities from the family name -- fetch its datasheet and the ESP-IDF support matrix first.
+
 Variant matters for: available peripherals, core count (SMP vs single), memory layout, wireless capabilities, instruction set (Xtensa vs RISC-V).
+
+## Zoom out before you edit
+
+Firmware sessions that skip this step produce split-brain code (a second ring buffer, a second retry helper, a second pin table) and orphans. Non-negotiable sequence for any change:
+
+1. **Before adding a function, struct, or helper: search for an existing one** (`rg -i` the concept, not just your candidate name). A second implementation of the same logic is a drift bug on a timer.
+2. **Read the whole file and the task/ISR context around the target lines** -- in firmware, the bug you were shown is usually a symptom of the concurrency shape around it.
+3. **After the change, grep the symbols you replaced** and delete anything now unreferenced in the same change.
+4. **State in one sentence where the change sits** (which task, which ISR path, which layer below). If you cannot, read more before editing.
+5. **Report honestly.** If you could not flash and test on hardware, say "compiles, untested on target" -- never imply a runtime check you didn't do. Verification means command output (build log, monitor output), not the sentence "verified."
 
 ## How to Think About Embedded Problems
 

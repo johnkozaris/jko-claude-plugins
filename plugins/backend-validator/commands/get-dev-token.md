@@ -25,7 +25,7 @@ Acquire a bearer JWT for local backend validation. First run opens a browser; su
 
 ## Guardrails
 
-- Don't print the full token to stdout by default. `export TOKEN=$(/get-dev-token)` is the ergonomic shape.
+- Don't print the full token to stdout by default. The ergonomic shape is `export TOKEN=$(scripts/get-backend-token.sh)` — the shell captures the script's stdout, and only diagnostics go to stderr. (A slash command is not a shell binary; the script is what gets substituted.)
 - If the first run caches the wrong identity, `security delete-generic-password -s <project>-refresh-token` and re-run.
 - Never commit the file that holds the issuer URL / client ID.
 

@@ -139,7 +139,7 @@ Define a trait (or, for WASM, a WIT interface). Plugins implement it. The host d
 - **Dynamic loading**: `libloading` + C ABI (or `abi_stable` for checked Rust-to-Rust). No sandbox.
 - **WASM Components**: `wasmtime` + `wit-bindgen`. Sandboxed by default. The right answer when third-party plugins matter.
 
-Zed extensions use WASM Components (Wasmtime + `wit-bindgen`, with WIT interfaces). Zellij plugins are plain WebAssembly modules — `wasm32-wasip1` running on the `wasmi` interpreter (since v0.44.0), with Protobuf for the host-plugin interface, NOT the Component Model. Bevy uses in-process trait objects (`Plugin` trait, registered into a `PluginRegistry`). Tower's `Layer`/`Service` is a middleware-shaped variant — `Layer` decorates `Service`, `ServiceBuilder` stacks them.
+Zed extensions use WASM Components (Wasmtime + `wit-bindgen`, with WIT interfaces). Zellij plugins are plain WebAssembly modules on `wasm32-wasip1` with Protobuf for the host-plugin interface, NOT the Component Model (verify the current runtime in the Zellij repo before citing it — it has changed engines over the project's history). Bevy uses in-process trait objects: the `Plugin` trait added via `App::add_plugins`, grouped with `PluginGroup`/`PluginGroupBuilder` — there is no public `PluginRegistry` type. Tower's `Layer`/`Service` is a middleware-shaped variant — `Layer` decorates `Service`, `ServiceBuilder` stacks them.
 
 **Watch for**: the host trait accreting methods only one or two plugins use, forcing every plugin to implement irrelevant stubs (give those plugins their own extension trait instead). Also: plugins acquiring privileged access — direct database, filesystem, or shared mutable state access — which defeats the sandbox.
 

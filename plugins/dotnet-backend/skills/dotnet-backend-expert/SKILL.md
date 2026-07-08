@@ -1,17 +1,9 @@
 ---
 name: dotnet-backend-expert
-description: This skill should be used when the user is writing, reviewing, debugging, or architecting pure .NET backend code for Kestrel-hosted services. It provides expert critique for REST endpoints, real-time transports (SignalR, raw WebSockets, Server-Sent Events), TypeScript/React client integration shape, pragmatic Rust interop, application services, project structure, EF Core and database boundaries, dependency injection lifetimes, OOP and SOLID quality, concurrency, and distributed-architecture tradeoffs. Use when the user asks "critique my .NET backend", "review this service", "should this be singleton or scoped", "structure my solution", "review my SignalR hub", "should I use SignalR or WebSockets or SSE", "is this clean architecture", "should I use repositories", "fix my DbContext usage", "design my REST endpoints", "review my concurrency", or "should this be microservices".
+description: This skill should be used when the user is writing, reviewing, debugging, or architecting pure .NET backend code for Kestrel-hosted services. It provides expert critique for REST endpoints, real-time transports (SignalR, raw WebSockets, Server-Sent Events), TypeScript/React client integration shape, pragmatic Rust interop, application services, project structure, EF Core and database boundaries, dependency injection lifetimes, OOP and SOLID quality, concurrency, and distributed-architecture tradeoffs. Use when the user asks "critique my .NET backend", "review my ASP.NET Core API", "review this service", "should this be singleton or scoped", "structure my solution", "review my SignalR hub", "should I use SignalR or WebSockets or SSE", "is this clean architecture", "should I use repositories", "fix my DbContext usage", "design my REST endpoints", "review my concurrency", or "should this be microservices".
 ---
 
 Build real `.NET` backends. Not UI shells. Not Razor pages. Not MAUI. Build Kestrel-hosted services that stay clear under load, survive team growth, and remain easy to reason about in code review, LLD interviews, and production incidents.
-
-## Terminology Rule
-
-Frame this skill as **`.NET 10 backend`** work.
-
-- Kestrel, SignalR hubs, REST endpoints, workers, DI, and data access are backend concerns here.
-- Do **not** describe this plugin's target using the web-stack brand name.
-- Official Microsoft docs may still use that brand in article titles. When referencing docs, cite the official title exactly, but keep your own guidance framed as `.NET backend` / `Kestrel backend`.
 
 ## Scope
 
@@ -308,7 +300,33 @@ Modern `.NET` AI slop has a recognizable smell:
 
 Ask one hard question: **does this code look designed, or merely assembled?** If it looks assembled, find the missing design decision.
 
+## Hard-won C# opinions
+
+Positions to state plainly when the code violates them. Each names its production consequence.
+
+- **`async void` is only legal in event handlers.** An exception in an `async void` method bypasses every catch block and crashes the process. Anywhere else it appears, it is a bug waiting for its input.
+- **Do not cargo-cult `ConfigureAwait(false)` in application code.** ASP.NET Core has no `SynchronizationContext`; it changes nothing there and buries the code in noise. It is required posture in general-purpose libraries only.
+- **Every `!` (null-forgiving operator) is a promise with no collateral.** Either the line earns a comment naming why null is impossible, or the types should be redesigned so the question doesn't arise. A codebase speckled with bare `!` has nullable reference types turned on and switched off at the same time.
+- **`record` is for DTOs, messages, and value objects — never EF entities.** Value equality and `with`-cloning fight change tracking and identity semantics; the bugs are silent and show up as phantom updates or missed ones.
+- **Primary constructors are DI plumbing, nothing more.** A captured constructor parameter is a mutable field wearing camouflage. Never assign to one after construction.
+- **Do not let lazy `IEnumerable<T>` escape a service boundary.** Deferred execution that outlives its `DbContext` is a runtime bomb, and every extra enumeration re-runs the query. Return `IReadOnlyList<T>` — materialize where the data source is still alive.
+- **Inject `TimeProvider`, never call `DateTime.Now` on a server.** Untestable time is untested time, and `Now` is a timezone bug that hasn't happened yet. `DateTimeOffset.UtcNow` is the floor; `TimeProvider` (.NET 8+) is the standard.
+- **Expected failures are return values, not exceptions.** `TryParse`, typed results, or domain errors for the paths you know about; exceptions for the paths you don't. An exception on a hot path is a performance and readability tax paid on every request.
+- **Lock on a dedicated `private readonly System.Threading.Lock` (.NET 9+) or plain object** — never `this`, a string, or a `Type`; all three are reachable by other code and deadlock at a distance.
+- **`#region` hides size instead of fixing it, and `dynamic` has no place in a backend.** Both are flags that a design decision was dodged. The same goes for nested ternaries — write the boring `if`.
+
+## Zoom out before you edit
+
+Sessions that skip this produce split-brain code (a second implementation of something that exists) and orphans (code whose last caller just left). Non-negotiable sequence for any change:
+
+1. **Before adding a function, type, or helper: search for it first.** `rg -i` the concept, not just the name you were about to pick. Extending what exists beats writing a sibling; a second implementation is a drift bug on a timer.
+2. **Read the whole file and its nearest callers before editing** — not just the lines you were pointed at. The bug you were shown is often a symptom of the shape around it.
+3. **After the change, grep the symbols you replaced.** Anything now unreferenced gets deleted in the same change, not left "for safety."
+4. **Say in one sentence where the change sits in the architecture** (which layer, which boundary it respects). If you cannot, you do not understand the change yet — stop and read more.
+
 ## Review Process
+
+Steps 1–3 always run. For steps 4–16, load a reference only when the code shows real signal in that category (the file types, packages, and grep hits tell you); a typical review touches five or six, not all sixteen. Do not pad findings to justify a loaded reference.
 
 1. **Version and host shape** → `references/modern-dotnet.md`
 2. **AI slop detection** → `references/ai-slop.md`

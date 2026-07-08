@@ -230,8 +230,7 @@ Build times >30s reported. Recommend extracting `DesignSystem` to a local SPM pa
 
 ### Recommended follow-up
 
-- Run `/swift-types` for state-and-types focused review.
-- Run `/swift-critique` for full anti-pattern sweep.
+- Run `/swift-critique` for the full anti-pattern sweep (its state-and-observation category covers state/typing depth).
 - If considering TCA migration, read `references/architecture.md` § TCA triggers carefully — your project doesn't fit the trigger profile yet.
 
 ## Output rules

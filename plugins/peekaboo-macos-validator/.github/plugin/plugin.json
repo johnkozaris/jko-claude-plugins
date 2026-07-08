@@ -1,9 +1,11 @@
 {
   "name": "peekaboo-macos-validator",
   "description": "macOS app UI automation and visual critique via Peekaboo. The macOS-native equivalent of Playwright + visual-regression review for any SwiftUI/AppKit app.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "MIT",
-  "author": { "name": "John Kozaris" },
+  "author": {
+    "name": "John Kozaris"
+  },
   "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
   "repository": "https://github.com/johnkozaris/jko-claude-plugins",
   "keywords": [

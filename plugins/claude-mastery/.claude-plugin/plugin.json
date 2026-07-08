@@ -1,7 +1,7 @@
 {
   "name": "claude-mastery",
-  "description": "Master guide for building with Claude Code — battle-tested patterns for agent design, skills, prompt caching, tool design, verification, workflows, and team patterns.",
-  "version": "1.0.0",
+  "description": "Master guide for building with Claude Code \u2014 battle-tested patterns for agent design, skills, prompt caching, tool design, verification, workflows, and team patterns.",
+  "version": "1.0.1",
   "license": "MIT",
   "author": {
     "name": "John Kozaris"

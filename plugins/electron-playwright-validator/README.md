@@ -37,7 +37,7 @@ claude plugin install /path/to/myClaudeSkills
 
 ## CLI Tool: e-cli
 
-The `bin/e-cli` script is automatically added to PATH when the plugin is enabled.
+The `bin/e-cli` script is **not** on PATH — invoke it via the plugin root: `"${CLAUDE_PLUGIN_ROOT}/bin/e-cli" <command>` (the skill instructs Claude to set `E_CLI="${CLAUDE_PLUGIN_ROOT}/bin/e-cli"` once per session). It resolves `electron` and `playwright` from the target project's own node_modules; nothing is installed globally.
 
 | Command | Description |
 |---------|-------------|

@@ -110,7 +110,7 @@ var body: some View {
 }
 ```
 
-`FormatStyle` is value-typed, zero-allocation per call, and 10× faster than `DateFormatter`. See `swift-idioms.md`.
+`FormatStyle` is value-typed and internally cached, so per-call cost is far below allocating a `DateFormatter` in `body` (one of the classic scroll-hitch causes). If the exact magnitude matters, measure it — do not quote a number. See `swift-idioms.md`.
 
 ### Allocations in body
 
@@ -144,16 +144,9 @@ private static let colorMap: [ItemKind: Color] = [.warning: .orange, .error: .re
 
 **Use `LazyVStack` when you need custom layout that `List` can't express.** Note: `LazyVStack` does *not* recycle — once a row is allocated, it stays in memory until the parent disappears. For very long lists, that adds up.
 
-**Use `ScrollView { VStack { ForEach { ... } } }` only for short, fixed-size lists** where you want all items pre-rendered (smooth scroll with no allocation hitches, but only viable for <50 items).
+**Use `ScrollView { VStack { ForEach { ... } } }` only for short, fixed-size lists** where you want all items pre-rendered (smooth scroll with no allocation hitches — viable only when the whole list comfortably fits in memory at once).
 
-Rough thresholds (always profile, never assume):
-
-| Item count | Container                  |
-| ---------- | -------------------------- |
-| < 20       | `VStack` is fine           |
-| 20 - 50    | `LazyVStack`               |
-| 50 - 500   | `LazyVStack` or `List`     |
-| 500+       | `List` (recycling matters) |
+Choose by behavior, not by a magic item count: a plain `VStack` when everything fits on roughly one screen; a lazy container as soon as the list scrolls meaningfully; `List` when the dataset is large or unbounded, because recycling is the only thing that caps memory. When it matters, profile with the SwiftUI Instruments template rather than guessing.
 
 For grids: `LazyVGrid` / `LazyHGrid` for moderate counts; consider `List` with a custom `listRowSeparator(.hidden)` + horizontal stack inside the row for very large grids.
 
@@ -233,9 +226,9 @@ struct ItemRow: View {
     let item: Item
     var isFavorite: Bool { store.favoriteIDs.contains(item.id) }
     var body: some View {
-        // ItemRow only registers a read on store.favoriteIDs
-        // When the set changes, only rows whose membership flipped re-render? — almost
-        // (the set's keypath is what's tracked, so any change to favoriteIDs invalidates all rows)
+        // ItemRow registers a read on store.favoriteIDs — the SET's keypath is
+        // what's tracked, so ANY change to favoriteIDs invalidates every row
+        // that reads it, not just the rows whose membership flipped.
     }
 }
 ```
@@ -248,7 +241,7 @@ See `state-and-observation.md` for the full deep dive.
 
 ## Avoid `AnyView`
 
-Type erasure forces SwiftUI to re-create the subtree on every render:
+Type erasure hides the concrete view type from SwiftUI's structural diffing, so identity can't be preserved across the erased boundary — state resets and needless re-renders follow, worst inside lists:
 
 ```swift
 // Bad
@@ -524,7 +517,7 @@ withAnimation(.smooth) {
 
 ## Redundant State Updates
 
-Setting `@State` to the same value still invalidates the dependency. Guard if the read is expensive downstream:
+SwiftUI skips invalidation when an `Equatable` `@State` value is written with an equal value — but that safety net does not cover reference types, non-`Equatable` values, or the cost of *computing* the redundant value in the first place. Guard when the computation or downstream reads are expensive:
 
 ```swift
 // Bad — sets state every loop, invalidates dependents every loop

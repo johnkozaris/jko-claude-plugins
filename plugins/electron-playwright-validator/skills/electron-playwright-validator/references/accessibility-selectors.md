@@ -74,11 +74,10 @@ text=Create new session
 text=Are you sure?
 ```
 
-**Matching rules:**
-- Case-sensitive by default
-- Matches substring unless exact-match syntax is used
-- `text="Sessions"` (with quotes inside) = exact match
-- `text=Sessions` (without inner quotes) = substring match
+**Matching rules (Playwright `text=` engine):**
+- `text=Sessions` (without inner quotes) = **case-insensitive substring** match, whitespace-trimmed
+- `text="Sessions"` (with quotes inside) = **case-sensitive exact** match
+- When in doubt, verify against the snapshot output rather than assuming
 
 ### Test ID Selectors
 
@@ -119,7 +118,7 @@ role=dialog >> role=button[name="Confirm"]
 
 Given this snapshot:
 ```
-WebArea "Kodosi"
+WebArea "MyApp"
   navigation "Main"
     tab "Sessions" pressed=true
     tab "Rooms"

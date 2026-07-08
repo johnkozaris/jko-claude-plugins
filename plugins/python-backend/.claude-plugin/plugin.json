@@ -1,7 +1,7 @@
 {
   "name": "python-backend",
   "description": "Python backend architecture for FastAPI with SQLAlchemy 2.0, Pydantic v2, and SOLID/hexagonal patterns",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "license": "MIT",
   "author": {
     "name": "John Kozaris"

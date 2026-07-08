@@ -65,9 +65,7 @@ struct CustomTabBar: View {
 <true/>
 ```
 
-Defers the new material for one OS cycle. Apple has indicated this flag is intended for debugging and migration and will be ignored in a future major Xcode/SDK release. The community commonly attributes that to Xcode 27 / iOS 27 SDK, but Apple has not published a specific deadline in writing — so treat it as "one-cycle escape, removal expected eventually."
-
-At iOS 26.0 launch (Sept 15, 2025), many of Apple's own pro and content apps shipped without Liquid Glass — including Pages, Numbers, Keynote, Final Cut Pro, iMovie, QuickTime Player, Pixelmator Pro, and Chess (AppleInsider, 2025-09-16). Most got updates in early 2026. Third-party adoption was uneven: WhatsApp delayed full glass adoption (WABetaInfo, Oct 2025); Telegram built its own glass-like design rather than Apple's; Spotify removed a glass icon effect. These observations are community-derived from visible UI behavior, not from Apple-announced opt-out lists — the `UIDesignRequiresCompatibility` flag is not directly observable outside an app.
+Defers the new material for one OS cycle. Apple has indicated this flag is intended for debugging and migration and will be ignored in a future major Xcode/SDK release. The community commonly attributes that to Xcode 27 / iOS 27 SDK, but Apple has not published a specific deadline in writing — so treat it as "one-cycle escape, removal expected eventually." (The launch-day evidence that Apple's own pro apps shipped this way is in the intro above.)
 
 ---
 
@@ -154,7 +152,7 @@ Button("Cancel") { dismiss() }
 ```swift
 .sheet(isPresented: $showSettings) {
     SettingsView()
-        // Required: declare at least one partial detent
+        // Partial detents opt the sheet into the new iOS 26 presentation styling
         .presentationDetents([.medium, .large])
         // DO NOT add .presentationBackground(.thinMaterial) — suppresses the new style
 }
@@ -189,7 +187,7 @@ Many Mac users run with Increase Contrast permanently. Test all three.
 
 ## Test on device
 
-Simulator doesn't render specular highlights or motion-reactive glass correctly. Always validate on hardware before shipping (Kavsoft).
+Simulator doesn't render specular highlights or motion-reactive glass correctly. Always validate on hardware before shipping.
 
 ---
 
@@ -197,13 +195,12 @@ Simulator doesn't render specular highlights or motion-reactive glass correctly.
 
 Apple shipped glass for BOTH SwiftUI AND UIKit. Most tutorials only document the SwiftUI form, but `UIGlassEffect` + `UIVisualEffectView` works in UIKit apps. Amperfy (1.5k stars, music app) uses this in production.
 
-`UIGlassEffect` has a parameterless initializer — the regular/clear distinction is SwiftUI-only. Configure via properties:
+The shape of the UIKit API (sketch — the exact property surface is under-documented; **verify against the SDK headers or sosumi.ai before citing specifics in a review**):
 
 ```swift
 let effect = UIGlassEffect()
-effect.tintColor = .systemBlue                      // optional, semantic tint
-effect.isInteractive = true                         // optional, opt into interactive
-effect.cornerConfiguration = .containerRelative     // optional, shape from container
+effect.tintColor = .systemBlue          // semantic tint
+effect.isInteractive = true             // opt into interactive
 let view = UIVisualEffectView(effect: effect)
 view.frame = bounds
 addSubview(view)
@@ -213,38 +210,14 @@ For grouping multiple glass elements in UIKit, use `UIGlassContainerEffect`. If 
 
 ---
 
-## Community sentiment (honest snapshot)
+## Community sentiment — the verdict that matters for reviews
 
-Reception is **platform-split**: iOS mixed-to-positive, macOS substantially negative. The plugin presents both sides because the right call depends on what platform you're shipping to and what kind of app you're building.
+Reception is **platform-split**, and the split is what changes your advice:
 
-### Pro-glass positions
+- **On iOS**: mixed-to-positive. Even the loudest skeptic camp concedes the iOS implementation is good — Daring Fireball's 2025 Apple Report Card gave iOS 26 an A ("Apple's best implementation of the Liquid Glass concept, by far") while giving macOS Tahoe a C and calling it a historic regression. Apple's iOS-first apps (Messages, Photos, Music, Camera) shipped glass and have not reverted. Defaulting to Path A is fine.
+- **On macOS**: substantially negative among the named Mac critic blogs (Daring Fireball, inessential.com, lapcatsoftware), with specific legibility complaints, and even glass-critical developers who eventually adopted it (NetNewsWire) did so reluctantly. For a Mac-first app, take Path C seriously and don't apologize.
 
-- **MacStories** has framed glass as a generational redesign worth riding: only Apple is positioned to build a real-time material rendering system at this fidelity.
-- **Apple's NYC design lab** — community reporting after attending Apple's design conversations indicates Apple was "genuinely shocked some devs think it's getting rolled back" and confirmed glass is the long-term direction. They framed it as an "iOS 7-style reset where foundational stability came first."
-- **iOS user testing** generally: most users do not notice the material as a problem. The "users hate this" frame does not show up in App Store reviews of major adopters.
-- **Hacker News and other community channels** carry roughly even numbers of positive and negative iPhone-specific reactions ("honestly a joy to use… delightful" appears regularly).
-- **Apple's own iOS-first apps** (Messages, Photos, Music, Camera) shipped glass and have not reverted.
-
-### Anti-glass positions
-
-- **Daring Fireball's 2025 Apple Report Card**: gave Mac a C grade and called macOS Tahoe "the worst regression in the entire history of MacOS." The author refused to install Tahoe on his own machine. Crucially, the same report gave iOS 26 an A and called it "Apple's best implementation of the Liquid Glass concept, by far... I prefer it, in just about every way, to iOS 18." The position is platform-split, not blanket anti-glass.
-- **inessential.com** (the NetNewsWire developer's blog): "Liquid Glass is Liquid-Glass-centric... blurry, illegible, and physically unstable." NetNewsWire 7 eventually shipped glass and the author called it "cool" — anti in principle, pro in adoption.
-- A widely-shared industry critique: "It doesn't get out of the way of your content — it INVADES your content."
-- Another: "perhaps the most getting-in-the-way user interface I've experienced in my lifetime. It never shuts up."
-- **lapcatsoftware** posts call it "Liquid Crass" and document specific legibility regressions.
-- A Mac-focused indie shop reported: "We've had zero customers request to adopt Liquid Glass for any of our Mac apps."
-
-### Reddit testimony (collected via direct curl with a browser User-Agent)
-
-- "Forcing the user to scroll the main content out of the way so they can read the tab bar is a horrible indictment of the core Liquid Glass usability problem."
-- "Apple's screenshots of their notification screen with liquid glass looks impossible to read."
-- "I have to use my custom tab bar."
-- "It's been week+ since full version of iOS got released but absolutely none of the apps I use has any liquid glass in it."
-
-### Net read
-
-- **On iOS**, criticism is loud but adoption is moving forward and even prominent skeptics concede the iOS implementation is good. Defaulting to Path A (selective) is fine.
-- **On Mac**, criticism is broad and named. If you're shipping a Mac-first app, take Path C seriously and don't apologize. If you're shipping iOS, the critic camp may not match your users.
+When a developer asks "is Liquid Glass hated?", give the platform-split answer, not a blanket one — and note that user-facing App Store reviews of major adopters do not show the developer-community criticism.
 
 ---
 

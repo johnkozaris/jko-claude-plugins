@@ -1,21 +1,13 @@
 ---
 name: swiftui-expert
-description: This skill should be used when the user is building, reviewing, or debugging SwiftUI/Swift code for iOS, macOS, or visionOS apps. It detects the project's iOS and Swift version and covers MV architecture (no per-screen ViewModels by default), @Observable state, NavigationStack typed routes, view lifecycle, Approachable Concurrency, persistence with SwiftData / Core Data / SQLiteData / GRDB, design tokens, selective Liquid Glass adoption, iOS native capabilities (App Intents, Widgets, Live Activities, Privacy Manifest), macOS native capabilities (main menu, MenuBarExtra, sandbox, notarytool, Sparkle, AppKit interop), accessibility audits, performance with Instruments SwiftUI, and testing with Swift Testing. Trigger phrases include "create a SwiftUI list view", "review my SwiftUI code", "critique my SwiftUI", "my @State isn't updating", "set up navigation", "make this accessible", "optimize SwiftUI performance", "should I adopt Liquid Glass", "fix my Swift concurrency warning", "set up SwiftData with versioned schema", "structure my project folders", "what should App.swift own", "how do I theme this", "switch from ObservableObject to @Observable", "should I use MVVM in SwiftUI", "do I need TCA", "AppKit or SwiftUI for my Mac app", "what permissions do I need", "build a menu bar Mac app", "validate my macOS app", "validate my iOS app", and "find dead code".
+description: This skill should be used when the user is building, reviewing, or debugging SwiftUI/Swift code for iOS, macOS, or visionOS apps. It detects the project's iOS and Swift version and covers MV architecture (no per-screen ViewModels by default), @Observable state, NavigationStack typed routes, view lifecycle, Approachable Concurrency, persistence (SwiftData / Core Data / SQLiteData / GRDB), design tokens, selective Liquid Glass adoption, iOS and macOS platform capabilities, accessibility, performance with Instruments SwiftUI, and Swift Testing. Trigger phrases include "review my SwiftUI code", "my @State isn't updating", "should I adopt Liquid Glass", "fix my Swift concurrency warning", "set up SwiftData", "what should App.swift own", "ObservableObject to @Observable", "should I use MVVM in SwiftUI", "do I need TCA", and "AppKit or SwiftUI for my Mac app". For driving/screenshotting a RUNNING app use the peekaboo validator; for dead-code hunts use the dead-code plugin.
 ---
 
 # SwiftUI Expert
 
-This skill helps you review and write SwiftUI / Swift code for iOS, macOS, and visionOS apps. It is read by AI consumers and by humans, and the writing tries to work for both: clear sentences, named tradeoffs, and a default position whenever the evidence supports one.
+This skill reviews and writes SwiftUI / Swift code for iOS, macOS, and visionOS apps.
 
-Two principles run through everything below.
-
-**Take a position when the evidence lines up.** Apple's docs, the modern SwiftUI teaching community, the Reddit consensus, and the popular open-source codebases (IceCubesApp, IcySky, Backyard Birds, NetNewsWire, CotEditor) agree on the modern defaults more often than people pretend. When they do, state the rule and move on. Hedging with "you could consider" produces inconsistent codebases — and AI consumers asked to apply hedged advice produce contradictory critiques across files.
-
-**Say "I don't know" when you don't.** If you are unsure whether a specific API exists, whether a deprecation date is right, whether a Feedback ticket number is real, or whether a deployment target supports a feature — say so. Recommend that the developer check `developer.apple.com`, look at the actual SDK headers, run the failing test, or open Xcode and try the API. Do not invent fake API names, made-up deprecation dates, fictional ticket numbers, or arbitrary thresholds like "twenty-plus screens" to look authoritative. Confident-sounding inventions are the worst possible advice — they propagate into real code and waste real time.
-
-Be honest about what was checked. Some of the load-bearing claims in this skill have been verified directly against Apple docs and against the IceCubesApp source on `main` — the Liquid Glass SwiftUI surface, the Privacy Manifest dates, the `notarytool` cutover, the `@AppStorage` + `@Observable` workaround. Others — community testimonials, Reddit consensus, named-author critiques, smaller WWDC session attributions — come from research summaries and were not all individually fact-checked. Treat any version-specific or named-attribution claim as a starting point and re-verify before quoting it in a production critique. New APIs ship every Xcode release.
-
-When the answer genuinely depends on context, describe what you actually see in the code rather than inventing a threshold. "Your build times have grown past the point where a flat target keeps up" is more useful than "you have crossed thirty thousand lines of code." Qualitative triggers tied to real pain are how decisions actually get made.
+**Take a position when the evidence lines up.** Apple's docs, the modern SwiftUI teaching community, and the popular open-source codebases (IceCubesApp, IcySky, Backyard Birds, NetNewsWire, CotEditor) agree on the modern defaults more often than people pretend. When they do, state the rule and move on — hedged advice applied across many files produces contradictory critiques.
 
 ## Default targets
 
@@ -29,19 +21,16 @@ The rules below are defaults for new code. For legacy code, recommend changes on
 
 Where a project consistently uses one pattern across all its files (say, `ObservableObject` everywhere on an iOS 16 target), note the migration suggestion once at the project level. Do not flag every instance individually — that produces noise instead of insight.
 
-## When you do not know, say so
+## Don't invent — look it up
 
-This is the meta-rule that everything else depends on. Most of what an AI reviewer gets wrong comes from sounding confident about a thing it has not verified — inventing a Feedback ticket number, citing a deprecation date that does not exist, naming an API that turned out to be a Swift-side name for a UIKit-side concept that does not work the same way. Once those inventions land in someone's code, they cost real time to unwind.
+Most of what an AI reviewer gets wrong comes from sounding confident about a thing it has not verified: an invented Feedback ticket number, a deprecation date that does not exist, an API name that is really a UIKit concept wearing a Swift name. The rule is not "be careful" — it is **use a lookup before asserting**:
 
-Three habits stop this.
+- **`sosumi.ai` serves Apple developer docs as plain Markdown** (Apple's own pages are JS-rendered and unreadable to most tooling). Fetch the API's page before citing its availability or signature.
+- **Check the project's actual deployment target** (`Package.swift`, build settings, `Info.plist`) before recommending any version-gated API.
+- When you cannot verify a load-bearing claim, keep the finding but soften the precision and say how the developer can verify it ("check the iOS 26 SDK headers for this initializer"). "Available since iOS 25.3" with no source is worse than "verify availability" even when it happens to be right.
+- Do not invent numerical thresholds (line counts, screen counts) to give qualitative advice a fake spine. Describe the pain that triggers the decision — build times, project-file merge conflicts, hires lost in the folder structure — and let the developer match it.
 
-First, when an API name, a deprecation, or a version requirement is load-bearing for the recommendation, name your source. "Apple's `View.glassEffect(_:in:)` page on developer.apple.com" is verifiable. "I recall this from a blog post" is a hedge that should make you double-check before publishing.
-
-Second, when you are not sure, write that out instead of inventing precision. "I do not know whether this API exists in iOS 25 — check the SDK before relying on it" is genuinely helpful. "Available since iOS 25.3" with no source is misleading even when it happens to be right.
-
-Third, do not invent numerical thresholds to give qualitative advice a fake spine. Decisions like "should we modularize" or "should we adopt TCA" depend on whether the team is in pain, not on whether the project has crossed a specific line count. Describe the pain (long build times, project-file merge conflicts, hires struggling to find feature boundaries) and let the developer decide whether their situation matches.
-
-Apply the same standard in your output: when a finding rests on a precise claim you cannot verify, soften the precision (not the finding) and tell the developer how to verify it.
+Some load-bearing claims in this skill were verified against Apple docs and IceCubesApp `main` (the Liquid Glass surface, Privacy Manifest dates, the `notarytool` cutover, the `@AppStorage` + `@Observable` workaround); community-attributed claims were not all individually fact-checked — re-verify before quoting them in a production critique.
 
 ## The five non-negotiables
 
@@ -221,8 +210,6 @@ A few smaller patterns are worth mentioning when relevant.
 
 **Liquid Glass also exists in UIKit.** Apple shipped `UIGlassEffect` and `UIGlassContainerEffect` for UIKit alongside the SwiftUI surface. Amperfy (a music app, around 1.5k stars) uses the UIKit form in production. UIKit-majority apps do not need to bridge to SwiftUI just for glass.
 
-**`sosumi.ai` serves Apple developer docs as Markdown.** Apple's docs are JavaScript-rendered and invisible to most LLM-based tooling. `sosumi.ai` proxies them as plain Markdown — useful when you are working with an AI assistant that needs to read Apple's source material directly.
-
 **AppKit is alive at scale.** When critique surfaces "this Mac app uses too much AppKit," check whether the AppKit usage is solving a real SwiftUI gap before recommending a rewrite.
 
 **CocoaPods is not dead.** AltStore and other large active repos still use it. Do not flag a `Podfile` as legacy unless the project is actively migrating to SPM.
@@ -272,6 +259,34 @@ Path A (selective glass on your own chrome) is the default for roughly nine out 
 Default to a flat target. Modularize into local SPM packages when project-file merge conflicts become routine, when build times start to hurt iteration, when feature boundaries have stabilized and you can name them confidently, or when widget / watch / share-extension targets need to consume the same code. Do not modularize a solo project or a POC where the boundaries are still in flux — the cross-package edit cost burns more time than the modularization saves.
 
 The bottom-up extraction order is `DesignSystem` first (no app dependencies), then `Networking`, then per-feature packages once feature boundaries are stable.
+
+## Hard-won Swift opinions
+
+Positions to state plainly when code violates them, each with its consequence.
+
+- **`!`, `try!`, and implicitly-unwrapped optionals are for tests and provably-impossible states with a comment.** In app code, a force-unwrap is a crash report with a date TBD; `guard let` with a real fallback is the default.
+- **Blanket `[weak self]` is cargo cult.** It belongs in *stored*, long-lived closures where a retain cycle is real. A `.task` body or a short-lived completion handler doesn't need it — and the `guard let self else { return }` dance it forces can silently skip work.
+- **"The compiler is unable to type-check this expression in reasonable time" is a design signal, not a compiler bug.** Break the body into smaller `View` structs and typed sub-expressions; do not fight it with more nesting.
+- **Structs by default; a class is a claim about identity.** Shared `@Observable` state objects are the legitimate class case — that is not a license for class-first design elsewhere.
+- **Never do date math with `86_400`.** DST days are 23 or 25 hours long; use `Calendar.date(byAdding:)`. This bug ships constantly and only fires twice a year.
+- **Prefer `some` over `any`.** Existentials cost dynamic dispatch and break type inference; reach for `any` only for genuinely heterogeneous storage.
+- **Enums with associated values beat boolean blizzards.** Three `Bool` parameters describing one state is an illegal-states-representable bug waiting to be written.
+- **Codable needs a fixture test.** Optional fields decode to `nil` on a key mismatch without any error — a decode test against real server JSON is the only thing that catches it.
+- **`GeometryReader` is a measurement tool, not a layout system.** Wrapping content in it destroys intrinsic sizing (it greedily takes all proposed space) and is the classic cause of "why is my view suddenly full-screen." Prefer `containerRelativeFrame`, alignment guides, or `onGeometryChange` for reading sizes; reach for `GeometryReader` only when you truly need proposal-driven layout.
+- **A `body` should read as layout, not logic.** Inline multi-line closures doing networking or state machines inside a `Button` action are the SwiftUI god-function. Extract intent methods (`func addTapped()`) so the body stays declarative and the logic becomes testable.
+- **Magic numbers are design-token debt.** `.padding(13)` and `Color(red: 0.94, ...)` scattered through views drift apart within weeks. Numbers and colors used more than once get a token; screens built from tokens can be re-themed in one file.
+- **Every view ships a `#Preview` with realistic data.** Previews are executable documentation and the fastest feedback loop in the toolchain; a view without one is a view nobody can safely edit. Empty-state and long-text variants catch most layout bugs before any simulator launch.
+- **`ZStack` + manual offsets is usually alignment guides not yet learned.** Hand-tuned `.offset(x: 3, y: -7)` breaks with Dynamic Type and localization; custom alignment guides express the actual relationship and survive both.
+
+## Zoom out before you edit
+
+Sessions that skip this produce split-brain code (a second formatter, a second theme constant, a second date helper) and orphaned views. Non-negotiable sequence for any change:
+
+1. **Before adding a view, modifier, or helper: search for an existing one** — `rg -i` the concept across the target and the design-system module. A second implementation drifts from the first; that's a visual inconsistency bug on a timer.
+2. **Read the whole file and the parent view before editing**, not just the flagged lines — state ownership problems upstream are usually the cause of the symptom downstream.
+3. **After the change, grep the symbols you replaced** and delete what is now unreferenced in the same change.
+4. **Say in one sentence where the change sits** (which feature, which layer, who owns the state it reads). If you can't, read more before editing.
+5. **Verification is evidence, not assertion.** A build/test run with its output shown is verification; "verified" without output is not. If you could not run the app, write "compiles, not exercised" — never imply a runtime check you didn't perform.
 
 ## Review process — the rubric
 

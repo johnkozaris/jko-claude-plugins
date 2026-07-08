@@ -45,7 +45,7 @@ Use what the project's Python version offers. Don't push a 3.14 feature onto a 3
 ### Python 3.13 (Oct 2024)
 - `typing.TypeIs` (PEP 742): prefer over `TypeGuard`. Narrows in both branches.
 - `typing.ReadOnly` for `TypedDict` keys (PEP 705).
-- TypeVar defaults (PEP 696): `type T = TypeVar("T", default=str)`.
+- TypeVar defaults (PEP 696): `class C[T = str]` with PEP 695 syntax, or `TypeVar("T", default=str)` classic-style.
 - 19 stdlib modules removed (PEP 594): `cgi`, `crypt`, `telnetlib`, `nntplib`, ...
 - Experimental free-threaded build and JIT (both opt-in).
 - New REPL with multiline editing.

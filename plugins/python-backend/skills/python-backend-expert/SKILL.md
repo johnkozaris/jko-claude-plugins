@@ -1,6 +1,6 @@
 ---
 name: python-backend-expert
-description: Activates when the user is writing, reviewing, debugging, or architecting Python code that runs as a service (FastAPI + SQLAlchemy 2.0 + Pydantic v2 backend) or as a long-running process (worker, batch ETL, CLI tool, daemon, scheduled job). Assumes Python 3.13+ (often 3.14+). Detects the project's installed libraries from `pyproject.toml`/`uv.lock` and adapts. Covers async correctness, dependency injection with `Annotated[T, Depends]`, Pydantic v2, SQLAlchemy 2.0 async (N+1, MissingGreenlet, pool config), backend lifecycle (startup, graceful shutdown, idempotency), runtime process concerns (signals, subprocess, atomic file writes, multiprocessing, file locking, CLI), domain/module project structure, validation strategy, error handling, testing, the top 20 AI-generated anti-patterns, and timeless pure-Python idioms. Use when the user asks "critique my FastAPI backend", "review this router", "fix my SQLAlchemy query", "why am I getting MissingGreenlet", "structure my FastAPI project", "is this blocking the event loop", "review my Pydantic models", "set up a FastAPI project", "fix my async code", "should this route be async or sync", "review my dependencies", "design my service layer", "fix N+1 query", "review my startup or shutdown", "review my idempotency", "write a Python worker", "review my CLI", "set up multiprocessing", "subprocess deadlock", "process keeps growing in memory", or "review my Python style".
+description: This skill should be used when the user is writing, reviewing, debugging, or architecting Python backend services (FastAPI + SQLAlchemy 2.0 async + Pydantic v2) or long-running runtime processes (workers, ETL, daemons, CLI tools). Assumes Python 3.13+/3.14; detects installed libraries from pyproject.toml/uv.lock and adapts. Covers async correctness, dependency injection with Annotated[T, Depends], N+1 and MissingGreenlet, lifecycle and graceful shutdown, signals/subprocess/atomic writes, project structure, validation, testing, and AI-generated anti-patterns. Trigger phrases include "critique my FastAPI backend", "why am I getting MissingGreenlet", "is this blocking the event loop", "fix N+1 query", "structure my FastAPI project", "review my Pydantic models", "write a Python worker", "subprocess deadlock", and "process keeps growing in memory". Not for Django or Flask apps, notebooks, or data-science scripts — those stacks have different idioms this skill would misapply.
 ---
 
 This skill guides expert Python development for two project shapes: **web backends** (FastAPI + SQLAlchemy 2.0 + Pydantic v2) and **runtime processes** (workers, CLIs, ETL, daemons, scheduled jobs). The patterns differ; classify the project first, apply the right subset.
@@ -148,7 +148,7 @@ src/
 
 **DO**: Use the `lifespan` async context manager for startup/shutdown. `@app.on_event("startup")` is deprecated. Yield shared resources as typed lifespan state.
 **DO**: Install `uvicorn[standard]` (uvloop + httptools). It's the production default; alternatives are only worth evaluating if you've measured Uvicorn as the bottleneck.
-**DO**: Return a typed Pydantic model from your route. FastAPI 0.130+ Rust-serializes via pydantic-core. `ORJSONResponse`/`UJSONResponse` are deprecated as of 0.131.
+**DO**: Return a typed Pydantic model from your route. FastAPI 0.130+ Rust-serializes via pydantic-core (fastapi/fastapi#14962). `ORJSONResponse`/`UJSONResponse` are deprecated as of 0.131.
 **DO**: Use **PyJWT** for tokens, **pwdlib** (Argon2 default) or **argon2-cffi** for passwords. FastAPI's tutorial moved off `python-jose` long ago; `passlib` broke on Python 3.13.
 **DO**: Separate **liveness** (trivial) from **readiness** (touches the DB). Otherwise a slow DB kills healthy pods.
 **DO**: Set `terminationGracePeriodSeconds ≥ uvicorn --timeout-graceful-shutdown`. Otherwise SIGKILL mid-drain → 5xx spike on every deploy.
@@ -215,7 +215,27 @@ These are not yet stable as of 3.14. Use the workaround; don't recommend the new
 - **`ty` (Astral type checker)**: Beta, fast, but not yet a drop-in replacement for mypy/pyright on large codebases. Keep mypy or pyright as the conservative default.
 - **PEP 810 lazy imports**: accepted, shipping in 3.15. Until then, use manual function-local imports for heavy optional deps.
 - **`InterpreterPoolExecutor` (PEP 734, 3.14)**: works, but third-party C extensions are mostly not yet subinterpreter-safe. Stick with `ProcessPoolExecutor` for shipped CPU work.
-- **`httpx2` (Pydantic team's continuation of `httpx`)**: real and active, but `httpx` is still installed everywhere. Don't recommend migration without need.
+- **`httpx2` (Pydantic's stewardship continuation of `httpx`, github.com/pydantic/httpx2)**: real and active — same API, new package/import name — but `httpx` is still installed everywhere. Don't recommend migration without need.
+
+## Hard-won opinions the references don't repeat
+
+- **`def f(items: list = [])` is the oldest bug in Python and it still ships weekly.** The default is evaluated once at import; every call shares the list. `None` sentinel + `items = items or []` (or `[]` inline via `field(default_factory=...)` in dataclasses).
+- **`except Exception: pass` is data loss wearing a seatbelt.** The narrowest exception you can name, or at minimum `logger.exception(...)` before any suppression. A bare `except:` also eats `KeyboardInterrupt`/`SystemExit` — never.
+- **`assert` is not runtime validation.** `python -O` strips every assert in the process; an "assert-validated" boundary is unvalidated in any deployment that sets -O. Asserts state internal invariants; boundaries raise real exceptions or use Pydantic.
+- **Never shadow builtins.** `list`, `dict`, `id`, `type`, `input` as variable names each break something subtle later in the same scope — and `id` as a parameter name is endemic in route handlers.
+- **Threads don't speed up CPU-bound Python.** Under the GIL, threads buy you concurrency for I/O only; for CPU use processes (or a measured 3.14 free-threaded build). A `ThreadPoolExecutor` around numpy-less number crunching is a no-op with overhead.
+- **`requests` inside `async def` freezes the event loop** — one of the most common review finds. `httpx`/`httpx2` async client, created once at lifespan, never per-request.
+- **Import-time side effects are a testing tax.** Module-level DB connections, settings reads, and network calls make every import a deployment event. Construct at lifespan/entry-point, import stays free.
+
+## Zoom out before you edit
+
+Sessions that skip this produce split-brain code (a second `utils.parse_date`, a second settings loader) and orphans. Non-negotiable sequence for any change:
+
+1. **Before adding a function, model, or helper: search for an existing one** (`rg -i` the concept — check `utils/`, `common/`, the service layer). A second implementation is a drift bug on a timer.
+2. **Read the whole module and its callers before editing**, not just the flagged lines.
+3. **After the change, grep the old symbol names** and delete anything now unreferenced in the same change.
+4. **Say in one sentence where the change sits** (router / service / domain / infra). If you can't name the layer, read more first.
+5. **Verification is output, not assertion.** Paste the `pytest` / `ruff` / `py_compile` output; "verified" without command output is not verification. If you didn't run it, write "unverified."
 
 ## Review Process
 
@@ -245,5 +265,4 @@ Label every finding:
 
 Group findings by file. For each: file path and line, severity label, the rule or anti-pattern ID, **WHY it matters** (the concrete consequence), and a before/after block when the fix isn't obvious. Skip clean files. End with a prioritized summary.
 
-Be direct. Be specific (line 42 of routers/posts.py, not "some routes"). Say what's wrong and why. Prioritize ruthlessly: if everything is important, nothing is. Verify patterns exist in the project's actual versions before recommending them. Pair every fix with how to verify it worked (the test that should now pass, the load behavior that should now hold).
-behavior that should now hold).
+Be direct. Be specific (line 42 of routers/posts.py, not "some routes"). Say what's wrong and why. Prioritize ruthlessly: if everything is important, nothing is. Verify patterns exist in the project's actual versions before recommending them. Pair every fix with how to verify it worked (the test that should now pass, the load behavior that should now hold). Verification means running the check and showing its output — a claim of "verified" without command output in the transcript is not verification.

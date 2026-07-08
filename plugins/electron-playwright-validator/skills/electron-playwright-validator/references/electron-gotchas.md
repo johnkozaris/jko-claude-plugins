@@ -6,7 +6,7 @@ Common pitfalls when automating Electron apps with `e-cli` and Playwright CDP.
 
 ### Lazy-loaded views
 
-Kodosi (and many Electron apps) uses `React.lazy()` with `createResettableLazyComponent` for view loading. When you click a tab, the view component loads asynchronously. The accessibility tree will briefly show a skeleton/loading state before the actual content appears.
+Many Electron apps use `React.lazy()` (or equivalent code-splitting) for view loading. When you click a tab, the view component loads asynchronously. The accessibility tree will briefly show a skeleton/loading state before the actual content appears.
 
 **Pattern:** Always wait for a landmark element in the new view before snapshotting:
 ```bash
@@ -32,9 +32,9 @@ e-cli wait 'role=navigation' 15000    # wait for nav to render
 
 ### Store hydration
 
-Runtime stores (`auth`, `runtime`, `catalog`, etc.) are populated asynchronously from the Rust sidecar via IPC events. UI elements that depend on store data may not render immediately.
+State stores (Zustand/Redux/etc.) are often populated asynchronously via IPC events from the main process or a backend sidecar. UI elements that depend on store data may not render immediately.
 
-If the sidecar is not available (common in test/validation scenarios), some features will be empty or show fallback states. This is expected — validate the UI chrome, not the data.
+If the backing service is not available (common in test/validation scenarios), some features will be empty or show fallback states. This is expected — validate the UI chrome, not the data.
 
 ## xterm.js Terminal
 
@@ -66,10 +66,10 @@ e-cli press 'Meta+n'              # now the app shortcut works
 
 ### Checking bridge availability
 
-The preload script exposes `window.api` via `contextBridge`. Verify it's loaded:
+Preload scripts conventionally expose a bridge object (often `window.api` — grep the project's preload script for the actual `contextBridge.exposeInMainWorld` name). Verify it's loaded:
 ```bash
 e-cli eval "typeof window.api"                    # should be "object"
-e-cli eval "Object.keys(window.api).length"       # should be ~70
+e-cli eval "Object.keys(window.api ?? {}).length" # > 0 when the bridge loaded
 ```
 
 ### IPC calls in eval
@@ -84,13 +84,13 @@ But be cautious — some methods require the sidecar to be running and will thro
 
 ## Multiple Windows
 
-### Main vs Intel window
+### Main vs auxiliary windows
 
-Kodosi has two windows:
-- **Main window** — `index.html` → AppShell (the primary UI)
-- **Intel window** — `intel.html` → IntelWindowShell (agent intelligence)
+Apps with multiple BrowserWindows (splash screens, settings panels, tool palettes) expose one CDP page per window. By default `e-cli` picks the first page. To skip auxiliary windows, set `E_CLI_EXCLUDE_URL` to comma-separated URL substrings before launching:
 
-`e-cli` automatically targets the main window by filtering out pages with `intel.html` in their URL. You don't need to specify which window.
+```bash
+E_CLI_EXCLUDE_URL="splash.html,settings.html" "$E_CLI" launch
+```
 
 ### Window not found
 
@@ -128,30 +128,19 @@ e-cli launch                    # restart
 
 ## Build Issues
 
-### out/main/index.js not found
+### Main entry not found
 
-`e-cli launch` auto-builds via `npx electron-vite build` if the output is missing. But if the build fails (TypeScript errors, missing deps), the launch will fail with a clear message.
+`e-cli launch` resolves the main entry from package.json `"main"` (falling back to `out/main/index.js`) and auto-builds if it is missing — using `E_CLI_BUILD_CMD` if set, else the project's own `build` script via its package manager, else `npx electron-vite build`. If the build fails (TypeScript errors, missing deps), the launch fails with the build error.
 
-Fix build errors first:
-```bash
-npx electron-vite build         # see the actual error
-# fix the issue
-e-cli launch                    # try again
-```
+Fix build errors first by running the project's build directly (e.g. `pnpm build`), then `e-cli launch` again.
 
 ### Stale build
 
-`e-cli launch` does NOT rebuild if `out/main/index.js` already exists. If you've made changes and want to test the latest code:
+`e-cli launch` does NOT rebuild if the main entry already exists. If you've made changes and want to test the latest code:
 ```bash
-e-cli close                           # stop current app
-npx electron-vite build               # rebuild
-e-cli launch                          # launch fresh
-```
-
-Or delete the output:
-```bash
-rm -rf out/
-e-cli launch                          # will auto-build
+"$E_CLI" close                        # stop current app
+pnpm build                            # rebuild (or the project's build command)
+"$E_CLI" launch                       # launch fresh
 ```
 
 ## NODE_ENV
