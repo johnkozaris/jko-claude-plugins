@@ -11,7 +11,7 @@ Every check here corresponds to a bug found in a real review of this repo:
   5. Private project names leaking into plugin content
   6. Empty hooks.json stubs
   7. Slash-command references to command files that don't exist (e.g. a
-     deleted command still cited in a README or reference)
+     deleted command still cited in the root README or a plugin reference)
 
 Exit code 0 = clean, 1 = findings. Output is the evidence.
 """
@@ -172,7 +172,8 @@ def check_command_references() -> None:
         + "|".join(map(re.escape, prefixes))
         + r")-[a-z0-9-]+)\b"
     )
-    for f in PLUGINS.rglob("*.md"):
+    docs = [ROOT / "README.md", *PLUGINS.rglob("*.md")]
+    for f in sorted(docs):
         for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
             for m in cmd_re.finditer(line):
                 name = m.group(1)

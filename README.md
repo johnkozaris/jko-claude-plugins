@@ -4,8 +4,8 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/plugins-7-orange" alt="Plugins: 7">
-  <img src="https://img.shields.io/badge/commands-21-green" alt="Commands: 21">
+  <img src="https://img.shields.io/badge/plugins-12-orange" alt="Plugins: 12">
+  <img src="https://img.shields.io/badge/commands-34-green" alt="Commands: 34">
 </p>
 
 These are the guidelines and patterns I use across my projects. They help coding agents review code, catch mistakes, and stay consistent with how I actually want things built. Each plugin covers a stack I work in.
@@ -23,16 +23,20 @@ Skills use the shared [Agent Skills specification](https://developers.openai.com
 
 ## Plugins
 
-| Plugin                                                            | Skill            | Cmds | What it covers                                                                    |
-| ----------------------------------------------------------------- | ---------------- | :--: | --------------------------------------------------------------------------------- |
-| **[rust](plugins/rust/)**                                         | `rust`           |  5   | Ownership, async, unsafe, error handling, type design, anti-patterns              |
-| **[esp32-cpp](plugins/esp32-cpp/)**                               | `esp32`          |  4   | FreeRTOS, ESP-IDF/PlatformIO, peripherals, memory, all ESP32 variants             |
-| **[python-backend](plugins/python-backend/)**                     | `python-backend` |  3   | Litestar, FastAPI, SQLAlchemy, hexagonal architecture, async patterns             |
-| **[dotnet-backend](plugins/dotnet-backend/)**                     | `dotnet-backend` |  4   | Pure .NET 10 backend review for Kestrel hosting, REST, SignalR, EF Core, and DI   |
-| **[swiftui](plugins/swiftui/)**                                   | `swiftui`        |  1   | iOS/macOS/visionOS patterns, Liquid Glass, accessibility                          |
-| **[dead-code](plugins/dead-code/)**                               | `dead-code`      |  2   | Unused imports, functions, classes, duplicates, any language                      |
-| **[peekaboo-macos-validator](plugins/peekaboo-macos-validator/)** | `peekaboo`       |  2   | Drive any SwiftUI/AppKit app via Peekaboo; agent reads pixels itself (no AI keys) |
-| **[seam-probe](plugins/seam-probe/)**                             | `seam-probe`     |  1   | Generic NDJSON probe for FFI dylibs and Unix-domain sockets; manifest-driven      |
+| Plugin                                                                          | Skill                            | Cmds | What it covers                                                                    |
+| ------------------------------------------------------------------------------- | -------------------------------- | :--: | --------------------------------------------------------------------------------- |
+| **[rust](plugins/rust/)**                                                       | `rust-expert`                    |  5   | Ownership, async, unsafe, error handling, type design, architecture               |
+| **[esp32-cpp](plugins/esp32-cpp/)**                                             | `esp32-expert`                   |  4   | FreeRTOS, ESP-IDF/PlatformIO, peripherals, memory, all ESP32 variants             |
+| **[python-backend](plugins/python-backend/)**                                   | `python-backend-expert`          |  3   | FastAPI, SQLAlchemy, Pydantic, backend runtimes, and async patterns               |
+| **[dotnet-backend](plugins/dotnet-backend/)**                                   | `dotnet-backend-expert`          |  4   | Pure .NET 10 backend review for Kestrel hosting, REST, SignalR, EF Core, and DI   |
+| **[swiftui](plugins/swiftui/)**                                                 | `swiftui-expert`                 |  5   | iOS/macOS/visionOS patterns, Liquid Glass, architecture, and accessibility        |
+| **[dead-code](plugins/dead-code/)**                                             | `dead-code-expert`               |  2   | Unused code, duplicates, split-brain implementations, and dead infrastructure     |
+| **[backend-validator](plugins/backend-validator/)**                             | `backend-validation`             |  3   | Authenticated HTTP and WebSocket validation with Hurl, websocat, and oauth2c      |
+| **[maestro-mobile-validator](plugins/maestro-mobile-validator/)**               | `mobile-flows-maestro`           |  1   | iOS and Android validation with Maestro flows and simulator management            |
+| **[electron-playwright-validator](plugins/electron-playwright-validator/)**     | `electron-playwright-validator`  |  1   | Persistent Electron UI validation through Playwright and CDP                      |
+| **[peekaboo-macos-validator](plugins/peekaboo-macos-validator/)**               | `peekaboo`                       |  2   | Drive any SwiftUI/AppKit app via Peekaboo; agent reads pixels itself (no AI keys) |
+| **[seam-probe](plugins/seam-probe/)**                                           | `seam-probe`                     |  1   | Generic NDJSON probe for FFI dylibs and Unix-domain sockets; manifest-driven      |
+| **[claude-mastery](plugins/claude-mastery/)**                                   | `claude-mastery-expert`          |  3   | Claude Code agent, skill, tool, verification, and workflow design                 |
 
 ## Install
 
@@ -49,8 +53,12 @@ claude plugin install python-backend@jko-claude-plugins
 claude plugin install dotnet-backend@jko-claude-plugins
 claude plugin install swiftui@jko-claude-plugins
 claude plugin install dead-code@jko-claude-plugins
+claude plugin install backend-validator@jko-claude-plugins
+claude plugin install maestro-mobile-validator@jko-claude-plugins
+claude plugin install electron-playwright-validator@jko-claude-plugins
 claude plugin install peekaboo-macos-validator@jko-claude-plugins
 claude plugin install seam-probe@jko-claude-plugins
+claude plugin install claude-mastery@jko-claude-plugins
 ```
 
 Or try one without installing:
@@ -82,6 +90,12 @@ $skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/
 $skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/dotnet-backend/skills/dotnet-backend-expert
 $skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/swiftui/skills/swiftui-expert
 $skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/dead-code/skills/dead-code-expert
+$skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/backend-validator/skills/backend-validation
+$skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/maestro-mobile-validator/skills/mobile-flows-maestro
+$skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/electron-playwright-validator/skills/electron-playwright-validator
+$skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/peekaboo-macos-validator/skills/peekaboo
+$skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/seam-probe/skills/seam-probe
+$skill-installer install https://github.com/johnkozaris/jko-claude-plugins/tree/main/plugins/claude-mastery/skills/claude-mastery-expert
 ```
 
 ### OpenCode
@@ -125,7 +139,7 @@ Claude Code and Copilot CLI can load the plugin command adapters in `commands/`.
 | ---------------- | ------------------------------------------------------------------------------------------ |
 | `/rust-critique` | Full code review for soundness, ownership, error handling, types, async, performance       |
 | `/rust-harden`   | Replace `unwrap` with proper errors, add SAFETY comments to unsafe, validate inputs        |
-| `/rust-types`    | Replace primitives with newtypes, booleans with enums, make illegal states unrepresentable |
+| `/rust-architect` | Choose architecture and workspace patterns for the system being built                      |
 | `/rust-polish`   | Pre-merge cleanup: dead code, doc comments, clippy, debug artifacts                        |
 | `/rust-teach`    | One-time: scans your project and writes Rust conventions to CLAUDE.md                      |
 
@@ -160,6 +174,10 @@ Claude Code and Copilot CLI can load the plugin command adapters in `commands/`.
 | Command           | What it does                                                             |
 | ----------------- | ------------------------------------------------------------------------ |
 | `/swift-critique` | Review SwiftUI code for patterns, design, accessibility, and performance |
+| `/swift-architect` | Review architecture, state ownership, navigation, and modularization      |
+| `/swift-ios`       | Review iOS-specific APIs, privacy, integrations, and distribution         |
+| `/swift-mac`       | Review macOS UX, menus, sandboxing, distribution, and AppKit interop      |
+| `/swift-teach`     | Teach a modern Swift or SwiftUI concept with concrete examples            |
 
 ### Dead Code
 
@@ -167,6 +185,26 @@ Claude Code and Copilot CLI can load the plugin command adapters in `commands/`.
 | ------------------ | ----------------------------------------------------------------- |
 | `/dead-code-scan`  | Read-only scan for unused imports, functions, classes, duplicates |
 | `/dead-code-clean` | Actually remove the dead code it finds                            |
+
+### Backend Validation
+
+| Command          | What it does                                                   |
+| ---------------- | -------------------------------------------------------------- |
+| `/validate-api`  | Run authenticated Hurl API validation                          |
+| `/validate-ws`   | Probe a WebSocket endpoint with bearer authentication          |
+| `/get-dev-token` | Acquire an OIDC token through authorization-code flow and PKCE |
+
+### Maestro Mobile Validator
+
+| Command            | What it does                                                  |
+| ------------------ | ------------------------------------------------------------- |
+| `/validate-mobile` | Run a Maestro flow on an iOS Simulator or Android emulator   |
+
+### Electron Playwright Validator
+
+| Command              | What it does                                                 |
+| -------------------- | ------------------------------------------------------------ |
+| `/validate-electron` | Launch and validate an Electron UI through Playwright CDP    |
 
 ### Peekaboo (macOS validator)
 
@@ -181,11 +219,19 @@ Claude Code and Copilot CLI can load the plugin command adapters in `commands/`.
 | ----------------------------- | ----------------------------------------------------------------------------- |
 | `/seam-probe:seam-probe-setup` | One-time `cargo build --release` of the bundled probe crate (Rust required)   |
 
+### Claude Mastery
+
+| Command          | What it does                                                     |
+| ---------------- | ---------------------------------------------------------------- |
+| `/mastery-audit` | Audit a project's Claude Code setup                              |
+| `/mastery-skill` | Guide creation of a Claude Code skill                            |
+| `/mastery-teach` | Teach Claude Code agent, tool, caching, and workflow concepts    |
+
 ## How it works
 
 Each plugin has a `SKILL.md` that tells the agent what to look for and a `references/` directory with the actual patterns, anti-patterns, and examples. The agent only loads the supporting files it needs for the current task, so it does not waste context.
 
-Hook config files are scaffolded in the plugin directories, but this repo does not currently ship active runtime hooks.
+Two plugins ship active `SessionStart` hooks: Peekaboo verifies its CLI dependency, and seam-probe rebuilds its bundled Rust probe when needed.
 
 ### Cross-tool compatibility
 

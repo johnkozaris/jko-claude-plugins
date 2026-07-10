@@ -38,7 +38,7 @@ The `esp32-expert` skill activates automatically when working with ESP32 firmwar
 
 ## Hook
 
-No active runtime hooks. `hooks/hooks.json` is reserved for future hook-based checks.
+No active runtime hooks.
 
 ## References
 

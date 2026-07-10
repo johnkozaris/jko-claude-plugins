@@ -1,11 +1,11 @@
 #!/bin/bash
-# Reference implementation for OIDC token acquisition + refresh caching.
+# macOS reference implementation for OIDC token acquisition + refresh caching.
 # Copy into a project as scripts/get-backend-token.sh, chmod +x, and customize.
 #
 # Expects two env vars (via .env.<something>.local or shell):
 #   ISSUER=https://<auth-server>/application/o/<app-slug>/
 #   CLIENT_ID=<public-pkce-client-id>
-#   PROJECT_NAME=<short-name>    # used for keychain service name, optional
+#   PROJECT_NAME=<short-name>    # used for Keychain service name, optional
 
 set -euo pipefail
 
@@ -16,6 +16,12 @@ KEYCHAIN_SERVICE="${PROJECT_NAME:-app}-refresh-token"
 
 if [ -z "$ISSUER" ] || [ -z "$CLIENT_ID" ]; then
   echo "error: ISSUER and CLIENT_ID must be set" >&2
+  exit 1
+fi
+
+if [ "$(uname -s)" != "Darwin" ] || ! command -v security >/dev/null 2>&1; then
+  echo "error: this reference script requires macOS Keychain (security CLI)" >&2
+  echo "Use secret-tool on Linux or Credential Manager on Windows as documented in SKILL.md." >&2
   exit 1
 fi
 
@@ -46,7 +52,7 @@ command -v oauth2c >/dev/null || {
   exit 1
 }
 
-# Optional: login hint from a separate keychain entry so oauth2c pre-fills username
+# Optional: login hint from a separate Keychain entry so oauth2c pre-fills username
 HINT=$(security find-generic-password -s "${PROJECT_NAME:-app}-test-user" 2>/dev/null \
   | awk -F\" '/"acct"/ {print $4}')
 HINT_ARGS=()

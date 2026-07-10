@@ -21,8 +21,9 @@ Session persistence means subsequent commands connect in ~200ms instead of re-la
 # As a plugin directory
 claude --plugin-dir /path/to/myClaudeSkills/plugins/electron-playwright-validator
 
-# Or install from the plugin collection
-claude plugin install /path/to/myClaudeSkills
+# Or install from the marketplace
+claude plugin marketplace add johnkozaris/jko-claude-plugins
+claude plugin install electron-playwright-validator@jko-claude-plugins
 ```
 
 ## Commands

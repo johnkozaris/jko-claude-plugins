@@ -27,7 +27,7 @@ myClaudeSkills/
 
 ```bash
 # Register as a marketplace for local development
-claude plugin marketplace add /Users/john/Repos/myClaudeSkills
+claude plugin marketplace add "$PWD"
 
 # Then install any plugin from the local checkout
 claude plugin install <plugin-name>@jko-claude-plugins
@@ -42,7 +42,7 @@ claude plugin install <plugin-name>@jko-claude-plugins
 
 Or load a single plugin for one session:
 ```bash
-claude --plugin-dir /Users/john/Repos/myClaudeSkills/plugins/<plugin-name>
+claude --plugin-dir "$PWD/plugins/<plugin-name>"
 ```
 
 ## Local Iteration

@@ -44,7 +44,7 @@ Per-stack tool integrations: knip, vulture, ruff, deptry, clippy, cargo-machete,
 
 ## Hook
 
-No active runtime hooks. `hooks/hooks.json` is reserved for future hook-based checks.
+No active runtime hooks.
 
 ## References
 

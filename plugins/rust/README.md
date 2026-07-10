@@ -39,7 +39,7 @@ The `rust-expert` skill activates automatically when working with Rust code. It 
 
 ## Hook
 
-No active runtime hooks. `hooks/hooks.json` is reserved for future hook-based checks.
+No active runtime hooks.
 
 ## References
 

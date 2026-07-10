@@ -4,10 +4,13 @@
 const { createRequire } = require('node:module');
 const path = require('node:path');
 const fs = require('node:fs');
-const { spawn, execSync } = require('node:child_process');
+const net = require('node:net');
+const os = require('node:os');
+const { spawn, spawnSync, execSync } = require('node:child_process');
 
 const PROJECT = process.cwd();
 const STATE_FILE = path.join(PROJECT, '.e-cli-state.json');
+const LAUNCH_LOCK = path.join(PROJECT, '.e-cli-launch.lock');
 const DEFAULT_PORT = 9222;
 // Comma-separated URL substrings of auxiliary windows to skip when picking
 // the main renderer page (e.g. E_CLI_EXCLUDE_URL=splash.html,devtools).
@@ -20,11 +23,18 @@ function pickMainPage(pages) {
   return pages.find((p) => !EXCLUDE_URLS.some((s) => p.url().includes(s))) || pages[0];
 }
 
+function startupTimeoutMs() {
+  const timeout = Number(process.env.E_CLI_STARTUP_TIMEOUT_MS || 30_000);
+  if (!Number.isInteger(timeout) || timeout < 100) {
+    die(`Invalid E_CLI_STARTUP_TIMEOUT_MS: ${process.env.E_CLI_STARTUP_TIMEOUT_MS}`);
+  }
+  return timeout;
+}
+
 // ─── Helpers ────────────────────────────────────────────────
 
 function die(msg) {
-  console.error(`error: ${msg}`);
-  process.exit(1);
+  throw new Error(msg);
 }
 
 function sleep(ms) {
@@ -32,10 +42,11 @@ function sleep(ms) {
 }
 
 function readState() {
+  if (!fs.existsSync(STATE_FILE)) return null;
   try {
     return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
-  } catch {
-    return null;
+  } catch (error) {
+    throw new Error(`Cannot read ${STATE_FILE}: ${error.message}`);
   }
 }
 
@@ -43,10 +54,205 @@ function writeState(state) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2) + '\n');
 }
 
-function clearState() {
+function removeFile(file) {
   try {
-    fs.unlinkSync(STATE_FILE);
-  } catch {}
+    fs.unlinkSync(file);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+
+function clearState(state = readState()) {
+  if (state?.stderrLog) removeFile(state.stderrLog);
+  removeFile(STATE_FILE);
+}
+
+function processIsRunning(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error.code === 'ESRCH') return false;
+    throw error;
+  }
+}
+
+function processTreeIsRunning(pid) {
+  if (process.platform === 'win32') return processIsRunning(pid);
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch (error) {
+    if (error.code === 'ESRCH') return false;
+    throw error;
+  }
+}
+
+async function waitForProcessTreeExit(pid, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!processTreeIsRunning(pid)) return true;
+    await sleep(100);
+  }
+  return !processTreeIsRunning(pid);
+}
+
+async function waitForChildClose(childClosed, pid, timeoutMs = 5_000) {
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error(`Electron child ${pid} did not emit close`)),
+      timeoutMs,
+    );
+    childClosed.then(
+      () => {
+        clearTimeout(timeout);
+        resolve();
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function terminateProcessTree(pid, childClosed) {
+  if (process.platform === 'win32') {
+    if (processIsRunning(pid)) {
+      const result = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+        encoding: 'utf8',
+      });
+      if (result.status !== 0 && processIsRunning(pid)) {
+        throw new Error(`taskkill failed for Electron process tree ${pid}: ${result.stderr}`);
+      }
+    }
+  } else if (processTreeIsRunning(pid)) {
+    try {
+      process.kill(-pid, 'SIGTERM');
+    } catch (error) {
+      if (error.code !== 'ESRCH') throw error;
+    }
+    if (!(await waitForProcessTreeExit(pid, 5_000))) {
+      try {
+        process.kill(-pid, 'SIGKILL');
+      } catch (error) {
+        if (error.code !== 'ESRCH') throw error;
+      }
+      if (!(await waitForProcessTreeExit(pid, 5_000))) {
+        throw new Error(`Electron process group ${pid} did not exit after SIGKILL`);
+      }
+    }
+  }
+
+  if (childClosed) {
+    await waitForChildClose(childClosed, pid);
+  }
+}
+
+function acquireLaunchLock() {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const fd = fs.openSync(LAUNCH_LOCK, 'wx', 0o600);
+      try {
+        fs.writeFileSync(fd, `${process.pid}\n`);
+      } finally {
+        fs.closeSync(fd);
+      }
+      return () => {
+        if (fs.existsSync(LAUNCH_LOCK)) {
+          const owner = Number(fs.readFileSync(LAUNCH_LOCK, 'utf8').trim());
+          if (owner === process.pid) removeFile(LAUNCH_LOCK);
+        }
+      };
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      const ownerText = fs.readFileSync(LAUNCH_LOCK, 'utf8').trim();
+      const owner = /^\d+$/.test(ownerText) ? Number(ownerText) : null;
+      const lockAgeMs = Date.now() - fs.statSync(LAUNCH_LOCK).mtimeMs;
+      if (
+        (Number.isInteger(owner) && processIsRunning(owner)) ||
+        lockAgeMs < 60_000
+      ) {
+        die(`Another e-cli launch is already in progress (pid: ${owner})`);
+      }
+      removeFile(LAUNCH_LOCK);
+    }
+  }
+  die(`Could not acquire launch lock: ${LAUNCH_LOCK}`);
+}
+
+function parsePort(value) {
+  const port = value === undefined ? DEFAULT_PORT : Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    die(`Invalid CDP port: ${value}`);
+  }
+  return port;
+}
+
+async function assertPortAvailable(port) {
+  const server = net.createServer();
+  server.unref();
+  await new Promise((resolve, reject) => {
+    server.once('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        reject(new Error(`CDP port ${port} is already in use; pass --port=<free-port>`));
+      } else {
+        reject(error);
+      }
+    });
+    server.listen({ host: '127.0.0.1', port, exclusive: true }, () => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  });
+}
+
+function readStartupLog(file) {
+  if (!file || !fs.existsSync(file)) return '';
+  const text = fs.readFileSync(file, 'utf8').trim();
+  return text ? `\nElectron stderr:\n${text.slice(-4000)}` : '';
+}
+
+function readOwnedDevToolsEndpoint(file, port) {
+  if (!fs.existsSync(file)) return null;
+  const matches = [
+    ...fs.readFileSync(file, 'utf8').matchAll(/DevTools listening on (ws:\/\/\S+)/g),
+  ];
+  if (matches.length === 0) return null;
+  const endpoint = matches.at(-1)[1];
+  const parsed = new URL(endpoint);
+  if (Number(parsed.port) !== port) {
+    throw new Error(
+      `Electron reported CDP port ${parsed.port}, but e-cli requested ${port}`,
+    );
+  }
+  return endpoint;
+}
+
+function endpointIdentity(endpoint) {
+  const parsed = new URL(endpoint);
+  return `${parsed.port}${parsed.pathname}`;
+}
+
+async function readCDPVersion(port) {
+  const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+  if (!response.ok) {
+    throw new Error(`CDP version endpoint returned HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+async function verifyCDPOwnership(state) {
+  if (!state.webSocketDebuggerUrl) {
+    die('Session predates CDP ownership tracking. Run: e-cli close && e-cli launch');
+  }
+  const version = await readCDPVersion(state.port);
+  if (
+    !version.webSocketDebuggerUrl ||
+    endpointIdentity(version.webSocketDebuggerUrl) !==
+      endpointIdentity(state.webSocketDebuggerUrl)
+  ) {
+    die('CDP endpoint no longer belongs to the Electron session in e-cli state');
+  }
 }
 
 function projectRequire(mod) {
@@ -87,12 +293,31 @@ function parseOpts(args) {
   return { opts, pos };
 }
 
-async function waitForCDP(port, timeoutMs = 30_000) {
+async function waitForCDP(port, child, stderrLog, timeoutMs = 30_000) {
+  let spawnError;
+  child.once('error', (error) => {
+    spawnError = error;
+  });
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    if (spawnError) throw new Error(`Electron failed to start: ${spawnError.message}`);
+    if (child.exitCode !== null || child.signalCode !== null) {
+      throw new Error(
+        `Electron exited before CDP was ready (${child.signalCode || `code ${child.exitCode}`})`,
+      );
+    }
     try {
-      const r = await fetch(`http://127.0.0.1:${port}/json/version`);
-      if (r.ok) return;
+      const ownedEndpoint = readOwnedDevToolsEndpoint(stderrLog, port);
+      if (ownedEndpoint) {
+        const version = await readCDPVersion(port);
+        if (
+          version.webSocketDebuggerUrl &&
+          endpointIdentity(version.webSocketDebuggerUrl) ===
+            endpointIdentity(ownedEndpoint)
+        ) {
+          return ownedEndpoint;
+        }
+      }
     } catch {}
     await sleep(500);
   }
@@ -102,12 +327,11 @@ async function waitForCDP(port, timeoutMs = 30_000) {
 async function connect() {
   const state = readState();
   if (!state) die('No running app. Run: e-cli launch');
-  try {
-    process.kill(state.pid, 0);
-  } catch {
-    clearState();
+  if (!processTreeIsRunning(state.pid)) {
+    clearState(state);
     die('App not running (stale state cleaned). Run: e-cli launch');
   }
+  await verifyCDPOwnership(state);
   const chromium = getChromium();
   const browser = await chromium.connectOverCDP(`http://127.0.0.1:${state.port}`);
   const pages = browser.contexts().flatMap((c) => c.pages());
@@ -137,18 +361,26 @@ function formatTree(node, depth = 0) {
 // ─── Commands ───────────────────────────────────────────────
 
 async function launch(args) {
+  const releaseLock = acquireLaunchLock();
+  try {
+    await launchWithLock(args);
+  } finally {
+    releaseLock();
+  }
+}
+
+async function launchWithLock(args) {
   const { opts } = parseOpts(args);
-  const port = parseInt(opts.port) || DEFAULT_PORT;
+  const port = parsePort(opts.port);
+  const startupTimeout = startupTimeoutMs();
 
   const prev = readState();
   if (prev) {
-    try {
-      process.kill(prev.pid, 0);
+    if (processTreeIsRunning(prev.pid)) {
       console.log(`Already running (pid: ${prev.pid}, port: ${prev.port})`);
       return;
-    } catch {
-      clearState();
     }
+    clearState(prev);
   }
 
   const electronBin = getElectronPath();
@@ -187,36 +419,68 @@ async function launch(args) {
     if (!fs.existsSync(mainEntry)) die(`Build failed — ${mainEntry} not created`);
   }
 
+  await assertPortAvailable(port);
   console.log(`Launching on CDP port ${port}...`);
-  const child = spawn(electronBin, [`--remote-debugging-port=${port}`, mainEntry], {
-    cwd: PROJECT,
-    stdio: 'ignore',
-    detached: true,
-    env: { ...process.env, NODE_ENV: 'test' },
-  });
-  child.unref();
 
-  await waitForCDP(port);
-
-  const chromium = getChromium();
-  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+  const stderrLog = path.join(
+    os.tmpdir(),
+    `e-cli-${process.pid}-${Date.now()}.stderr.log`,
+  );
+  let stderrFd = fs.openSync(stderrLog, 'wx', 0o600);
+  let child;
+  let childClosed;
+  let state;
   try {
-    let page;
-    const deadline = Date.now() + 30_000;
-    while (Date.now() < deadline) {
-      const pages = browser.contexts().flatMap((c) => c.pages());
-      page = pickMainPage(pages);
-      if (page) break;
-      await sleep(500);
-    }
-    if (!page) die('No renderer page appeared within 30s');
-    await page.waitForLoadState('domcontentloaded');
-  } finally {
-    await browser.close();
-  }
+    child = spawn(electronBin, [`--remote-debugging-port=${port}`, mainEntry], {
+      cwd: PROJECT,
+      stdio: ['ignore', 'ignore', stderrFd],
+      detached: true,
+      env: { ...process.env, NODE_ENV: 'test' },
+    });
+    childClosed = new Promise((resolve) => child.once('close', resolve));
+    const openStderrFd = stderrFd;
+    stderrFd = undefined;
+    fs.closeSync(openStderrFd);
 
-  writeState({ pid: child.pid, port });
-  console.log(`Ready (pid: ${child.pid}, port: ${port})`);
+    state = { pid: child.pid, port, status: 'launching', stderrLog };
+    writeState(state);
+
+    const webSocketDebuggerUrl = await waitForCDP(
+      port,
+      child,
+      stderrLog,
+      startupTimeout,
+    );
+
+    const chromium = getChromium();
+    const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+    let page;
+    try {
+      const deadline = Date.now() + startupTimeout;
+      while (Date.now() < deadline) {
+        const pages = browser.contexts().flatMap((c) => c.pages());
+        page = pickMainPage(pages);
+        if (page) break;
+        await sleep(500);
+      }
+      if (!page) {
+        die(`No renderer page appeared within ${startupTimeout / 1000}s`);
+      }
+      await page.waitForLoadState('domcontentloaded');
+    } finally {
+      await browser.close();
+    }
+
+    writeState({ ...state, status: 'ready', webSocketDebuggerUrl });
+    child.unref();
+    console.log(`Ready (pid: ${child.pid}, port: ${port})`);
+  } catch (error) {
+    if (stderrFd !== undefined) fs.closeSync(stderrFd);
+    if (child?.pid) await terminateProcessTree(child.pid, childClosed);
+    const details = readStartupLog(stderrLog);
+    clearState(state || { stderrLog });
+    throw new Error(`${error.message}${details}`);
+  }
 }
 
 async function snapshot() {
@@ -331,10 +595,8 @@ async function close() {
     console.log('Not running.');
     return;
   }
-  try {
-    process.kill(state.pid, 'SIGTERM');
-  } catch {}
-  clearState();
+  await terminateProcessTree(state.pid);
+  clearState(state);
   console.log('Closed.');
 }
 
@@ -342,15 +604,18 @@ async function status() {
   const state = readState();
   if (!state) {
     console.log('Not running.');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
-  try {
-    process.kill(state.pid, 0);
-    console.log(`Running (pid: ${state.pid}, port: ${state.port})`);
-  } catch {
-    clearState();
+  if (processTreeIsRunning(state.pid)) {
+    if (state.status !== 'launching') await verifyCDPOwnership(state);
+    console.log(
+      `${state.status === 'launching' ? 'Launching' : 'Running'} (pid: ${state.pid}, port: ${state.port})`,
+    );
+  } else {
+    clearState(state);
     console.log('Not running (stale state cleaned).');
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
@@ -400,5 +665,5 @@ Selectors: text=X, role=button[name=X], [data-testid=X], CSS`);
 
 main().catch((e) => {
   console.error(`error: ${e.message}`);
-  process.exit(1);
+  process.exitCode = 1;
 });

@@ -104,7 +104,7 @@ e-cli eval "1 + 1"              # basic connectivity check
 
 ### Port conflicts
 
-If port 9222 is already in use (another Electron instance, Chrome DevTools), launch with a different port:
+`e-cli` refuses to launch when the requested port is already occupied, preventing it from attaching to an unrelated browser. Choose another port:
 ```bash
 e-cli launch --port=9333
 ```

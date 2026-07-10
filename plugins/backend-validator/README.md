@@ -1,6 +1,6 @@
 # backend-validator
 
-Backend API and WebSocket validation via Hurl, websocat, and oauth2c. Acquires OIDC tokens with auth-code + PKCE, caches refresh tokens in OS-native secret storage, and runs Hurl test suites or websocat probes against authenticated endpoints.
+Backend API and WebSocket validation via Hurl, websocat, and oauth2c. Acquires OIDC tokens with auth-code + PKCE, caches refresh tokens in macOS Keychain, and runs Hurl test suites or websocat probes against authenticated endpoints.
 
 ## What It Does
 
@@ -35,4 +35,4 @@ No active runtime hooks. Reserved for future command-based hooks.
 - **hurl-patterns** — captures, assertions, retries, GraphQL, parallel runs, CI output
 - **websocat-patterns** — subprotocols, mTLS, reconnect, debugging
 - **oidc-token-flows** — grant-type comparison, 401 debugging, discovery endpoint
-- **token-script.sh** — complete bash script for token acquisition + refresh caching
+- **token-script.sh** — macOS reference script for token acquisition + Keychain-backed refresh caching

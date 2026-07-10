@@ -17,11 +17,14 @@ The tool resolves these from the **project's own `node_modules`** using `createR
 ```json
 {
   "pid": 12345,
-  "port": 9222
+  "port": 9222,
+  "status": "ready",
+  "stderrLog": "/tmp/e-cli-12345.stderr.log",
+  "webSocketDebuggerUrl": "ws://127.0.0.1:9222/devtools/browser/session-id"
 }
 ```
 
-Add `.e-cli-state.json` and `.e-cli-screenshot.png` to `.gitignore`.
+Add `.e-cli-state.json`, `.e-cli-launch.lock`, and `.e-cli-screenshot.png` to `.gitignore`.
 
 ## Commands
 
@@ -33,10 +36,12 @@ Start the Electron app with CDP enabled.
 1. Checks if an app is already running (reads state file, validates PID)
 2. Resolves the project's `electron` binary
 3. If `out/main/index.js` doesn't exist, runs `npx electron-vite build`
-4. Spawns Electron with `--remote-debugging-port=<port>`
-5. Waits for CDP to become available (polls `/json/version`)
-6. Connects via Playwright, waits for the renderer page to reach `domcontentloaded`
-7. Saves `{ pid, port }` to `.e-cli-state.json`
+4. Acquires a per-project launch lock and refuses occupied ports
+5. Spawns Electron in an isolated process group with `--remote-debugging-port=<port>` and captures stderr
+6. Immediately saves provisional process state so failed launches can be cleaned up
+7. Matches Electron's child-issued DevTools endpoint to `/json/version`, preventing attachment to unrelated browsers
+8. Connects via Playwright, waits for the renderer page to reach `domcontentloaded`
+9. Marks the session ready; failures terminate the complete process group, await the child, and surface captured stderr
 
 **Options:**
 - `--port=<number>` — CDP port (default: 9222)
