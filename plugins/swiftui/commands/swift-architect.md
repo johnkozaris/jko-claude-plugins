@@ -67,14 +67,14 @@ Recommended pattern:
 For every `*ViewModel.swift` file (or `*VM.swift`, `*Model.swift` that wraps a screen):
 
 Apply the trigger check:
-- ✅ Explicit state machine? (loading/loaded/error/empty + retry + pagination + optimistic updates)
-- ✅ >=20 orchestration unit tests planned/written?
-- ✅ Migrating UIKit → SwiftUI?
-- ✅ Team mandates VM consistency?
+- ✅ Explicit state machine or orchestration complexity? (loading/loaded/error/empty, retry, pagination, optimistic updates, request deduplication)
+- ✅ Stable lifecycle needed across view recreation, navigation, or scene changes?
+- ✅ Meaningful test seam for sequencing, cancellation, retry policy, validation, or reconciliation?
+- ✅ Migrating an existing UIKit/AppKit ViewModel, or following an intentional team architecture?
 
-If NONE → flag as anti-pattern, recommend MV (View IS the view model). Show the simplified shape.
+If none apply and the type only forwards a store or mirrors display state, flag the wrapper as unnecessary and show the simpler MV shape. Do not classify a ViewModel from its filename or test count alone.
 
-If ONE+ → flag any of these sub-issues:
+If one or more apply, keep the ViewModel and review these sub-issues:
 - VM imports SwiftUI (should be UI-framework-agnostic).
 - VM owns navigation state (should live in Router).
 - VM hosts `@Query` (impossible — `@Query` requires Environment).
@@ -97,14 +97,13 @@ If ONE+ → flag any of these sub-issues:
 
 If `import ComposableArchitecture` is present:
 
-- App scope: many screens with cross-screen state coordination, or a small focused app?
-- Team scale: solo / small team or large enough that standardization pays back? (Check git log contributors if accessible — but use the count as a signal, not a gate.)
-- Cross-screen state coordination required?
-- Regulated industry signals (fintech, health, govt)?
-- FP/Redux experience signals (from code quality, prior commits)?
+- Does the app have cross-feature state/effect coordination that vanilla Observation is making difficult?
+- Does deterministic action/effect testing, dependency control, cancellation, or replayability solve a concrete product risk?
+- Does state need a lifecycle independent of a particular view hierarchy?
+- Has the team accepted the action/reducer model, learning cost, SourceKit cost, and third-party dependency?
+- If the product is regulated, does its actual assurance plan benefit from reducer-level exhaustive tests? Regulation alone is neither necessary nor sufficient.
 
-If NOT all → flag TCA as overkill. Suggest vanilla SwiftUI + `@Observable Router` + `@Observable` stores.
-If YES all → flag specific TCA anti-patterns (massive reducer files, deeply nested enums, every screen reduced, etc.).
+If those benefits do not outweigh the costs, flag TCA as overkill and suggest vanilla SwiftUI + `@Observable Router` + focused stores. If the trade-off is justified, keep TCA and flag only concrete misuse (massive reducer files, deeply nested enums, every trivial screen reduced, etc.).
 
 → See `references/architecture.md` § TCA — when to use, when to skip.
 

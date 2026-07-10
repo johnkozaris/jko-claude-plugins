@@ -9,15 +9,15 @@
 | Binary size | Larger (monomorphized) | Smaller (one copy) |
 | Heterogeneous collections | No | Yes |
 
-**Default to generics.** Use `dyn Trait` only when you genuinely need runtime polymorphism or heterogeneous collections. In microbenchmarks with trivial function bodies, dynamic dispatch can be an order of magnitude slower due to vtable indirection preventing inlining — but in real workloads with substantial function bodies, the difference is often negligible. Profile before optimizing. For the common case where you own all variant types, consider `enum_dispatch` for enum-based dispatch with trait ergonomics.
+First decide whether a trait is needed. Prefer a concrete type for one owned implementation; introduce a trait for genuine substitution, caller-provided behavior, or a stable external boundary. Once a trait is justified, default to generics for static dispatch and use `dyn Trait` for runtime polymorphism or heterogeneous collections. In microbenchmarks with trivial function bodies, dynamic dispatch can be an order of magnitude slower due to vtable indirection preventing inlining — but in real workloads with substantial function bodies, the difference is often negligible. Profile before optimizing. For the common case where you own all variant types, consider enum-based dispatch.
 
 ## Standard Traits to Implement
 
-Implement these eagerly on all public types — the orphan rule prevents downstream crates from adding them:
+Implement standard traits deliberately on public types. The orphan rule means downstream crates cannot add them, but each implementation is also an API contract and should exist only when its semantics are sound:
 
 | Trait | When | Notes |
 |---|---|---|
-| `Debug` | Always | Required for `assert_eq!`, logging |
+| `Debug` | When diagnostics are useful and output does not expose secrets | Required for `assert_eq!`, often useful for logging |
 | `Display` | When human-readable representation exists | Required for error types |
 | `Clone` | When duplication makes sense | Beware: `Arc<Mutex<T>>` clones share state |
 | `Copy` | Cheap, bitwise-copyable, no Drop | Small types only |
@@ -94,7 +94,8 @@ Convention: name `FooExt`. Export in your prelude for convenient glob importing.
 
 ## Derive Best Practices
 
-- `#[derive(Debug, Clone, PartialEq, Eq, Hash)]` — value types for maps/sets
-- `#[derive(Debug, Clone, PartialEq)]` — general structs
-- `#[derive(Debug, Default)]` — config/builder types
-- When NOT to derive: when field-by-field behavior is semantically wrong (custom equality, clone-with-reset, hash must match custom PartialEq)
+- Derive `Debug` for diagnosable non-secret types.
+- Derive `Clone` or `Copy` only when duplication is part of the type's intended semantics, not as a borrow-checker escape hatch.
+- Derive `PartialEq`/`Eq` and `Hash` only when equality and key identity are meaningful; `Hash` must match `Eq`.
+- Derive `Default` only when a valid, unsurprising default exists.
+- Write a manual implementation when field-by-field behavior is semantically wrong (custom equality, clone-with-reset, redacted debug output).

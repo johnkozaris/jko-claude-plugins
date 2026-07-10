@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Claude Code plugins for Rust, ESP32 C++, Python backend, .NET backend, SwiftUI, dead code detection, backend validation, mobile validation, Electron validation, macOS app validation, and FFI/UDS seam probing",
-    "version": "1.5.1"
+    "version": "1.5.2"
   },
   "plugins": [
     {
       "name": "rust",
       "source": "./plugins/rust",
       "description": "Opinionated Rust expert. Code critique, architecture detection, defensive hardening, type strengthening, pre-merge polish. 2026-current (Rust 1.96, Edition 2024, Tokio LTS, RUSTSEC tracking).",
-      "version": "2.2.0",
+      "version": "2.2.1",
       "category": "development",
       "tags": [
         "rust",
@@ -75,7 +75,7 @@
       "name": "swiftui",
       "source": "./plugins/swiftui",
       "description": "Opinionated SwiftUI/Swift expert for iOS, macOS, visionOS apps. MV pattern, @Observable, NavigationStack typed routes, Approachable Concurrency, SwiftData, Liquid Glass selective adoption. Five commands: critique, architect, ios, mac, teach.",
-      "version": "2.1.0",
+      "version": "2.1.1",
       "category": "development",
       "tags": [
         "swift",

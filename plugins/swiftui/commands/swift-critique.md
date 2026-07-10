@@ -20,7 +20,7 @@ The default mode surfaces everything. The flags below prioritize a subset.
 
 - **(default)** — holistic review across all eighteen reference categories. All severities surfaced.
 - **`--pre-merge`** — prioritize polish-level findings before merging a PR: deprecated API, dead code, debug artifacts, `print()` left in, `Self._printChanges()` outside `#if DEBUG`, missing accessibility audit in CI, `PreviewProvider` not migrated to `#Preview`.
-- **`--harden`** — prioritize production-hardening findings: tokens in `UserDefaults`, missing `PrivacyInfo.xcprivacy`, `@AppStorage` inside `@Observable` (the silent-no-updates trap), SwiftData `@Model` without `VersionedSchema` from v1, unwrapped `ModelContainer` work on iOS backgrounding, icon-only buttons without accessibility labels, fingerprinting fallback after ATT denial.
+- **`--harden`** — prioritize production-hardening findings: tokens in `UserDefaults`, applicable Required Reason API declarations missing from `PrivacyInfo.xcprivacy`, `@AppStorage` inside `@Observable` (the silent-no-updates trap), SwiftData `@Model` without `VersionedSchema` from v1, measured suspension-sensitive database work lacking lifecycle coordination, icon-only buttons without accessibility labels, fingerprinting fallback after ATT denial.
 - **`--architect`** — prioritize architecture-level findings: `App.swift` ownership of shared state, MV-vs-VM call, navigation router shape, file-per-type compliance, folder structure, modularization posture. Route to `/swift-architect` for design-level work.
 
 ## Preparation
@@ -80,7 +80,7 @@ rg -c 'SMLoginItemSetEnabled|SMJobBless' . --type swift 2>/dev/null | awk -F: '{
 if find . -name 'PrivacyInfo.xcprivacy' -print -quit | grep -q .; then
     echo "PrivacyInfo.xcprivacy: present"
 else
-    echo "PrivacyInfo.xcprivacy: MISSING (mandatory since May 1, 2024)"
+    echo "PrivacyInfo.xcprivacy: absent — inventory Required Reason APIs and required SDK manifests before classifying"
 fi
 ```
 

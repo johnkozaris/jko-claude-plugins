@@ -114,11 +114,11 @@ The skill consuming this file is opinionated by design — an AI invoking critiq
 
 | Anti-pattern | Modern replacement |
 |---|---|
-| `UserDefaults` for tokens / credentials / PII | Keychain |
+| `UserDefaults` for secrets or sensitive personal data | Keychain for small secrets/keys; protected files/databases for larger records |
 | SwiftData `@Model` without `VersionedSchema` from v1.0.0 | Always wrap from v1 — even if no migration planned |
 | `NSPredicate` strings | `#Predicate<Entity> { ... }` macro |
 | `@Attribute(.unique)` on CloudKit-synced models | Remove — incompatible with CloudKit |
-| Unwrapped `ModelContainer.init` / `fetch` / `save` on backgrounding | Wrap in `beginBackgroundTask(withName:expirationHandler:)` to avoid 0xdead10cc crash |
+| Long/lock-holding persistence work crossing suspension without coordination | Shorten/defer it; use `beginBackgroundTask` only for a bounded critical section supported by lifecycle/crash evidence |
 | MVVM wrapped around `@Query` | `@Query` requires Environment; use MV pattern for SwiftData apps |
 | Forgetting `@ObservationIgnored` on cached derived state in `@Observable` | Mark untracked storage explicitly |
 | `@AppStorage` directly inside `@Observable` | Nested storage class workaround |
@@ -163,7 +163,7 @@ The skill consuming this file is opinionated by design — an AI invoking critiq
 | Asking permissions on first launch | Prime first; ask contextually |
 | Fingerprinting fallback after ATT denial | Stop tracking — Apple rejects |
 | Custom URL scheme enumeration beyond 50 entries | Universal Links + Associated Domains |
-| Missing `PrivacyInfo.xcprivacy` | Mandatory since May 1, 2024 (ITMS-91053) |
+| Required Reason API use without applicable `PrivacyInfo.xcprivacy` reasons | Declare an approved reason; missing manifest is not a finding when no manifest requirement applies |
 | Third-party SDK without signed Privacy Manifest | Required since Feb 12, 2025 (ITMS-91061) |
 | Pre-iOS-17 widget patterns (read-only billboards) | Interactive widgets (Button/Toggle bound to AppIntent) |
 | Custom tooltip systems / homemade onboarding hints | TipKit |
@@ -173,7 +173,7 @@ The skill consuming this file is opinionated by design — an AI invoking critiq
 | Full `Calendar` access where write-only suffices | iOS 17+ write-only: `EKEventEditViewController` |
 | Full Contacts access where limited suffices | iOS 18+ `ContactAccessButton` / `contactAccessPicker` |
 | Pre-iOS-15 Location prompts where `LocationButton` works | `LocationButton` (no Info.plist key) |
-| Missing Sign in with Apple alongside third-party social login | Required by Apple policy (Jan 2024 update) |
+| Primary-account social login without the equivalent option required by Guideline 4.8 | Add Sign in with Apple unless a published Guideline 4.8 exception applies |
 | App Attest skipped on apps with fraud/abuse risk | Free, ~50 lines, Secure Enclave-backed — adopt |
 
 ## macOS platform
@@ -238,4 +238,3 @@ Each anti-pattern points back to a deeper reference for the WHY and the full alt
 - Liquid Glass → `references/liquid-glass.md`
 - iOS platform → `references/ios-platform.md`
 - macOS platform → `references/macos-platform.md`
-

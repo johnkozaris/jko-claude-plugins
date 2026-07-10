@@ -188,19 +188,20 @@ IcySky uses the second form for `Auth`/`Router` because it doesn't share state w
 
 Vanilla SwiftUI + `@Observable` + `@Observable Router` suffices for most apps. Outside the Point-Free ecosystem, TCA adoption among popular maintained OSS Swift apps is rare. Even Apple's most architecturally explicit samples don't use it.
 
-### USE TCA when ALL of these hold
+### CONSIDER TCA when several of these needs align
 
 - The app has **many screens with cross-screen state coordination** — auth flows that mutate home-screen state down the line; sync engines that update unrelated views; deep navigation graphs that branch.
-- The **team is large enough that standardization across hires** outweighs the learning curve. The bigger the team, the more uniform-action-style debugging pays back.
-- A **regulated context** (fintech, health, govt, banking) makes TCA's `TestStore` exhaustive action testing a compliance win, or the project has independent reasons to demand that level of rigor.
-- **The team has FP/Redux experience** or has explicitly budgeted for the learning curve.
+- Deterministic action/effect testing, dependency control, cancellation, or replayability addresses a concrete reliability or product risk.
+- Important state and effects need a lifecycle independent of a particular view hierarchy.
+- The team values uniform reducer/action conventions enough to pay the learning, SourceKit, and dependency costs.
+- A regulated or high-assurance product has an actual verification plan that benefits from exhaustive reducer tests. Regulation alone does not make TCA appropriate.
 
-### SKIP TCA when ANY of these hold
+### PREFER VANILLA SWIFTUI when the costs outweigh those benefits
 
-- Solo or very small team.
-- Small app, prototype, or fast iteration matters.
+- State and effects are local enough that Observation and focused stores remain clear.
+- The app is small, experimental, or optimized for rapid iteration.
 - Data-flow-driven app where SwiftData + `@Observable` already cover state.
-- Team is allergic to boilerplate or async-ish patterns.
+- The team does not want to own the reducer model or third-party dependency.
 - **Xcode autocomplete responsiveness matters.** TCA's nested enums tax SourceKit hard — community testimony repeatedly mentions large reducer files lagging Xcode to the point that working with them becomes impractical.
 
 ### Both sides — the honest split
@@ -707,7 +708,7 @@ Flag these on review.
 | Screen has `loading/loaded/error/empty + retry + pagination`? | Add a `@Observable` ViewModel owned by `@State`. |
 | Project is a small utility, solo dev? | Flat target. No SPM split. |
 | Project-file merge conflicts routine + build times painful? | Local SPM packages. Bottom-up: DesignSystem first. |
-| Should I add TCA? | Only if many screens with cross-screen state coordination AND a team large enough that standardization pays back AND regulated context demands the rigor AND the team has FP/Redux experience. Else no. |
+| Should I add TCA? | Consider it when cross-feature coordination, independent state lifecycle, deterministic effect testing, and team conventions create benefits that outweigh reducer/tooling/dependency cost. Regulation is neither required nor sufficient. |
 | Reusing `NavigationLink(destination:)`? | Replace with `NavigationLink(value:)` + `.navigationDestination(for:)`. |
 | New `Router` class? | `@Observable final class`, owned by app via `@State`, injected via `.environment(_:)`, holds `NavigationPath` or per-tab `[Destination]`. |
 | Top-level `ViewModels/` folder exists? | Refactor to feature-first. Flag. |

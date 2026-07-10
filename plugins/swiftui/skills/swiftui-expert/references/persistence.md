@@ -1,6 +1,6 @@
 # Persistence
 
-Swift 6.3 / iOS 26 / Xcode 26. The persistence layer is where SwiftUI apps die in production. Pick the right tool for the archetype, ship `VersionedSchema` from day one, never put tokens in `UserDefaults`, and treat the SwiftData backgrounding crash as a release blocker until you've wired it.
+Swift 6.3 / iOS 26 / Xcode 26. The persistence layer is where SwiftUI apps die in production. Pick the right tool for the archetype, ship `VersionedSchema` from day one, keep secrets out of `UserDefaults`, and investigate suspension-related database terminations with lifecycle evidence before choosing a mitigation.
 
 Cross-reference: `state-and-observation.md` for the full `@AppStorage` + `@Observable` workaround and the `access(keyPath:)` / `withMutation(keyPath:)` pattern.
 
@@ -16,16 +16,17 @@ Cross-reference: `state-and-observation.md` for the full `@AppStorage` + `@Obser
 | **GRDB** | heavy SQL • performance critical • large datasets • fine-grained control |
 | **Realm** | cross-platform sync via Atlas Device Sync • legacy Realm code |
 | **File-based JSON** | small flat data, no queries, no relationships |
-| **UserDefaults** | small prefs only — flags, last selection, theme — NEVER tokens / PII |
-| **Keychain** | all tokens, credentials, OAuth, API keys, biometric-gated secrets, PII |
+| **UserDefaults** | small non-sensitive prefs only — flags, last selection, theme |
+| **Keychain** | small secrets and key material — tokens, credentials, OAuth refresh tokens, API keys, encryption keys |
+| **Protected file/database storage** | larger personal or sensitive records, with appropriate Data Protection class and optional field/file encryption |
 
-Defaults: SwiftData for a new consumer app on iOS 17+ that fits in one model graph. Core Data the moment you need a shared CloudKit zone. Keychain for anything resembling a secret.
+Defaults: SwiftData for a new consumer app on iOS 17+ that fits in one model graph. Core Data the moment you need a shared CloudKit zone. Keychain for small secrets and keys; protected files/databases for larger sensitive data.
 
 ---
 
 ## SwiftData production rules (most critical)
 
-SwiftData is the default for new apps in 2026 and the source of the most production scars. The rules below are non-negotiable.
+SwiftData is the default for new apps in 2026 and the source of the most production scars. The rules below separate broad defaults from mitigations that require evidence from the app's workload and lifecycle.
 
 ### Rule 1 — Wrap every model in `VersionedSchema` from v1.0.0
 
@@ -67,19 +68,20 @@ typealias Tag  = AppSchemaV1.Tag
 
 The `typealias` lets the rest of the code use `Item` without leaking the schema namespace. When you ship V2, you re-alias to `AppSchemaV2.Item`.
 
-### Rule 2 — Wrap `ModelContainer` init/fetch/save in `beginBackgroundTask` (the 0xdead10cc fix)
+### Rule 2 — Protect bounded critical work that can cross suspension
 
-iOS terminates the process with exception code `0xdead10cc` ("dead lock") when an app holds an open SQLite file handle while suspended. SwiftData uses SQLite. If a user backgrounds your app mid-save, you can crash on the next launch with no symbol-level evidence.
+iOS can terminate a process with `0xdead10cc` when it is suspended while holding a file/database lock. The code identifies a lifecycle/locking problem; it does not prove every SwiftData fetch or save needs a background task.
 
-The fix is to wrap any SwiftData operation that touches disk inside `beginBackgroundTask` / `endBackgroundTask`:
+Keep ordinary fetches and saves short, avoid starting nonessential work as the scene backgrounds, and use `BGTaskScheduler` for work intended to run in the background. Use `beginBackgroundTask` only for bounded critical work that began in the foreground and may need a short grace period to finish after a background transition:
 
 ```swift
 @MainActor
-func saveSafely(_ context: ModelContext) async throws {
+func finishCriticalSave(_ context: ModelContext) throws {
     let app = UIApplication.shared
     var taskID: UIBackgroundTaskIdentifier = .invalid
     taskID = app.beginBackgroundTask(withName: "SwiftDataSave") {
-        // Expiration handler — system is reclaiming us. End the task and bail.
+        // The grace period expired. End the assertion; design larger work to
+        // be cancellable/checkpointed or move it to BGTaskScheduler.
         app.endBackgroundTask(taskID)
         taskID = .invalid
     }
@@ -90,7 +92,7 @@ func saveSafely(_ context: ModelContext) async throws {
 }
 ```
 
-Source: community production postmortems on "0xdead10cc and SwiftData." The fix is unglamorous and mandatory. Apply the same wrapping to `ModelContainer.init` if your container creation can race with backgrounding (most apps construct it once at launch, so this is mostly relevant for save/fetch).
+Treat this as a targeted mitigation, not a wrapper around every disk touch. Confirm the termination in Organizer/Sentry/Crashlytics, identify the operation crossing suspension, shorten or defer it first, and add a background-task assertion only where a bounded critical section genuinely needs completion time. A background task cannot make unbounded work safe.
 
 Make it observable: Sentry/Crashlytics rules to flag `0xdead10cc` so you catch regressions.
 
@@ -249,7 +251,7 @@ final class Item {
 }
 ```
 
-Add `#Index` for every keyPath used in `@Query` filters/sorts. Does **not** back-deploy to iOS 17 — wrap in `#if available` if you target both.
+Add indexes for measured query hot paths, using query shape, selectivity, ordering, and store size to choose single or composite indexes. Do not index every filtered/sorted property: indexes consume storage and slow inserts/updates. `#Index` does **not** back-deploy to iOS 17 — version-gate model definitions or maintain an iOS 17-compatible schema when supporting both.
 
 ### Rule 8 — `#Predicate` not `NSPredicate` strings
 
@@ -521,7 +523,7 @@ Atlas Device Sync gives you cross-platform sync (iOS, Android, web). MongoDB own
 
 For: theme, accent color, hasOnboarded, last-selected tab, feature flags, layout preferences. Small Codable values are OK.
 
-**Never:** tokens, OAuth refresh tokens, API keys, user identifiers that look like secrets, PII, biometric templates, anything sensitive. `UserDefaults` is plist-on-disk, restored from iCloud backups in plain text, and readable by any developer-mode tool or jailbroken device. Keychain is the only correct answer.
+**Never:** tokens, OAuth refresh tokens, API keys, secret identifiers, biometric templates, or sensitive personal data. `UserDefaults` is preference storage, not a security boundary. Use Keychain for small secrets/key material and appropriately protected files or databases for larger personal records.
 
 ```swift
 // Simple flags inside a view — fine.
@@ -608,7 +610,7 @@ For multiple persisted properties, see `state-and-observation.md` § The `@AppSt
 
 ## Keychain
 
-All tokens, credentials, OAuth refresh tokens, API keys, biometric-gated secrets, sensitive PII. The popular wrappers are `KeychainAccess` (kishikawakatsumi) and `KeychainSwift` — both are thin, audited, and remove the `SecItemCopyMatching` boilerplate. Alternatively, write a small typed wrapper:
+Use Keychain for small secrets and key material: tokens, credentials, OAuth refresh tokens, API keys, encryption keys, and biometric-gated secrets. Do not use it as a general-purpose PII database; protect larger personal records in files or a database and keep only the encryption key in Keychain when application-level encryption is required. Popular wrappers such as `KeychainAccess` and `KeychainSwift` remove `SecItemCopyMatching` boilerplate. Alternatively, write a small typed wrapper:
 
 ```swift
 import Security
@@ -823,10 +825,10 @@ In the view, render `syncState == .pending` as a subtle indicator (small spinner
 - [ ] Every model wrapped in a `VersionedSchema` from v1.0.0 — even if no migration planned.
 - [ ] `typealias` to the latest schema namespace so call-site code stays clean.
 - [ ] `SchemaMigrationPlan` declared and registered at container creation.
-- [ ] `ModelContainer.init`/`fetch`/`save` wrapped in `beginBackgroundTask` for the 0xdead10cc fix.
-- [ ] Sentry/Crashlytics rule for `0xdead10cc` exception codes.
+- [ ] Suspension-sensitive persistence work identified from lifecycle/crash evidence; bounded critical sections use a background-task assertion only when needed.
+- [ ] Sentry/Crashlytics rule for `0xdead10cc` exception codes when the app has seen or is actively guarding against this failure.
 - [ ] CloudKit-synced models: every property has a default or is optional; every relationship is optional; no `@Attribute(.unique)`; no non-optional `Transformable`.
-- [ ] `#Index<Entity>` on every keyPath used in `@Query` filter/sort (iOS 18+).
+- [ ] Indexes chosen for measured query hot paths, with write/storage cost considered (iOS 18+).
 - [ ] No MVVM wrapping `@Query` — view IS the view model with SwiftData.
 - [ ] Background mutations live in `@ModelActor` types; `try modelContext.save()` always called before the actor returns.
 - [ ] Cross-actor data passed as `PersistentIdentifier`, never `PersistentModel`.
@@ -844,9 +846,9 @@ In the view, render `syncState == .pending` as a subtle indicator (small spinner
 - SwiftData without `VersionedSchema` from v1. Future migrations will fail with `Cannot use staged migration with an unknown model version`.
 - `NSPredicate` string predicates with SwiftData. Use `#Predicate { … }`.
 - `@Attribute(.unique)` on a CloudKit-synced model. CloudKit can't enforce it; sync silently breaks.
-- Tokens / PII / OAuth refresh tokens in `UserDefaults`. Anything resembling a secret goes in Keychain.
+- Secrets or sensitive personal records in `UserDefaults`. Small secrets/keys go in Keychain; larger records use protected file/database storage.
 - MVVM wrapped around `@Query`. ViewModels bloat or get tied to the data layer. Use MV with SwiftData.
-- Unwrapped `ModelContainer.init` / `save` calls on backgrounding. 0xdead10cc waiting to happen.
+- Long or lock-holding persistence work allowed to cross suspension without lifecycle coordination. Use evidence to shorten, defer, checkpoint, or protect only the bounded critical section.
 - Forgetting `@ObservationIgnored` on cached derived state in `@Observable` classes. Every read triggers tracking, every write triggers redraw.
 - `@AppStorage` directly inside an `@Observable` class. Compiles, but does not invalidate views. Use the manual `access`/`withMutation` bridge over `UserDefaults`. See `state-and-observation.md`.
 - Passing `PersistentModel` instances across actors. Pass `PersistentIdentifier` and refetch.

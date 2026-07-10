@@ -16,7 +16,7 @@ Conduct a focused review of an iOS app target. The `swiftui-expert` skill covers
 
 ## Why this command exists
 
-iOS in 2026 sits on a thick stack of platform APIs that a generic SwiftUI review misses. Privacy Manifest enforcement is mandatory and submission-blocking. App Intents is the unification surface for Siri, Shortcuts, Spotlight, the Action Button, and Visual Intelligence — and most apps still implement only the smallest subset. Scoped permission APIs (`PhotosPicker`, `LocationButton`, `ContactAccessButton`, `EKEventEditViewController`, `DataScannerViewController`) let an app grant single-item access without a system prompt or an Info.plist usage string, and many apps still reach for the full-permission version by reflex. Live Activities, interactive widgets, BGContinuedProcessingTask, App Attest, and Foundation Models all reward intentional adoption.
+iOS in 2026 sits on a thick stack of platform APIs that a generic SwiftUI review misses. Privacy Manifest enforcement is submission-blocking when the app or bundled SDK uses APIs covered by Apple's manifest requirements. App Intents is the unification surface for Siri, Shortcuts, Spotlight, the Action Button, and Visual Intelligence — and most apps still implement only the smallest subset. Scoped permission APIs (`PhotosPicker`, `LocationButton`, `ContactAccessButton`, `EKEventEditViewController`, `DataScannerViewController`) let an app grant single-item access without a system prompt or an Info.plist usage string, and many apps still reach for the full-permission version by reflex. Live Activities, interactive widgets, BGContinuedProcessingTask, App Attest, and Foundation Models all reward intentional adoption.
 
 This command surfaces those concerns explicitly so an iOS code review does not stop at "your SwiftUI is fine."
 
@@ -25,7 +25,7 @@ This command surfaces those concerns explicitly so an iOS code review does not s
 Run these in parallel before reading code.
 
 1. **Deployment target.** Inspect `Package.swift`, `*.xcodeproj/project.pbxproj`, and any `.xcconfig` files. Identify the iOS minimum. Many of the rules below are iOS-version-gated.
-2. **Privacy Manifest presence.** `find . -name PrivacyInfo.xcprivacy -print` — if the iOS target ships without one, that is a blocking submission failure since May 1, 2024.
+2. **Privacy Manifest applicability and coverage.** Inventory listed Required Reason APIs in app/dependency code and SDKs on Apple's required-SDK list, then inspect `PrivacyInfo.xcprivacy`. Absence or incomplete reasons are blocking only when those requirements apply.
 3. **Tracking posture.** `rg -l 'ATTrackingManager|NSUserTrackingUsageDescription' .` — if the app calls ATT, verify there is no fingerprinting fallback elsewhere in the code.
 4. **App Intents.** `rg -l 'AppIntent|@Parameter|AppShortcutsProvider' .` — if zero hits in a consumer app, this is usually a Path B (leaving user value on the table) finding.
 5. **Widget / Live Activity targets.** `find . -path '*.xcodeproj/project.pbxproj' -exec grep -l 'WidgetKit\|ActivityKit' {} +` — note whether the project ships these surfaces.
@@ -38,7 +38,7 @@ Run these in parallel before reading code.
 # Privacy Manifest
 find . -name 'PrivacyInfo.xcprivacy' -print -quit | grep -q . && \
     echo "PrivacyInfo.xcprivacy: present" || \
-    echo "PrivacyInfo.xcprivacy: MISSING — ITMS-91053 submission failure (mandatory since May 1, 2024)"
+    echo "PrivacyInfo.xcprivacy: absent — inventory Required Reason APIs and required SDK manifests"
 
 # Legacy image picker
 echo ""
@@ -75,7 +75,7 @@ echo "Push interruption-level mentions: $PUSH"
 # Sign in with Apple alongside social login
 SOCIAL=$(rg -c 'GoogleSignIn|FacebookLogin|TwitterKit|GIDSignIn' . 2>/dev/null | awk -F: '{s+=$2} END {print s+0}')
 SIWA=$(rg -c 'AuthenticationServices|SignInWithAppleButton|ASAuthorizationAppleIDProvider' . --type swift 2>/dev/null | awk -F: '{s+=$2} END {print s+0}')
-[ "$SOCIAL" -gt 0 ] && [ "$SIWA" -eq 0 ] && echo "Third-party social login present, Sign in with Apple missing — Apple's Jan 2024 policy requires both"
+[ "$SOCIAL" -gt 0 ] && [ "$SIWA" -eq 0 ] && echo "Third-party social login present — review Guideline 4.8 applicability and exceptions"
 ```
 
 ## What to review (in order)
@@ -84,7 +84,7 @@ Walk these categories. Load `references/ios-platform.md` for the deep treatment;
 
 ### 1. Privacy Manifest and tracking
 
-Submissions without `PrivacyInfo.xcprivacy` fail with `ITMS-91053`. Third-party SDKs need their own signed manifest, with stable signing identity across versions, since February 12, 2025 (`ITMS-91061`). The manifest declares Required Reason API usage (UserDefaults, file timestamps, system boot time, disk space, active keyboards) and tracking domains. The App Store derives the privacy nutrition labels from the manifest.
+Since May 1, 2024, uploads that use Apple's listed Required Reason APIs must declare approved reasons in `PrivacyInfo.xcprivacy`. SDKs on Apple's required-SDK list need their own signed manifest with stable signing identity across versions. Inventory app and dependency usage first; do not report an absent manifest as a universal failure. The manifest can also declare collected-data categories and tracking domains, and App Store Connect declarations must match actual behavior.
 
 If the app calls `ATTrackingManager.requestTrackingAuthorization()`, the rest of the codebase must not implement a fingerprinting fallback (IDFV plus IP plus locale plus carrier plus brightness plus storage, reconstituted into a stable identifier). Apple's human reviewers reject this under App Store Review Guidelines 5.1.1 / 5.1.2. If the app does not actually track users across apps and websites, do not call ATT at all.
 
@@ -100,9 +100,9 @@ For each permission the app uses, check whether a scoped API would have skipped 
 
 When the app uses the full-permission API instead of the scoped one, recommend the switch and explain that the prompt and the Info.plist usage string become unnecessary.
 
-### 3. Sign in with Apple alongside any social login
+### 3. Sign in with Apple and Guideline 4.8
 
-Apple's January 2024 policy update requires Sign in with Apple whenever a third-party social login is offered. If the app shows "Continue with Google," it must also show "Continue with Apple."
+Guideline 4.8 generally requires an equivalent privacy-preserving login option when third-party/social login authenticates the app's primary account. Before flagging, check the published exceptions: exclusive first-party account systems, enterprise/education/business apps requiring existing organization accounts, government/industry identity systems, and clients for a specific third-party service.
 
 ### 4. App Intents — the unification surface
 
@@ -185,7 +185,7 @@ Same shape as `/swift-critique`:
 
 ## How to do this well
 
-Be specific. "Missing `PrivacyInfo.xcprivacy` — submission will fail with `ITMS-91053`. Apple has required this since May 1, 2024" beats "your privacy story is incomplete."
+Be specific. "This target uses the file-timestamp Required Reason API but has no approved reason in `PrivacyInfo.xcprivacy`; the upload can fail" is actionable. "Every app needs a manifest" is not.
 
 When recommending a scoped API instead of a permission prompt, name both: "Replace the `UIImagePickerController` flow with `PhotosPicker` (SwiftUI, iOS 16+); you can then remove `NSPhotoLibraryUsageDescription` from Info.plist."
 

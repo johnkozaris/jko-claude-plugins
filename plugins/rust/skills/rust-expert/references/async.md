@@ -20,9 +20,9 @@
 - **Making every function async "just in case."** Async infects signatures upward. A function that never awaits should not be async.
 - **`async fn` that immediately calls `spawn_blocking`.** If the entire body is blocking, just make it a sync function called from `spawn_blocking` at the call site.
 
-## The Cardinal Rule
+## Runtime Fairness
 
-No task should spend more than **10-100 microseconds** between `.await` points.
+An async task must yield often enough to meet the application's latency and throughput goals. There is no universal microsecond cutoff: measure the workload, move blocking I/O and sustained CPU work off runtime workers, and chunk or explicitly yield in long loops when profiling shows scheduler starvation.
 
 ## Blocking Taxonomy
 
@@ -80,7 +80,7 @@ let permit = sender.reserve().await?;
 permit.send(value);
 ```
 
-### Shutdown: CancellationToken > task.abort()
+### Shutdown: Cooperative vs Forced Cancellation
 ```rust
 let token = CancellationToken::new();
 tokio::spawn(async move {
@@ -92,7 +92,7 @@ tokio::spawn(async move {
 token.cancel();  // cooperative, clean
 ```
 
-`task.abort()` cancels at arbitrary await points and is extremely hard to make safe.
+Use `CancellationToken` when the task must flush, release protocol state, or run other async cleanup before it exits. `JoinHandle::abort()` is appropriate for work that is known to be cancellation-safe and must stop immediately; it drops the future at an `.await` boundary, so review owned resources and partial operations first. In either case, await the handle and inspect its `JoinError` so cancellation and panics are not silently detached.
 
 ## Bounded Concurrency
 

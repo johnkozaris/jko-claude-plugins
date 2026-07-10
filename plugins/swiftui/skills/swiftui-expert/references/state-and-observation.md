@@ -834,6 +834,6 @@ Flag these in code review:
 - **`id: UUID()` in `ForEach`.** Generates fresh IDs every render; kills identity.
 - **`ForEach(items, id: \.self)`** on rich types when the type has a real ID — use `Identifiable`.
 - **`@State` without `private`.** Always private.
-- **Storing tokens or PII in `@AppStorage` / `UserDefaults`.** Use Keychain. See `persistence.md`.
+- **Storing secrets or sensitive personal records in `@AppStorage` / `UserDefaults`.** Use Keychain for small secrets/keys and protected file/database storage for larger records. See `persistence.md`.
 - **`Task { ... }` in `body`** for observation. Use `.task` (auto-cancels) or `Observations { }` from a service.
 - **Computing derived state in `body`** that could be a computed property on the model. Move expensive derivations to the model so they're cached by the registrar.

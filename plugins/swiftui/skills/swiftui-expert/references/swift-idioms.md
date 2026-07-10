@@ -731,7 +731,7 @@ Not `decode(Optional<String>.self, forKey:)`, which expects the key present with
 
 ## Storage
 
-- Never store tokens, refresh tokens, credentials, or PII in `UserDefaults`. `UserDefaults` is plaintext on disk and shows up in iCloud backups by default. Use Keychain.
+- Never store tokens, refresh tokens, credentials, or sensitive personal records in `UserDefaults`. Use Keychain for small secrets/keys and appropriately protected files or databases for larger records.
 - `URL.documentsDirectory` for user-created content. Backed up to iCloud.
 - `URL.cachesDirectory` for derived, regeneratable data. Not backed up. System can purge.
 

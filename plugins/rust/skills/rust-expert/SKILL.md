@@ -40,7 +40,7 @@ When a compiler error appears, reframe it as a design question:
 → _Consult [error-handling reference](references/error-handling.md) for thiserror/anyhow/snafu decision matrix._
 
 **DO**: Use `?` to propagate, and `.context()` **where the frame adds information** (the file path, the query, the record id) — not mechanically at every layer. Context at every propagation point produces russian-doll messages ("failed to handle request: failed to process order: failed to query db: …") that bury the one frame that knew something.
-**DO**: Use `thiserror` (v2) for libraries, `anyhow` (v2) for applications.
+**DO**: Use `thiserror` v2 for typed library or domain errors and `anyhow` v1 at application boundaries where callers do not branch on error variants. Applications that need programmatic recovery should keep typed errors too.
 **DO**: Use `#[non_exhaustive]` on public error enums.
 **DO**: Use `.expect("invariant X holds because Y")` to assert what the type system cannot express — invariant assertion is fine; lazy error handling is not.
 **DON'T**: Use `.unwrap()` or `.expect()` on Results from outside the program (parse, IO, env, deserialize, network) — this is what took down [Cloudflare on Nov 18, 2025](https://blog.cloudflare.com/18-november-2025-outage/): a hard-coded 200-feature limit hit unexpected input, `.unwrap()` on the `Err` panicked in `fl2_worker_thread`, 5xx globally for hours.
@@ -63,7 +63,7 @@ When a compiler error appears, reframe it as a design question:
 → _Consult [design-principles reference](references/design-principles.md) for SOLID, Microsoft M-_ rules, modern Rust table.\*
 
 **DO**: Apply Single Responsibility — one struct per concept, one domain per module.
-**DO**: Depend on traits, not concrete types (Dependency Inversion).
+**DO**: Introduce a trait at a real substitution boundary — multiple implementations, caller-supplied behavior, runtime polymorphism, or an external I/O seam that benefits from a test double. Prefer a concrete type when there is one owned implementation.
 **DO**: Use `#[expect(lint)]` instead of `#[allow(lint)]` (warns when stale, Rust 1.81+).
 **DON'T**: Use weasel word names — `BookingService`, `DataManager`. Name types after what they ARE.
 **DON'T**: Expose `Arc`, `Rc`, `Box` in public API signatures — hide implementation details.
@@ -72,7 +72,7 @@ When a compiler error appears, reframe it as a design question:
 
 → _Consult [traits reference](references/traits.md) for generics vs dyn, standard traits, sealed patterns._
 
-**DO**: Implement standard traits eagerly (`Debug`, `Clone`, `PartialEq`, `Hash`, `Default`).
+**DO**: Implement standard traits deliberately. `Debug` is usually valuable; add `Clone`, `Copy`, `PartialEq`, `Eq`, `Hash`, and `Default` only when their semantics are valid and callers genuinely benefit.
 **DO**: Default to generics. Use `dyn Trait` only for genuine runtime polymorphism.
 **DON'T**: Violate Hash/Eq consistency — the most dangerous silent bug in Rust's stdlib.
 
@@ -81,8 +81,8 @@ When a compiler error appears, reframe it as a design question:
 → _Consult [async reference](references/async.md) for blocking taxonomy, cancellation safety, JoinSet._
 
 **DO**: Keep business logic synchronous. Use async only at I/O boundaries.
-**DO**: Use `CancellationToken` for graceful shutdown — not `task.abort()`.
-**DON'T**: Block async threads for more than 10-100 microseconds between `.await` points.
+**DO**: Use `CancellationToken` when work needs cooperative shutdown and cleanup. Use `JoinHandle::abort()` only when the future is cancellation-safe and immediate forced cancellation is intentional; await the handle so cancellation and panics are observed.
+**DON'T**: Monopolize an async runtime worker with blocking I/O, long CPU work, or unbounded loops. Move blocking/CPU work to the appropriate pool and measure against the application's latency budget instead of applying a universal microsecond cutoff.
 **DON'T**: Hold a `MutexGuard` across `.await` — drop it first.
 **DON'T**: Make every function async "just in case" — async infects signatures upward.
 

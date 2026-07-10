@@ -59,15 +59,15 @@ Where Apple + experts + Reddit + popular OSS all agree. Stated as defaults — n
 5. `.task { }` for view-tied async; never unstructured `Task { }` in body.
 6. Modern API: `.foregroundStyle` / `.tint` / `.clipShape(.rect(cornerRadius:, style: .continuous))` / `#Preview` / `notarytool` / `SMAppService`.
 7. Never `AnyView` in lists; never `UUID()` defaulted in `ForEach`.
-8. Keychain for tokens/PII (never UserDefaults).
+8. Keychain for small secrets/keys; protected files or databases for larger sensitive data (never UserDefaults).
 9. `os.Logger` with privacy interpolation (never `print` in production).
-10. Privacy Manifest mandatory since May 1, 2024.
+10. Privacy Manifest declarations required when the app/SDK uses listed Required Reason APIs or other applicable manifest requirements.
 11. SwiftData `@Model`s wrapped in `VersionedSchema` from v1.0.0.
 12. `@AppStorage` is NEVER allowed inside `@Observable` class (use nested storage class).
 13. Liquid Glass on chrome only (never list rows, content tiles, full-screen backgrounds, glass-on-glass, text on glass).
 14. macOS apps need full main menu with keyboard shortcuts.
 15. Hardened Runtime + Notarization via `notarytool` for direct distribution.
-16. Sign in with Apple required alongside any third-party social login.
+16. Apply Sign in with Apple under App Review Guideline 4.8 after checking its published exceptions.
 17. App Intents is the unification API for Siri/Shortcuts/Spotlight/Action Button.
 18. Swift Testing for new tests; XCTest for UI/performance/Obj-C bridges.
 19. MainActor-default is the recommendation for app targets (file 06 rule 31 contradicts this — out of consensus).
@@ -77,8 +77,8 @@ Where Apple + experts + Reddit + popular OSS all agree. Stated as defaults — n
 
 When you ask "should I use X?":
 
-- **MV vs MVVM**: MV default. Use ViewModel WHEN explicit state machine + >=20 orchestration tests + UIKit migration. Reality: Apple Backyard Birds = 0 VMs.
-- **TCA**: don't use it by default. Use TCA WHEN the app has many screens with cross-screen state coordination, the team is large enough that standardization pays back the learning curve, regulated context demands exhaustive `TestStore` action testing, AND the team has FP/Redux experience. Reality: isowords is the canonical TCA reference; nearly every other audited modern repo skipped it.
+- **MV vs MVVM**: MV default. Use a ViewModel when state-machine/orchestration complexity, lifecycle ownership, a meaningful test seam, migration constraints, or intentional team conventions justify it.
+- **TCA**: don't use it by default. Consider it when cross-feature coordination, independent state lifecycle, deterministic effect testing, and team constraints create benefits that outweigh reducer/tooling/dependency costs. Regulation is neither required nor sufficient.
 - **SwiftData vs Core Data vs SQLiteData vs GRDB**: SwiftData WHEN iOS 17+ AND a small/simple data model AND private-CloudKit-only AND greenfield AND willing to ship VersionedSchema from v1. Core Data WHEN shared/public CloudKit or large relational model. SQLiteData WHEN you want SwiftData ergonomics + shared/public CloudKit. GRDB WHEN SQL is the right abstraction.
 - **AppKit vs SwiftUI on macOS**: SwiftUI shell with AppKit drops (NSTextView / NSDocument / NSXPC / low-level window APIs). Pure AppKit valid for utility / menu-bar / media (IINA 44.9k, Stats 38.8k, Rectangle 29k, Ice 28k).
 - **Liquid Glass**: Path A (selective, default ~90%). Path B (custom chrome) for fintech / brokerage / brand-heavy. Path C (`UIDesignRequiresCompatibility = true`) for creative/pro apps. Apple's iWork suite, Final Cut, Logic, Pixelmator opted out.

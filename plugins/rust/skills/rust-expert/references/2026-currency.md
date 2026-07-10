@@ -235,7 +235,7 @@ Reach for these by default; alternatives need justification.
 | CLI args | `clap` v4 (derive) | Universal |
 | Structured logging | `tracing` + `tracing-subscriber` + `EnvFilter` | Never `Span::enter()` across `.await` |
 | Library errors | `thiserror` v2 | |
-| App errors | `anyhow` v2 | `.context()` at layer boundaries |
+| App errors | `anyhow` v1 | `.context()` where the frame adds actionable information |
 | HTTP client (async) | `reqwest` | Build one `Client` and clone; set `.timeout()` AND `.connect_timeout()` |
 | HTTP client (sync, minimal) | `ureq` | No async, smaller dep tree |
 | Web framework | `axum` 0.8+ | Path syntax `/{id}` |

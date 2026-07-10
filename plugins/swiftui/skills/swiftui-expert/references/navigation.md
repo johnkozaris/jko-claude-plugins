@@ -202,7 +202,7 @@ For a single-route-type stack, prefer `path: [Route]` over `NavigationPath`. The
 
 ## Deep links and state restoration
 
-`NavigationPath` and a typed-array path are both `Codable` if the route type is `Codable`. That's what makes deep linking and restoration work.
+`NavigationPath` and a typed-array path can represent navigation state, and a typed route array is `Codable` when its route is. That makes deep linking and restoration implementable, not automatic. Production code still needs URL parsing and validation, destination-tab selection, persistence, decode-failure handling, route-schema migration, and lifecycle-aware restore timing.
 
 A deep link is just "an external URL writes into the router." The pattern:
 

@@ -72,7 +72,7 @@ This is the pattern IceCubesApp, IcySky, and Apple's Backyard Birds all use. See
 
 ### 3. `NavigationStack` with typed routes, one stack per tab
 
-Use `NavigationStack(path:)` bound to a `NavigationPath`, with a typed `Hashable` route enum. Put exactly one stack and one `@Observable` router behind each tab. Deep links and state restoration come for free once the path is bound.
+Use `NavigationStack(path:)` with a typed `Hashable` route enum. Give each tab an independent stack/path when tabs preserve separate navigation histories. A bound path makes deep linking and restoration representable, not automatic: parse and validate incoming URLs, select the destination tab, persist a `Codable` path, handle decode failures/schema changes, and restore it at the correct lifecycle point.
 
 ```swift
 enum Route: Hashable {
@@ -142,9 +142,9 @@ A small number of broad principles apply across every category and should color 
 
 These are the iOS-specific rules that should appear in nearly every iOS app review.
 
-**Privacy Manifest.** Since May 1, 2024 (`ITMS-91053`), every app needs a `PrivacyInfo.xcprivacy` file at its root. Submissions without it fail in App Store Connect. Third-party SDKs need their own signed manifest with the same signature across versions, since February 12, 2025 (`ITMS-91061`). The manifest declares the Required Reason APIs you call (file timestamps, UserDefaults, system boot time, disk space, active keyboards) and the tracking domains you contact; the App Store derives your privacy nutrition labels from it.
+**Privacy Manifest.** Since May 1, 2024, an app or bundled SDK that uses Apple's listed Required Reason APIs must declare approved reasons in `PrivacyInfo.xcprivacy`; Apple also requires manifests and signatures from SDKs on its required-SDK list. Do not flag every app that lacks the file. First inventory the APIs and dependencies, then treat absence or incomplete reasons as blocking only when the requirement applies. The manifest can also declare collected-data categories and tracking domains; App Store Connect declarations must match actual behavior.
 
-**Sign in with Apple.** Apple's January 2024 policy update requires Sign in with Apple alongside any third-party social login. If your app shows a "Continue with Google" button, it must also show "Continue with Apple."
+**Sign in with Apple.** App Review Guideline 4.8 generally requires an equivalent privacy-preserving login option when a third-party/social login authenticates the app's primary account. Check the published exceptions before flagging: apps exclusively using their own account system, enterprise/education/business apps requiring an existing organization account, government/industry-backed identity systems, and clients for a specific third-party service can qualify. Report the applicable rule and exception analysis, not a blanket button-presence check.
 
 **App Intents are the unification API.** A single `AppIntent` exposes the action to Siri, Shortcuts, Spotlight, Focus filters, Action Button, Apple Pencil Pro squeeze, and Visual Intelligence (iOS 26). WWDC25 Session 244 covers this directly. For most consumer apps, App Intents are the realistic on-ramp into Apple Intelligence features — implement the verbs you already support and they get surfaced everywhere automatically.
 
@@ -228,7 +228,7 @@ Default to MV. The `View` is the view model. Use a per-screen `@Observable` View
 
 ### TCA vs. vanilla SwiftUI
 
-Default to vanilla SwiftUI plus `@Observable` plus an `@Observable` router. The Composable Architecture is the right call when the app has many screens with real cross-screen state coordination, when the team is large enough that standardization across hires pays back the learning curve, when a regulated context (fintech, healthtech, government) makes TCA's exhaustive `TestStore` action testing a compliance win, and when the team has FP or Redux experience or has explicitly budgeted for the learning curve. Adoption among popular maintained Swift OSS apps is rare outside Point-Free's own ecosystem; the canonical TCA reference is their `isowords` repository. There have been widely-covered large-team migrations to TCA that reported real wins in performance and testability, but those are case studies, not a general signal. For most apps, TCA is overkill and locks the project to a third-party dependency the team may not control.
+Default to vanilla SwiftUI plus `@Observable` plus an `@Observable` router. Consider The Composable Architecture when several concrete needs align: difficult cross-feature state/effect coordination, a valuable deterministic test seam for actions and dependencies, state whose lifecycle is independent of a view tree, and a team willing to own the reducer model, learning cost, tooling cost, and third-party dependency. A regulated context may increase the value of exhaustive reducer tests, but regulation is neither required nor sufficient. Adoption among popular maintained Swift OSS apps is rare outside Point-Free's ecosystem; the canonical TCA reference is `isowords`. Judge whether TCA solves observed coordination and assurance problems rather than requiring every demographic or industry signal.
 
 ### Persistence — SwiftData vs. Core Data vs. SQLiteData vs. GRDB
 
@@ -242,7 +242,7 @@ There is no one right answer, but each option fits a specific shape.
 
 **GRDB** is the right call when SQL is genuinely the right abstraction for the data, when you need fine-grained query control, or when datasets are large enough that SwiftData's main-thread cost starts to show.
 
-See `references/persistence.md` for production rules (the `0xdead10cc` backgrounding crash and its fix, the CloudKit constraints, the `@AppStorage` + `@Observable` workaround).
+See `references/persistence.md` for production rules (diagnosing `0xdead10cc`, protecting bounded work that can cross suspension, CloudKit constraints, and the `@AppStorage` + `@Observable` workaround).
 
 ### AppKit vs. SwiftUI for macOS
 
@@ -296,7 +296,7 @@ A code review under this skill works through severity-tiered findings against a 
 
 When you record a finding, name its severity. The five tiers below cover everything; do not invent new ones.
 
-**blocking** — the code is wrong in a way that will cause data loss, security failure, crash on plausible input, App Store rejection, or breakage of a core user flow. Fix before merge. Examples: `@AppStorage` placed directly inside an `@Observable` class (the silent-no-updates trap), tokens stored in `UserDefaults`, missing `PrivacyInfo.xcprivacy`, SwiftData `@Model` shipped without `VersionedSchema` from v1, an icon-only `Button` with no accessibility label on a primary action.
+**blocking** — the code is wrong in a way that will cause data loss, security failure, crash on plausible input, App Store rejection, or breakage of a core user flow. Fix before merge. Examples: `@AppStorage` placed directly inside an `@Observable` class (the silent-no-updates trap), tokens stored in `UserDefaults`, required-reason API use without the applicable privacy-manifest declaration, SwiftData `@Model` shipped without `VersionedSchema` from v1, an icon-only `Button` with no accessibility label on a primary action.
 
 **important** — the code works today but creates a real cost: bad performance on a measured path, deprecated API that will break on the next OS, missing tests on non-trivial orchestration, an architectural drift that will hurt a later edit. Worth addressing during this work, not later. Examples: an unstructured `Task { }` inside `body`, an `if-else` flip that creates two structural identities, raw `.spring(response:dampingFraction:)` where a named spring is cleaner, MVVM wrapped around `@Query`, a Mac app shipping with an empty `.commands { }`.
 
@@ -322,7 +322,7 @@ For each review, walk these categories in order. Load the matching reference onl
 10. **Performance.** Identity stable in `ForEach`? Lazy stacks where needed? Expensive work out of `body`? See `references/performance.md`.
 11. **Animation.** Named springs? `@Animatable` rather than hand-rolled `animatableData`? See `references/animation.md`.
 12. **Liquid Glass** (iOS/macOS 26+ only). Glass on chrome rather than content? No nested glass? Path A / B / C posture matches the app's brand needs? See `references/liquid-glass.md`.
-13. **Persistence** (only if SwiftData, Core Data, GRDB show up). `VersionedSchema` from v1? `beginBackgroundTask` around model container work on iOS? See `references/persistence.md`.
+13. **Persistence** (only if SwiftData, Core Data, GRDB show up). `VersionedSchema` from v1? Any measured suspension-related database termination or bounded critical save that needs background-task protection? See `references/persistence.md`.
 14. **iOS platform** (iOS targets). Privacy Manifest, Sign in with Apple, App Intents, scoped permission APIs. See `references/ios-platform.md`.
 15. **macOS platform** (Mac targets). Main menu with shortcuts on primaries, `SMAppService`, `notarytool`, Hardened Runtime, Sparkle 2.x. See `references/macos-platform.md`.
 16. **Testing and debugging.** Swift Testing for new tests? `os.Logger` rather than `print`? UI tests using accessibility identifiers? See `references/testing-and-debugging.md`.
@@ -400,11 +400,11 @@ For concurrency, do not use `DispatchQueue.main.async` or `DispatchQueue.global(
 
 For Liquid Glass, do not apply `.glassEffect()` to list rows, content tiles, full-screen backgrounds, or as a background to glass (nested glass). Do not place text directly on a glass surface — text needs an opaque layer underneath.
 
-For iOS, do not ship without a Privacy Manifest, do not ask permissions on first launch, do not fall back to fingerprinting after an ATT denial, and do not use `UIImagePickerController` in new code.
+For iOS, inventory Required Reason API and required-SDK usage and ship the applicable Privacy Manifest declarations, do not ask permissions on first launch, do not fall back to fingerprinting after an ATT denial, and do not use `UIImagePickerController` in new code.
 
 For macOS, do not use `SMLoginItemSetEnabled` / `SMJobBless` (use `SMAppService`), do not run `altool` (use `notarytool`), and do not ship Touch Bar code — the hardware is gone.
 
-For logging and debugging, do not use `print()` in production code paths (use `os.Logger`), do not ship `Self._printChanges()` outside a `#if DEBUG` guard, and do not store tokens or PII in `UserDefaults` (use Keychain).
+For logging and debugging, do not use `print()` in production code paths (use `os.Logger`), do not ship `Self._printChanges()` outside a `#if DEBUG` guard, and do not store secrets or sensitive personal data in `UserDefaults`. Use Keychain for small secrets/keys and appropriately protected files or databases for larger user data.
 
 ## Output format for reviews
 

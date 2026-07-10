@@ -41,13 +41,13 @@ No type should be forced to implement methods it does not use.
 
 ### Dependency Inversion (DIP)
 
-High-level modules depend on traits, not concrete types.
+High-level modules should depend on stable capability boundaries when substitution is real. A concrete dependency is the right starting point for one owned implementation; introduce a trait when callers provide implementations, multiple implementations exist, or an external I/O seam needs isolation.
 
 ```rust
-// Concrete dependency (violation)
+// Concrete dependency (correct while EmailSender is the one owned implementation)
 struct NotificationService { sender: EmailSender }
 
-// Trait-based (correct)
+// Trait boundary (use when substitution is a real requirement)
 struct NotificationService<S: MessageSender> { sender: S }
 ```
 
@@ -57,7 +57,7 @@ The escalation ladder (Microsoft M-DI-HIERARCHY):
 2. **Generics** — when users provide implementations at compile time
 3. **`dyn Trait`** — last resort, wrapped in a custom struct
 
-Rust's trait system IS the DI container. No framework needed.
+Rust's type system makes constructor injection straightforward; traits are one abstraction tool, not a requirement for every dependency.
 
 ## DRY — Don't Repeat Yourself
 

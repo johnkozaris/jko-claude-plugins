@@ -364,7 +364,7 @@ WindowGroup {
 
 ## Sign in with Apple
 
-**Required by App Store** alongside any third-party social login (Google, Facebook, GitHub, Twitter, etc.) — Apple's January 2024 policy update. Framework: AuthenticationServices.
+App Review Guideline 4.8 generally requires an equivalent privacy-preserving login option when a third-party/social login authenticates the app's primary account. Check the published exceptions before reporting a violation: exclusive first-party account systems, enterprise/education/business apps requiring existing organization accounts, government/industry-backed identity systems, and clients for a specific third-party service. Framework: AuthenticationServices.
 
 ```swift
 import AuthenticationServices
@@ -421,7 +421,7 @@ Pair with traditional password as a fallback during the transition. The iOS 26 A
 
 ## Privacy Manifest (`PrivacyInfo.xcprivacy`)
 
-**MANDATORY since May 1, 2024 (ITMS-91053).** App Store Connect auto-rejects apps missing the manifest. Third-party SDKs since Feb 12, 2025 (ITMS-91061) — they must ship a signed manifest and remain code-signed by the same author across versions.
+Since May 1, 2024, apps and bundled SDKs that use Apple's listed Required Reason APIs must declare approved reasons in `PrivacyInfo.xcprivacy`. SDKs on Apple's required-SDK list must ship a signed manifest and retain the required signing identity. Inventory API and dependency usage before classifying an absent file; it is not a universal requirement for every app.
 
 ### Required Reason API categories
 
@@ -1307,7 +1307,7 @@ Hard "no" list for 2026 iOS code:
 - **Asking permission on first launch.** Always prime in-context.
 - **Fingerprinting fallback after ATT denial.** Human review rejection under Guidelines 5.1.1 / 5.1.2. (ITMS-91008 is a separate code — "Invalid API reason declaration" — not fingerprinting.)
 - **`canOpenURL` enumeration** beyond 50 entries in `LSApplicationQueriesSchemes`.
-- **Missing `PrivacyInfo.xcprivacy`.** ITMS-91053 submission failure.
+- **Required Reason API use without the applicable `PrivacyInfo.xcprivacy` declaration.** Inventory app and dependency usage before reporting.
 - **Pre-iOS-17 widget patterns** (read-only billboards with no `Button(intent:)` or `Toggle(isOn:intent:)`).
 - **Custom tooltip systems.** Use TipKit.
 - **StoreKit 1** in new code.
@@ -1322,5 +1322,5 @@ Hard "no" list for 2026 iOS code:
 - **Background location without a visible feature.** Always-auth must tie to ongoing capability.
 - **Read-only AppIntents** (no `AppShortcutsProvider`) on apps with recurring user verbs.
 - **HealthKit data leaving device without explicit consent UI.**
-- **Storing tokens or PII in `UserDefaults`.** Use Keychain (see `state-and-observation.md`).
+- **Storing secrets or sensitive personal records in `UserDefaults`.** Use Keychain for small secrets/keys and protected file/database storage for larger records (see `persistence.md`).
 - **`@AppStorage` for `@Observable` state coupling** without the `UserDefaults` observation workaround (see `state-and-observation.md`).
