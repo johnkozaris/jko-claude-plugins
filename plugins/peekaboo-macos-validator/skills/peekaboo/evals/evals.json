@@ -9,13 +9,25 @@
     {
       "id": "trigger-validation-prompt",
       "user_message": "Click the Settings tab and verify it works",
-      "expected_output": "Skill triggers. Captures a snapshot, finds the Settings element by .accessibilityIdentifier or label, clicks via `peekaboo click --on elem_N --snapshot $SID`, captures again, verifies via the AX tree that the panel switched, AND `view`s the resulting annotated PNG to confirm the panel renders correctly (not just that the click succeeded).",
+      "expected_output": "Skill triggers. Captures a snapshot to an explicit artifact path, copies the Settings element's opaque ID and snapshot ID exactly, clicks via `peekaboo click --on \"$ID\" --snapshot \"$SID\"`, captures a fresh snapshot after the mutation, verifies via the AX tree that the panel switched, AND `view`s the resulting annotated PNG to confirm the panel renders correctly (not just that the click succeeded).",
       "should_invoke": true
     },
     {
       "id": "trigger-screenshot",
       "user_message": "take a screenshot of the app and tell me if the empty state copy is too dim",
       "expected_output": "Skill triggers. Runs `peekaboo see` against the target app, `view`s the resulting PNG inline, and writes a critique that specifically evaluates the empty state's copy contrast (numerically — opacity %, contrast ratio estimate vs WCAG AA) plus other visible issues. Includes a top-3-fixes-by-impact list.",
+      "should_invoke": true
+    },
+    {
+      "id": "trigger-background-runtime-diagnostics",
+      "user_message": "Peekaboo works in Terminal but my Copilot CLI run captures only the wallpaper and typing does nothing",
+      "expected_output": "Skill triggers. Checks `peekaboo permissions status --all-sources --json`, `peekaboo bridge status --verbose --json`, and `peekaboo daemon status --json`; identifies which host owns Screen Recording, Accessibility, and Event Synthesizing. It does NOT immediately force `--no-remote` from a background agent session and explains that TCC grants belong to the selected runtime.",
+      "should_invoke": true
+    },
+    {
+      "id": "trigger-semantic-form-action",
+      "user_message": "Fill the native settings search field and increment the result limit without stealing focus",
+      "expected_output": "Skill triggers. Uses a fresh `see` or `inspect-ui` result, treats IDs as opaque, prefers `set-value` for the non-secure search field and `perform-action --action AXIncrement` for the stepper, keeps targeted delivery in the background, and recaptures after each mutation to verify the resulting values.",
       "should_invoke": true
     },
     {

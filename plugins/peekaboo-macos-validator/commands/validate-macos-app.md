@@ -27,11 +27,16 @@ short critique against the rubric in the `peekaboo` skill.
 
 ```bash
 peekaboo --version
-peekaboo list permissions --json | jq '.data.permissions[]|{name,isGranted}'
+peekaboo permissions status --all-sources --json
+ARTIFACT_DIR="${PEEKABOO_ARTIFACT_DIR:-$PWD/.artifacts/peekaboo}"
+mkdir -p "$ARTIFACT_DIR"
 ```
 
-If permissions are missing OR `peekaboo` is not installed, stop with an
-actionable error (point at `/peekaboo-doctor`).
+Require macOS 15+, Peekaboo 3.4+, Screen Recording, and Accessibility on the
+selected runtime. Require Event Synthesizing only if the planned flow uses
+background keyboard input, hotkeys, key presses, paste, or coordinate clicks.
+If a requirement is missing, stop with an actionable error and point at
+`/peekaboo-doctor`.
 
 ### 1. Launch
 
@@ -40,7 +45,6 @@ Parse `$ARGUMENTS` — first token is `BID`, the rest are view names.
 ```bash
 BID="$1"; shift; VIEWS="$@"
 peekaboo app launch --bundle-id "$BID" --wait-until-ready
-sleep 0.5
 ```
 
 If launch fails, report and stop.
@@ -49,11 +53,12 @@ If launch fails, report and stop.
 
 ```bash
 peekaboo see --app "$BID" --json --annotate \
-  --path /tmp/validate-initial.png > /tmp/validate-initial.json
-SID=$(jq -r .data.snapshot_id /tmp/validate-initial.json)
+  --path "$ARTIFACT_DIR/validate-initial.png" \
+  > "$ARTIFACT_DIR/validate-initial.json"
+SID=$(jq -r .data.snapshot_id "$ARTIFACT_DIR/validate-initial.json")
 ```
 
-Use the `Read` tool on `/tmp/validate-initial_annotated.png`. Write a
+Use the `Read` tool on `$ARTIFACT_DIR/validate-initial_annotated.png`. Write a
 short scored critique (alignment, hierarchy, contrast, copy clarity).
 
 **Pass criteria**: the AX tree has `element_count > 0` and the rendered
@@ -66,36 +71,54 @@ If `$VIEWS` is empty, derive the list from the AX tree:
 ```bash
 jq -r '.data.ui_elements[]
        | select(.role=="tab" or .role=="button" and .is_actionable)
-       | .identifier // .label // .title' /tmp/validate-initial.json
+       | .identifier // .label // .title' \
+       "$ARTIFACT_DIR/validate-initial.json"
 ```
 
 Pick the obvious top-level navigation entries.
 
 ### 4. Walk each view
 
-For each view name:
+Set `CURRENT_JSON` to the initial snapshot before the loop. For each view,
+resolve the target from that current snapshot:
 
 ```bash
-peekaboo click "$NAME" --app "$BID"
-sleep 0.5
-peekaboo see --app "$BID" --json --annotate \
-  --path /tmp/validate-${NAME}.png > /tmp/validate-${NAME}.json
+CURRENT_JSON="$ARTIFACT_DIR/validate-initial.json"
+SID=$(jq -r .data.snapshot_id "$CURRENT_JSON")
+ID=$(jq -r --arg I "$IDENTIFIER" \
+   '.data.ui_elements[] | select(.identifier==$I) | .id' "$CURRENT_JSON")
+peekaboo click --on "$ID" --snapshot "$SID" --app "$BID"
 ```
 
-Then `Read` the annotated PNG and write a per-view critique. Pass criteria:
+Treat `ID` as opaque. If the view has no stable identifier, use
+`peekaboo click "$NAME" --app "$BID" --wait-for 8000` as the fallback.
+
+Immediately capture the post-action state and make it the current snapshot for
+the next iteration:
+
+```bash
+peekaboo see --app "$BID" --json --annotate \
+  --path "$ARTIFACT_DIR/validate-${INDEX}.png" \
+  > "$ARTIFACT_DIR/validate-${INDEX}.json"
+CURRENT_JSON="$ARTIFACT_DIR/validate-${INDEX}.json"
+```
+
+After any state-changing action, capture a new snapshot before the next
+ID-based action. Never reuse the initial `SID` across the full walk.
+
+Use `set-value` for settable, non-secure fields when replacement semantics are
+correct. Use `perform-action` only when a specific AX action is needed. Keep
+normal button activation on `click`; use coordinates only as a last resort.
+
+Then `Read` the new annotated PNG and write a per-view critique. Pass criteria:
 - The click resolves (no `ELEMENT_NOT_FOUND`)
 - The post-click snapshot's content meaningfully changed
 - The PNG renders correctly (no obvious layout breakage, blank panes, or
   truncated copy)
 
-If targeting by visible label is flaky, switch to AX-identifier targeting:
-
-```bash
-ID=$(jq -r --arg I "$NAME" \
-   '.data.ui_elements[]|select(.identifier==$I).id' \
-   /tmp/validate-initial.json)
-peekaboo click --on "$ID" --snapshot "$SID" --app "$BID"
-```
+For animations or a flaky transition, wrap the action with `peekaboo capture
+action --json -- <command>` and inspect its child exit details,
+`metadata.json`, and `contact.png`.
 
 ### 5. Quit
 
@@ -103,7 +126,8 @@ peekaboo click --on "$ID" --snapshot "$SID" --app "$BID"
 peekaboo app quit --app "$BID"
 ```
 
-Always run this — even if earlier steps fail.
+Always run this, even if earlier steps fail. Do not exit before reporting
+whether cleanup succeeded.
 
 ### 6. Report
 

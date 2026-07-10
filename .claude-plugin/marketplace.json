@@ -163,7 +163,7 @@
       "name": "peekaboo-macos-validator",
       "source": "./plugins/peekaboo-macos-validator",
       "description": "macOS app UI automation and visual critique via Peekaboo (no AI keys; agent reads pixels itself)",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "category": "testing",
       "tags": [
         "peekaboo",

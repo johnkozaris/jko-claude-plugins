@@ -33,21 +33,60 @@ peekaboo --version
 sw_vers -productVersion
 ```
 
-Peekaboo 3.x targets recent macOS. If this is < 13, warn the user.
+Released Peekaboo CLI builds require macOS 15.0+. If this is < 15, stop with
+an unsupported-platform error.
+
+Parse the installed Peekaboo version printed above. Require >= 3.4 for this
+plugin and recommend the latest stable release. If Homebrew reports Peekaboo
+as outdated, print `brew upgrade steipete/tap/peekaboo`; do not upgrade
+without the user's approval.
 
 ### 3. Permissions
 
 ```bash
-peekaboo list permissions --json | jq '.data.permissions[]|{name,isGranted}'
+peekaboo permissions status --all-sources --json \
+  | jq '.data | {
+      selectedSource,
+      sources: [.sources[] | {
+        source, displayName, isSelected,
+        permissions: [.permissions[] | {name,isRequired,isGranted}]
+      }]
+    }'
 ```
 
-Both **Screen Recording** and **Accessibility** must be granted to the
-process invoking peekaboo (your terminal, or the agent host). Grant them
-in System Settings → Privacy & Security.
+**Screen Recording** and **Accessibility** must be granted to the selected
+runtime. **Event Synthesizing** is also required when the flow uses background
+typing, hotkeys, key presses, paste, coordinate clicks, or synthetic fallback.
 
-If either is missing, stop and instruct the user step-by-step.
+If either required permission is missing, stop and run:
 
-### 4. Self-test: list a known app
+```bash
+peekaboo permissions grant
+```
+
+For missing Event Synthesizing, run:
+
+```bash
+peekaboo permissions request-event-synthesizing
+```
+
+Do not assume the terminal owns the grant. In Claude Code, Copilot CLI, SSH,
+or launchd sessions, the selected source can be a daemon or Peekaboo.app
+Bridge.
+
+### 4. Runtime host diagnostics
+
+```bash
+peekaboo bridge status --verbose --json
+peekaboo daemon status --json
+```
+
+Report the selected host and why. A stopped daemon is informational because
+normal commands can auto-start it. Do not force `--no-remote` merely because
+the agent is a subprocess; background sessions should prefer a permissioned
+Bridge/daemon.
+
+### 5. Self-test: list a known app
 
 ```bash
 peekaboo list apps --json \
@@ -55,22 +94,25 @@ peekaboo list apps --json \
 ```
 
 Finder is always running. If this returns nothing AND permissions look
-granted, the agent likely lacks AX entitlement — re-launch the terminal
-after granting Accessibility.
+granted, the selected runtime likely lacks AX entitlement. Restart that
+runtime after granting Accessibility.
 
-### 5. Snapshot self-test (optional but very informative)
+### 6. Snapshot self-test (optional but very informative)
 
 ```bash
-peekaboo see --app Finder --json --annotate --path /tmp/doctor.png \
-  > /tmp/doctor.json
-ls -la /tmp/doctor.png /tmp/doctor_annotated.png
-jq '.data | {snapshot_id, element_count, interactable_count}' /tmp/doctor.json
+ARTIFACT_DIR="${PEEKABOO_ARTIFACT_DIR:-${TMPDIR:-/tmp}/peekaboo-doctor}"
+mkdir -p "$ARTIFACT_DIR"
+peekaboo see --app Finder --json --annotate \
+  --path "$ARTIFACT_DIR/doctor.png" > "$ARTIFACT_DIR/doctor.json"
+ls -la "$ARTIFACT_DIR/doctor.png" "$ARTIFACT_DIR/doctor_annotated.png"
+jq '.data | {snapshot_id, element_count, interactable_count}' \
+  "$ARTIFACT_DIR/doctor.json"
 ```
 
-If `/tmp/doctor_annotated.png` exists and `element_count > 0`, you're
+If `doctor_annotated.png` exists and `element_count > 0`, you're
 fully operational.
 
-### 6. Cache hygiene
+### 7. Cache hygiene
 
 ```bash
 peekaboo clean --older-than 24
@@ -79,7 +121,7 @@ peekaboo clean --older-than 24
 Each `see` call writes ~100–500 KB to `~/.peekaboo/snapshots/<UUID>/`.
 Running `clean` weekly keeps that bounded.
 
-### 7. Report
+### 8. Report
 
 Print a final summary:
 
@@ -88,10 +130,12 @@ Print a final summary:
 
 | Check                       | Status |
 |-----------------------------|--------|
-| Binary installed            | ✅ 3.0.0-beta4 |
-| macOS version               | ✅ 14.x        |
+| Binary installed            | ✅ <version>   |
+| macOS version               | ✅ 15.x        |
+| Selected runtime            | ✅ daemon      |
 | Screen Recording permission | ✅             |
 | Accessibility permission    | ✅             |
+| Event Synthesizing          | ✅             |
 | List apps                   | ✅ Finder      |
 | Snapshot self-test          | ✅ 142 elements |
 

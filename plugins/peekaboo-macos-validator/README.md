@@ -1,6 +1,6 @@
 # peekaboo-macos-validator
 
-macOS app UI automation and visual critique via [Peekaboo](https://peekaboo.boo).
+macOS app UI automation and visual critique via [Peekaboo](https://peekaboo.sh).
 The macOS-native equivalent of Playwright + visual-regression review for
 any SwiftUI / AppKit app — drive the UI, capture snapshots, and **read
 the pixels inline** to write a real critique.
@@ -14,6 +14,8 @@ the pixels inline** to write a real critique.
 - **Snapshot** the AX tree + an annotated PNG in one call (`peekaboo see`)
 - **Click** by `.accessibilityIdentifier`, by visible label, by element ID,
   or by raw coordinates
+- **Inspect AX metadata without pixels** (`peekaboo inspect-ui`) and use direct
+  value/semantic actions (`set-value`, `perform-action`)
 - **Type, hotkey, scroll, drag, paste** — full input surface
 - **Drive menu bar items**, **system file/save dialogs**, and **window
   geometry** for responsive testing
@@ -30,7 +32,8 @@ brew install steipete/tap/peekaboo
 # 2. Grant permissions: System Settings → Privacy & Security
 #    - Screen Recording        → your terminal / agent host
 #    - Accessibility           → your terminal / agent host
-#    Both are required.
+#    - Event Synthesizing      → selected host when using background keyboard input
+peekaboo permissions status --all-sources --json
 
 # 3. Install this plugin
 claude --plugin-dir /path/to/myclaudeskills/plugins/peekaboo-macos-validator
@@ -72,19 +75,22 @@ tells) — it explicitly does not stop at "the button is clickable".
 just build                # or: xcodebuild build, swift build, …
 
 # 2. Launch + snapshot
+ARTIFACT_DIR="${PEEKABOO_ARTIFACT_DIR:-$PWD/.artifacts/peekaboo}"
+mkdir -p "$ARTIFACT_DIR"
 peekaboo app launch --bundle-id com.example.myapp --wait-until-ready
 peekaboo see --app com.example.myapp --json --annotate \
-  --path /tmp/k.png > /tmp/k.json
+  --path "$ARTIFACT_DIR/state.png" > "$ARTIFACT_DIR/state.json"
 
 # 3. Read the PNG inline (the agent does this — that's the killer step)
-#    `Read /tmp/k_annotated.png`  in the agent's tool surface
+#    `Read $ARTIFACT_DIR/state_annotated.png` in the agent's tool surface
 
 # 4. Click by accessibility identifier
-SID=$(jq -r .data.snapshot_id /tmp/k.json)
-ID=$(jq -r '.data.ui_elements[]|select(.identifier=="header.tab.settings").id' /tmp/k.json)
+SID=$(jq -r .data.snapshot_id "$ARTIFACT_DIR/state.json")
+ID=$(jq -r '.data.ui_elements[]|select(.identifier=="header.tab.settings").id' \
+  "$ARTIFACT_DIR/state.json")
 peekaboo click --on "$ID" --snapshot "$SID" --app com.example.myapp
 
-# 5. Critique with the rubric, fix, re-verify
+# 5. Recapture after the mutation; critique, fix, and re-verify
 ```
 
 ## Setting up your app for peekaboo
@@ -103,9 +109,11 @@ peekaboo also make XCUITest queries simpler.
 
 ## Prerequisites
 
-- macOS 13+ (Peekaboo 3.x)
-- `peekaboo` ≥ 3.0 (`brew install steipete/tap/peekaboo`)
+- macOS 15.0+
+- `peekaboo` >= 3.4; latest stable recommended
+  (`brew install steipete/tap/peekaboo`)
 - Both **Screen Recording** and **Accessibility** permissions granted
+- **Event Synthesizing** for background typing/hotkeys/paste/coordinates
 - A buildable macOS app target
 
 ## Hook
@@ -125,7 +133,17 @@ peekaboo also make XCUITest queries simpler.
 - **Icon-only buttons**: `Image(systemName:)` inside a `Button` exposes no
   AX label. Always add `.accessibilityLabel("…")`.
 - **Animation settle time**: SwiftUI `withAnimation(...)` durations need a
-  matching `sleep 0.3–0.5` after triggering, or `peekaboo click --wait-for 1500`.
+  bounded settle and a fresh snapshot; prefer state assertions over blind
+  sleeps.
+- **Stale IDs**: element IDs are opaque and belong to a snapshot. Recapture
+  after every state mutation.
+- **Agent runtime permissions**: grants may belong to the daemon or Bridge,
+  not the terminal. Diagnose with `permissions status --all-sources`,
+  `bridge status`, and `daemon status`.
+- **Coordinates**: targeted coordinates are window-relative; use explicit
+  foreground delivery when a real mouse event is required.
+- **Secure fields**: never put credentials in commands, screenshots, or
+  recordings; `set-value` rejects password fields.
 - **Snapshot cache growth**: `peekaboo clean --older-than 24` weekly.
 - **Never call `--analyze`, `peekaboo agent`, `peekaboo analyze`** —
   they require external API keys and the agent is already an LLM.

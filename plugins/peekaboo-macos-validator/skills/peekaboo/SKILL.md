@@ -1,426 +1,293 @@
 ---
 name: peekaboo
 description: "Drive, observe, and critique a running native macOS app (SwiftUI/AppKit) end-to-end via Peekaboo — the macOS-native equivalent of Playwright + visual-regression review. Use when the user mentions the Mac app's UI, screens, screenshots, appearance, layout, accessibility identifiers, clicking, typing, or menus — or says 'see what it looks like', 'show me the UI', 'click X', 'take a screenshot of the app', 'critique the design', 'drive the app'. Use after a SwiftUI/AppKit edit or rebuild, and before claiming a UI feature done. NOT for Electron or web apps (use the electron-playwright validator), NOT for iOS simulators (use the Maestro validator), NOT for purely backend work. The agent reads pixels itself via `view`; no external AI keys are used."
-homepage: https://peekaboo.boo
+homepage: https://peekaboo.sh
 metadata:
   os: ["darwin"]
   requires:
     bins: ["peekaboo"]
-    permissions: ["Screen Recording", "Accessibility"]
+    permissions: ["Screen Recording", "Accessibility", "Event Synthesizing for background keyboard input"]
   install:
     - kind: brew
       formula: steipete/tap/peekaboo
 ---
 
-# Peekaboo — drive, observe, and **critique** any macOS app
+# Peekaboo - drive, observe, and critique macOS apps
 
-> **The job is not "is this clickable". The job is "does it work, *and* does
-> it look right". Every screenshot deserves a critique pass.**
+The job is not just "is this clickable?" Verify that the workflow works and
+that every meaningful state looks intentional.
 
-Peekaboo is a single Swift CLI that combines screenshot, AX-tree inspection,
-synthetic input, and change-aware video capture against macOS apps. It's
-the macOS-native equivalent of Playwright + visual-regression review.
+Invoke `peekaboo` directly. Build orchestration belongs to the project's task
+runner; UI observation and driving belong here.
 
-You invoke `peekaboo` directly — it's a full toolkit, not a fixed menu of
-recipes. Build orchestration belongs to your project's task runner
-(Justfile, Makefile, `xcodebuild`, etc.); UI driving is your domain.
+**No external AI keys.** You are the LLM: save screenshots and `view` them
+yourself. Do not call `peekaboo agent`, `peekaboo analyze`, or any `--analyze`
+mode. Deterministic CLI commands, parsed JSON, visible postconditions, and
+retained artifacts are the verification contract.
 
-**No external AI keys. Ever.** You are the LLM. When you need to "look at"
-the screenshot, `view` the PNG yourself. Skip `peekaboo agent`,
-`peekaboo see --analyze`, `peekaboo image --analyze`, `peekaboo analyze`
-— they all require an external API key.
+## When to invoke
 
-## When to invoke this skill
-
-- ✅ User says "see what it looks like", "show me the UI", "verify it works",
-  "click X", "type Y", "take a screenshot", "drive the app", "test it
-  end-to-end"
-- ✅ After modifying any SwiftUI/AppKit view — verify it renders, works, and
-  *still looks intentional*
-- ✅ When debugging a UI bug — capture before/after + critique each
-- ✅ Before claiming a UI feature done in autopilot mode
-- ❌ Skip if the change is purely backend / non-UI
+- After modifying a SwiftUI/AppKit view or interaction.
+- When asked to show, inspect, click through, screenshot, or critique a native
+  Mac app.
+- When debugging a native UI failure or validating a user journey.
+- Before claiming a native macOS UI feature complete.
+- Skip purely backend work, Electron/web apps, and iOS simulator flows.
 
 ## Prerequisites
 
 ```bash
-peekaboo --version                           # ≥ 3.0
-peekaboo list permissions --json             # both must be granted
+peekaboo --version                               # require >= 3.4
+peekaboo permissions status --all-sources --json
 ```
 
-If peekaboo is not installed:
+Use the latest stable Peekaboo on macOS 15.0+. Install it when missing:
+
 ```bash
 brew install steipete/tap/peekaboo
 ```
 
-Then grant **Screen Recording** AND **Accessibility** to your terminal in
-System Settings → Privacy & Security. Both are required.
-
-## The loop (copy this checklist into your response and tick items off)
-
-- [ ] **Build** the app — use the project's task runner
-- [ ] **Drive** — get the app to the state under test
-- [ ] **Snapshot** — `peekaboo see --json --annotate --path /tmp/k.png`
-- [ ] **CRITIQUE** — `view /tmp/k_annotated.png` inline; score it against the
-      rubric. Optionally chain a design skill (`critique`/`polish`/`layout`)
-- [ ] **Fix** any findings
-- [ ] **Re-verify** — repeat snapshot + critique; diff against previous PNG
-
----
-
-## Discovering the target app
-
-Before running anything, you need the **bundle ID** (preferred) or app name:
+Require Screen Recording and Accessibility on the **selected runtime** shown
+by `permissions status`. Event Synthesizing is additionally required for
+background typing, hotkeys, key presses, paste, coordinate clicks, and
+synthetic click fallback:
 
 ```bash
-# Find a running app's bundle ID
-peekaboo list apps --json | jq '.data.applications[]|select(.name|test("YourApp";"i"))|{name,bundleIdentifier,processIdentifier}'
-
-# Always prefer --bundle-id over --app <DisplayName>:
-#   - bundle ID is stable (e.g. com.example.myapp)
-#   - the running process registers as CFBundleName, which often differs
-#     from the Xcode scheme. Using the scheme name fails APP_NOT_FOUND.
+peekaboo permissions request-event-synthesizing
 ```
 
-Cache the bundle ID and any display-name caveats in your project's
-`AGENTS.md` / `CLAUDE.md` so future runs don't re-discover them.
+In Claude Code, Copilot CLI, SSH, LaunchAgents, or other subprocess hosts, the
+selected runtime may be Peekaboo's reusable daemon or app Bridge rather than
+the terminal itself.
 
----
+## Core loop
 
-## Terminology (one-to-one with peekaboo's command names)
-
-| Word           | Means                                                    | Command                  |
-|----------------|----------------------------------------------------------|--------------------------|
-| **Snapshot**   | Annotated PNG **plus** AX-tree JSON (the "DOM+screenshot") | `peekaboo see`         |
-| **Screenshot** | Raw PNG only, no AX tree                                 | `peekaboo image`         |
-| **Recording**  | Change-aware MP4 video                                   | `peekaboo capture live`  |
-
-Default to **snapshot** (`peekaboo see`) — the AX JSON lets the next step
-click by element ID without re-parsing the screen.
-
----
-
-## Step 1 — Drive the UI
-
-The full driving surface (run `peekaboo <cmd> --help` for details, or
-`peekaboo learn` for the comprehensive guide):
-
-| Need                                  | Command                                                  |
-|---------------------------------------|----------------------------------------------------------|
-| Launch / quit app                     | `peekaboo app launch --bundle-id $BID --wait-until-ready`<br>`peekaboo app quit --app $BID` |
-| Inspect UI (annotated PNG + JSON)     | `peekaboo see --app $BID --json --annotate --path /tmp/k.png > /tmp/k.json` |
-| Click by AX identifier (most robust)  | See "Click by `.accessibilityIdentifier`" recipe below   |
-| Click by visible label                | `peekaboo click "Settings" --app $BID`                   |
-| Click by element ID from `see`        | `peekaboo click --on elem_42 --snapshot $SID --app $BID` |
-| Type text                             | `peekaboo type "hello" --app $BID`<br>(append `--return` to press Enter) |
-| Single key                            | `peekaboo press return` / `peekaboo press escape`        |
-| Hotkey                                | `peekaboo hotkey --keys "cmd,b" --app $BID`              |
-| **Menu bar**                          | `peekaboo menu list --app $BID` (discover)<br>`peekaboo menu click --app $BID --path "View > Toggle Sidebar"` |
-| **System file/save dialog**           | `peekaboo dialog list --app $BID`<br>`peekaboo dialog click --button "Open" --app $BID`<br>`peekaboo dialog input --text "..." --field "..." --app $BID`<br>`peekaboo dialog file --path "/Users/me" --select "Open" --app $BID` |
-| **Scroll inside a list / pane**       | `peekaboo scroll --direction down --amount 5 --on elem_N` |
-| **Drag-and-drop**                     | `peekaboo drag --from elem_A --to elem_B --app $BID`     |
-| **Resize/reposition window**          | `peekaboo window set-bounds --app $BID --x 0 --y 0 --width 1024 --height 640` |
-| **Read/write clipboard**              | `peekaboo clipboard get` / `peekaboo clipboard set --text "x"` |
-| **Paste from clipboard**              | `peekaboo paste --app $BID`                              |
-| **Open URL / deep link**              | `peekaboo open "x-myapp://..."`                          |
-| **Replay a saved scenario**           | `peekaboo run scripts/onboarding.peekaboo.json`          |
-
-Throughout this skill, `$BID` is the target app's bundle ID
-(`com.example.myapp`).
-
-### Click by `.accessibilityIdentifier` — the killer pattern
-
-If your SwiftUI / AppKit code tags interactive views with
-`.accessibilityIdentifier(...)`, Peekaboo surfaces those exact strings as
-`ui_elements[].identifier`. Queries are then immune to copy changes:
+Create one explicit artifact directory:
 
 ```bash
-peekaboo see --app $BID --json --annotate --path /tmp/k.png > /tmp/k.json
-
-SID=$(jq -r .data.snapshot_id /tmp/k.json)
-ID=$(jq -r '.data.ui_elements[]|select(.identifier=="header.utility.settings").id' /tmp/k.json)
-
-peekaboo click --on "$ID" --snapshot "$SID" --app $BID
+ARTIFACT_DIR="${PEEKABOO_ARTIFACT_DIR:-$PWD/.artifacts/peekaboo}"
+mkdir -p "$ARTIFACT_DIR"
 ```
 
-If you reach for a copy-based click (`peekaboo click "Some Label"`) more
-than once on the same control, **add a stable identifier** in your project's
-chosen namespace (e.g. `header.tab.sessions`, `panel.settings.save`,
-`row.<id>.delete`). Both peekaboo queries and any XCUITest become resilient
-to copy changes:
+1. **Build** with the project's existing task runner.
+2. **Launch/drive** the app into the state under test.
+3. **Observe** with `see` to get pixels, AX metadata, a snapshot ID, and
+   opaque element IDs.
+4. **Act once** using the most semantic reliable action.
+5. **Observe again** after the mutation; never keep using an old snapshot.
+6. **View and critique** the annotated PNG, not just the command output.
+7. **Fix and repeat** until both behavior and visible quality pass.
+
+Read [agent-runtime guidance](references/agent-runtime.md) for host selection,
+permissions, background delivery, coordinate behavior, version-specific
+gotchas, and recovery. Read
+[visual-verification guidance](references/visual-verification.md) for the
+critique rubric, state coverage, responsive checks, and evidence format.
+
+## Find and target the app
+
+Prefer the stable bundle ID over a display name or Xcode scheme:
+
+```bash
+peekaboo list apps --json \
+  | jq '.data.applications[]
+        | select(.name | test("YourApp"; "i"))
+        | {name,bundleIdentifier,processIdentifier}'
+
+peekaboo app launch --bundle-id "$BID" --wait-until-ready
+```
+
+Running process names often use `CFBundleName`, which can differ from the
+scheme. Cache confirmed bundle/display-name caveats in the project's
+`AGENTS.md` or `CLAUDE.md`.
+
+## Observe efficiently
+
+Use the cheapest observation that answers the question:
+
+```bash
+# AX metadata only; no screenshot artifact
+peekaboo inspect-ui --app-target "$BID" --json
+
+# Default validator observation: screenshot + AX metadata
+peekaboo see --app "$BID" --json --annotate \
+  --path "$ARTIFACT_DIR/state.png" > "$ARTIFACT_DIR/state.json"
+
+# Pixels only for AX-opaque custom rendering
+peekaboo image --mode window --app "$BID" --retina \
+  --path "$ARTIFACT_DIR/raw.png"
+```
+
+Always pass `--path` when the agent must inspect or retain a screenshot.
+JSON-only `see` without a path can keep the image solely in managed snapshot
+storage and return empty direct screenshot path fields.
+
+Treat every element ID as an opaque string:
+
+```bash
+SID=$(jq -r .data.snapshot_id "$ARTIFACT_DIR/state.json")
+ID=$(jq -r \
+  '.data.ui_elements[]
+   | select(.identifier=="header.utility.settings")
+   | .id' "$ARTIFACT_DIR/state.json")
+
+peekaboo click --on "$ID" --snapshot "$SID" --app "$BID"
+```
+
+Never generate, increment, or infer meaning from an ID. After `click`, `type`,
+`hotkey`, `paste`, menu/dialog/app/window operations, or any other mutation,
+run `see` or `inspect-ui` again before the next ID-based action.
+
+## Choose the action
+
+Prefer this order:
+
+1. `set-value` for a settable, non-secure field when direct replacement is the
+   intended behavior.
+2. `click --on "$ID" --snapshot "$SID"` for normal button activation.
+3. `perform-action` for a specific AX action such as `AXShowMenu`,
+   `AXIncrement`, or `AXDecrement`.
+4. A label/query when no stable identifier exists.
+5. Coordinates only for custom-drawn or AX-invisible surfaces.
+
+```bash
+peekaboo set-value "hello" --on "$FIELD_ID" --snapshot "$SID"
+peekaboo perform-action --on "$STEPPER_ID" \
+  --action AXIncrement --snapshot "$SID"
+peekaboo click "Settings" --app "$BID" --wait-for 8000
+```
+
+Targeted `click`, `type`, `press`, `hotkey`, and `paste` use background
+delivery by default. Preserve that non-interference. Add `--foreground` only
+when the app needs a focused key window, a real mouse event, a Space switch,
+or a double-click.
+
+With an app/PID/window target, `--coords x,y` is relative to that window.
+Use `--global-coords` only for intentional screen coordinates. Normalize and
+verify window geometry before coordinate fallback.
+
+Do not default to `--no-remote` or a forced capture engine. Background agent
+sessions can report valid local TCC state yet capture wallpaper/redacted
+pixels; prefer a permissioned daemon/Bridge.
+
+### Native surfaces worth using
+
+Do not rebuild these flows from coordinate clicks:
+
+| Surface | Prefer |
+|---|---|
+| App lifecycle | `peekaboo app launch`, `app quit`, `app focus` |
+| Menus | `peekaboo menu list`, then `menu click --path "View > Sidebar"` |
+| Open/save panels | `peekaboo dialog list`, `dialog input`, `dialog file` |
+| Window geometry | `peekaboo window set-bounds`, then read back and verify |
+| Clipboard | `peekaboo clipboard get/set/clear`, then `paste` |
+| URLs/deep links | `peekaboo open "scheme://..."` |
+| Long scenarios | `peekaboo run <scenario>` when the project already owns one |
+
+Use live `peekaboo <command> --help` for current flags. Keep product-specific
+targeting and bundle-ID facts in the app repository, not in this generic skill.
+
+### Recovery ladder
+
+Recover from explicit evidence instead of retrying the same command:
+
+1. On `ELEMENT_NOT_FOUND`, stale snapshot, or changed focus, capture a fresh
+   `see`/`inspect-ui` result and resolve the target again.
+2. If JSON reports a truncated AX tree, increase `--max-depth`,
+   `--max-elements`, or `--max-children` only enough for the target surface.
+3. If background delivery reports that the action needs real input, retry once
+   with `--foreground` and verify the target app became frontmost before input.
+4. If capture is blank, wallpaper-only, or redacted, inspect selected-source,
+   Bridge, and daemon diagnostics before changing engines.
+5. If AX cannot expose custom rendering, use a raw image, normalize window
+   geometry, and perform one verified coordinate fallback.
+6. If a command reports success but the postcondition did not change, record
+   it as a failure. Do not turn a no-op into success through repeated clicks.
+
+## Instrument the app for stable validation
+
+Tag interactive SwiftUI/AppKit controls with stable
+`.accessibilityIdentifier(...)` values:
 
 ```swift
-Button("Settings") { … }
+Button("Settings") { showSettings = true }
     .accessibilityIdentifier("header.utility.settings")
 ```
 
-Document the namespace in your project's `AGENTS.md` so additions stay
-consistent.
+Use a documented namespace such as `header.tab.sessions`,
+`panel.settings.save`, or `row.<id>.delete`. If a copy-based click becomes
+repeated, add an identifier instead of preserving brittle text targeting.
 
----
+Avoid applying one identifier to a composite parent: descendants can inherit
+duplicates. Tag the precise child or use
+`.accessibilityElement(children: .contain)`. Give icon-only buttons an
+`.accessibilityLabel(...)`.
 
-## Step 2 — Capture (anatomy of `peekaboo see`)
+These identifiers also improve XCUITest.
 
-```bash
-peekaboo see --app $BID --json --annotate --path /tmp/k.png > /tmp/k.json
-```
+## Verify pixels and behavior
 
-This writes **two PNGs**:
-- `/tmp/k.png` — raw screenshot
-- `/tmp/k_annotated.png` — same image overlaid with `elem_N` markers
-  (this is the one you usually want to `view`)
+After every meaningful state:
 
-…and prints a JSON envelope `{success, data, debug_logs}` where `data` has:
+1. Parse the JSON envelope and assert `success`.
+2. Assert a product postcondition in the fresh AX tree or app output.
+3. `view "$ARTIFACT_DIR/state_annotated.png"`.
+4. Critique intent, hierarchy, alignment, spacing, contrast, copy, and edge
+   states.
+5. Rank concrete fixes and repeat after changes.
 
-| Field                  | Meaning                                                |
-|------------------------|--------------------------------------------------------|
-| `snapshot_id`          | UUID — pass to `--snapshot` for click stability        |
-| `screenshot_raw`       | path to `/tmp/k.png`                                   |
-| `screenshot_annotated` | path to `/tmp/k_annotated.png`                         |
-| `application_name`     | display name (CFBundleName)                            |
-| `window_title`         | currently focused window                               |
-| `capture_mode`         | e.g. `window`                                          |
-| `is_dialog`            | true if the captured surface is a modal dialog         |
-| `element_count`        | total AX elements                                      |
-| `interactable_count`   | how many are `is_actionable`                           |
-| `ui_elements`          | array of elements (see fields below)                   |
-| `ui_map`               | absolute path to a richer cache `snapshot.json`        |
+A successful click is not a successful feature. Cover relevant initial,
+loading, empty, populated, error, disabled, overflow, focus, modal, and
+responsive states.
 
-Each `ui_elements` entry exposes:
-
-```json
-{
-  "id": "elem_42",
-  "role": "button",
-  "role_description": "button",
-  "title": "Settings",
-  "label": "Settings",
-  "description": "Open settings panel",
-  "help": "",
-  "identifier": "header.utility.settings",
-  "is_actionable": true,
-  "keyboard_shortcut": ""
-}
-```
-
-`identifier` is the SwiftUI / AppKit `.accessibilityIdentifier(...)`.
-Bounding boxes live on disk (`ui_map` path) under
-`uiMap.<id>.frame = [[x,y],[w,h]]` if you need pixel-precise targeting.
-
-Other capture commands:
+For a transition or flaky sequence, record the command itself:
 
 ```bash
-# Just a PNG, retina, window-only — no AX overhead
-peekaboo image --mode window --app $BID --retina --path /tmp/shot.png
-
-# Animation/transition: change-aware MP4, 5s
-peekaboo capture live --app $BID --duration 5 \
-  --video-out /tmp/anim.mp4 --threshold 1.0 --highlight-changes
+peekaboo capture action --app "$BID" --duration-limit 10 \
+  --post-roll-ms 800 --path "$ARTIFACT_DIR/action" \
+  --video-out "$ARTIFACT_DIR/action.mp4" --json -- \
+  peekaboo hotkey --keys "cmd,b" --app "$BID"
 ```
 
-The snapshot cache lives at `~/.peekaboo/snapshots/<UUID>/`
-(`raw.png`, `annotated.png`, `snapshot.json`). Default keeps 24h;
-`peekaboo clean --older-than 24` purges. Each `see` call creates a new UUID.
+Parse the child exit details and inspect `contact.png`, `metadata.json`, and
+the MP4. Artifact creation alone does not prove the expected transition.
 
----
+## Reliability and safety
 
-## Step 3 — **CRITIQUE** (mandatory, not optional)
+- Prefer state assertions over blind sleeps. If animation has no AX-visible
+  completion state, use one short bounded settle and recapture.
+- If a fresh `see` still shows a just-mutated tree, wait briefly: rapid
+  captures can reuse a short-lived AX cache.
+- If capture or input works in Terminal but not the agent, inspect:
 
-Click-verification proves a button is hooked up. It does not prove the UI
-is good. After every meaningful snapshot, critique it.
+  ```bash
+  peekaboo permissions status --all-sources --json
+  peekaboo bridge status --verbose --json
+  peekaboo daemon status --json
+  ```
 
-**You are the LLM — read the pixels yourself.**
+- Custom-rendered terminals/canvases can be AX-opaque. Verify their pixels
+  directly.
+- `set-value` rejects secure fields. Keep secrets out of shell arguments,
+  JSON, screenshots, and recordings. Require user mediation for credentials
+  and explicit confirmation before irreversible actions.
+- Each `see` creates `~/.peekaboo/snapshots/<UUID>/`. Clean old entries with
+  `peekaboo clean --older-than 24`.
 
-```
-1. peekaboo see --app $BID --json --annotate --path /tmp/k.png > /tmp/k.json
-2. view /tmp/k_annotated.png              # read it into your context
-3. (optional) chain a design skill — see catalog below
-4. Write the critique using the rubric template at the end of this section
-```
+## When to use XCUITest
 
-### Design skills available for deeper passes
+Use Peekaboo for interactive product validation: "does this workflow work and
+look right?" Use XCUITest for deterministic regression gates. They complement
+each other; do not replace durable automated tests with an agent-only flow.
 
-When the snapshot exposes a specific weakness, chain to the matching skill
-instead of writing the whole critique from scratch:
+## Live discovery
 
-| Concern surfaced by the snapshot              | Skill to chain |
-|-----------------------------------------------|----------------|
-| Visual quality, hierarchy, anti-pattern smell | `critique`     |
-| Accessibility, theming, perf, anti-patterns   | `audit`        |
-| Final pre-ship pass: alignment, spacing nits  | `polish`       |
-| Layout/grid/spacing rhythm specifically       | `layout`       |
-| Typography hierarchy, sizing, readability     | `typeset`      |
-| Color, palette, contrast                      | `colorize`     |
-| Microcopy clarity                             | `clarify`      |
-| The SwiftUI *code* producing the issue        | `swift-critique` / `swiftui-expert` |
-
-Apply the recommended fixes, then loop back to Step 1.
-
-### What a critique pass answers
-
-- **Did the change achieve its intent?** (e.g. user asked for "more breathing
-  room" — does the screenshot actually have more breathing room?)
-- **Visual hierarchy**: where does the eye land first? Is that the primary
-  action?
-- **Alignment & spacing**: are elements on a consistent grid? Inconsistent
-  gaps between siblings?
-- **Contrast & legibility**: WCAG AA on critical text? Disabled states still
-  readable?
-- **Copy clarity**: any jargon, truncation, ambiguous labels?
-- **Anti-patterns**: AI-slop tells, generic gradient buttons, hero-stat
-  layouts that don't fit the data?
-- **Edge cases captured?** Empty state, loading, error, overflow.
-
-If "did the change achieve intent" is "I don't know without seeing it",
-snapshot more states (hover, focus, error, empty) and re-critique.
-
-### Example: what a finished critique reads like
-
-A good critique appended to your response is concrete, scored, and ranked.
-Match this shape:
-
-> **Critique of `/tmp/k_annotated.png` (Settings panel, 1440×900)**
->
-> | Dimension          | Score | Note                                            |
-> |--------------------|------:|-------------------------------------------------|
-> | Visual hierarchy   |   4/5 | Primary action ("Save") clearly leads.          |
-> | Alignment          |   3/5 | Section labels off the 8px grid by 2–4px.       |
-> | Spacing rhythm     |   4/5 | Consistent except around the toggle row.        |
-> | Contrast           |   5/5 | All copy ≥ AA on the dark surface.              |
-> | Copy clarity       |   3/5 | "Auto-stage" reads as a verb but sits as label. |
-> | AI-slop tells      |   ✓   | None — no gradient text, glassmorphism, etc.    |
->
-> **Top 3 fixes ranked by impact**
-> 1. Snap section labels to the 8px grid (alignment 3 → 5).
-> 2. Rewrite "Auto-stage" → "Stage new sessions automatically" (copy 3 → 5).
-> 3. Tighten the toggle/description gap from 14px to 8px so the toggle
->    visually owns its description.
->
-> **Did the change achieve intent?** Yes — the new spacing reads calmer than
-> the before/after diff in `/tmp/before.png`.
-
-This shape is the contract. Anything less detailed is undercooked.
-
----
-
-## Step 4 — Fix and re-verify
-
-After fixing, re-run Steps 1–3 and diff:
+Prefer current CLI help over copied command catalogs:
 
 ```bash
-open /tmp/before.png /tmp/after.png            # eyeball
-compare /tmp/before.png /tmp/after.png /tmp/diff.png   # ImageMagick
+peekaboo learn
+peekaboo <command> --help
+peekaboo permissions status --all-sources --json
+peekaboo bridge status --verbose --json
+peekaboo daemon status --json
 ```
-
----
-
-## Responsive verification (test at multiple sizes)
-
-Don't assume the layout works at 1440×900 just because it works at your
-window size:
-
-```bash
-for size in "1024 640" "1280 800" "1440 900" "1920 1200"; do
-  W=${size%% *}; H=${size##* }
-  peekaboo window set-bounds --app $BID --x 0 --y 0 --width $W --height $H
-  sleep 0.3
-  peekaboo see --app $BID --json --annotate \
-    --path /tmp/k-${W}x${H}.png > /tmp/k-${W}x${H}.json
-done
-# Then `view` each annotated PNG and critique inline.
-```
-
----
-
-## Common scenarios
-
-### Verify a tab switch + critique the resulting view
-
-```bash
-peekaboo click "Friends" --app $BID
-sleep 0.5
-peekaboo see --app $BID --json --annotate \
-  --path /tmp/friends.png > /tmp/friends.json
-# `view /tmp/friends_annotated.png` and critique the empty state inline.
-```
-
-### Drive a system file picker
-
-```bash
-# Trigger the action that opens NSOpenPanel/NSSavePanel, then:
-peekaboo dialog file --path "$HOME/Documents" --select "Open" --app $BID
-sleep 0.5
-peekaboo see --app $BID --json --annotate --path /tmp/post-pick.png > /tmp/post-pick.json
-```
-
-### Verify a "Copy …" button actually copies
-
-```bash
-peekaboo clipboard clear
-peekaboo click "Copy session ID" --app $BID
-sleep 0.2
-peekaboo clipboard get   # should print the expected ID
-```
-
-### Capture a transition for review
-
-```bash
-peekaboo capture live --app $BID --duration 4 \
-  --video-out /tmp/transition.mp4 --threshold 1.0 --highlight-changes &
-sleep 0.3
-peekaboo hotkey --keys "cmd,b" --app $BID  # trigger the transition
-wait
-# Open the MP4, look for jank, compare frame timing.
-```
-
----
-
-## Pitfalls
-
-- **Bundle ID vs display name vs Xcode scheme**: the running process
-  registers as `CFBundleName`, which often *differs* from the Xcode scheme.
-  Always use `--bundle-id` or the actual `CFBundleName`. Cache this in
-  `AGENTS.md`.
-- **Composite views broadcast their identifier**: applying
-  `.accessibilityIdentifier("panel.settings")` to a view whose body contains
-  many controls makes several AX elements share that identifier. Fine for
-  presence checks; for child-specific clicks, give the child its own
-  identifier or use `.accessibilityElement(children: .contain)`.
-- **Icon-only buttons** (`Image(systemName: …)` inside a `Button`) often
-  expose no AX label by default. Add `.accessibilityLabel("…")` so peekaboo
-  / XCUITest can target them.
-- **Animation settle time**: SwiftUI `withAnimation(...)` durations need a
-  matching `sleep` after triggering — usually 0.3–0.5s — before the next
-  click, or use `peekaboo click --wait-for 1500`.
-- **Custom-rendered panes** (e.g. terminals, canvases) render into views
-  whose contents are opaque to AX. For text verification, take a
-  `peekaboo image` and `view` the PNG — read the rendered text directly.
-- **Snapshot UUIDs accumulate**: each `see` creates a new
-  `~/.peekaboo/snapshots/<UUID>/` (≈ 100–500 KB). Run
-  `peekaboo clean --older-than 24` periodically.
-
----
-
-## When to use XCUITest instead
-
-Peekaboo is for **interactive iteration** ("did my change work, and does it
-look right?"). XCUITest is for **deterministic regression gates** ("does
-this still work?"). Both coexist; identifiers added for peekaboo make
-XCUITest queries simpler too.
-
----
-
-## Discovery / health checks
-
-```bash
-peekaboo --version                                                     # ≥ 3.0
-peekaboo list permissions --json | jq '.data.permissions[]|{name,isGranted}'
-peekaboo list apps --json | jq '.data.applications[]|{name,bundleIdentifier}|select(.name|test("YourApp";"i"))'
-peekaboo menu list --app $BID                                          # menu bar
-peekaboo learn                                                         # full reference
-peekaboo <cmd> --help                                                  # any subcommand
-```
-
-If a project keeps wanting the same recipe, *don't bake it into the task
-runner* — recipes constrain the agent. Document the pattern in the project's
-`AGENTS.md` instead and let the agent invoke `peekaboo` directly.
