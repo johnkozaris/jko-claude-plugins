@@ -119,6 +119,24 @@ Host mechanics:
 
 This keeps the driver's context text-only no matter how many states you capture.
 
+**Never do this:**
+
+- Do not `view`, `Read`, or otherwise open a screenshot (or any image) in the
+  driver's own context — one loaded PNG is resent on every later turn and is
+  exactly what blows up the window.
+- Do not put more than one image in a sub-agent, and do not reuse a sub-agent
+  for a second image. One image → one fresh sub-agent → discard.
+- Do not loop capture → view → capture in the driver to "keep looking".
+- Do not call `peekaboo agent`, `peekaboo analyze`, or any `--analyze` mode —
+  that is a separate model loop, not this workflow.
+
+**Always do this:**
+
+- Capture to a file with `--path`, hand that one path to one same-model
+  sub-agent, and act only on the text it returns.
+- After acting, re-observe structured state (`see` / `inspect-ui`) instead of
+  taking another screenshot.
+
 ## Find and target the app
 
 Prefer the stable bundle ID over a display name or Xcode scheme:
