@@ -2,12 +2,15 @@
 
 macOS app UI automation and visual critique via [Peekaboo](https://peekaboo.sh).
 The macOS-native equivalent of Playwright + visual-regression review for
-any SwiftUI / AppKit app — drive the UI, capture snapshots, and **read
-the pixels inline** to write a real critique.
+any SwiftUI / AppKit app — drive the UI, capture snapshots, and **read each
+screenshot with a same-model sub-agent** to write a real critique without
+filling the driver's context with pixels.
 
 > **No external AI keys.** The agent (Claude Code / Copilot CLI) is the
-> LLM. `peekaboo see` writes a PNG; the agent `Read`s it back and critiques
-> it directly. No `peekaboo agent`, no `--analyze`, no API providers.
+> LLM. `peekaboo see` writes a PNG; the agent hands that path to a separate
+> sub-agent running its same model — one per image — which reads it and
+> returns a text critique, so pixels never pile up in the driver's context.
+> No `peekaboo agent`, no `--analyze`, no API providers.
 
 ## What It Does
 
@@ -58,7 +61,8 @@ binary is missing — silent on success.
 
 **peekaboo** — teaches the agent the full workflow for any macOS app:
 discover bundle ID → launch → snapshot → click by `.accessibilityIdentifier`
-→ critique pixels inline → fix → re-verify. Activates when the user mentions
+→ critique each screenshot via its own same-model sub-agent → fix → re-verify.
+Activates when the user mentions
 UI, screens, screenshots, layout, spacing, alignment, sidebar, panels,
 clicking, typing, menus, file pickers, animations, or says "verify it
 works", "see what it looks like", "show me the UI", "click X", "take a
@@ -81,8 +85,11 @@ peekaboo app launch --bundle-id com.example.myapp --wait-until-ready
 peekaboo see --app com.example.myapp --json --annotate \
   --path "$ARTIFACT_DIR/state.png" > "$ARTIFACT_DIR/state.json"
 
-# 3. Read the PNG inline (the agent does this — that's the killer step)
-#    `Read $ARTIFACT_DIR/state_annotated.png` in the agent's tool surface
+# 3. Delegate the PNG to a one-shot same-model sub-agent (the killer step)
+#    Copilot: task(agent_type=explore, model=<your model>, prompt="view
+#    $ARTIFACT_DIR/state_annotated.png and report"); Claude Code: a Task
+#    sub-agent that Reads it. One sub-agent per image — never read it in
+#    your own context (loaded pixels are resent every turn and blow it up).
 
 # 4. Click by accessibility identifier
 SID=$(jq -r .data.snapshot_id "$ARTIFACT_DIR/state.json")

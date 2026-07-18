@@ -6,7 +6,9 @@ correct, legible, intentional, or resilient.
 
 ## Critique contract
 
-Read the annotated PNG with the agent's image-viewing tool and answer:
+Delegate the annotated PNG to a one-shot sub-agent running your same model
+(see "Read screenshots without blowing up context" in the peekaboo SKILL.md).
+Never `view` it yourself. From the sub-agent's text report, answer:
 
 - **Intent:** Did the change visibly achieve what the user requested?
 - **Hierarchy:** Does attention land on the primary information/action first?
@@ -65,9 +67,9 @@ control indiscriminately:
 7. Long content, localization, and narrow-window overflow.
 8. Final success state and any persisted result.
 
-For each state, assert an AX/product postcondition and inspect pixels. A
-different screenshot hash or snapshot ID is not itself a meaningful
-postcondition.
+For each state, assert an AX/product postcondition and delegate a pixel read to
+a same-model sub-agent. A different screenshot hash or snapshot ID is not
+itself a meaningful postcondition.
 
 ## Responsive checks
 

@@ -109,8 +109,16 @@ mkdir -p "$ARTIFACT_DIR"
 ```
 
 When `see --json` omits `--path`, images remain in managed snapshot storage
-and direct screenshot path fields can be empty. Pass `--path` whenever the
-agent must `view` or retain the PNG.
+and direct screenshot path fields can be empty. Pass `--path` whenever a
+screenshot must be retained or handed to a sub-agent for reading.
+
+**Never `view` a screenshot in the driver's own context** — loaded pixels are
+resent every later turn and blow up the window. Give each PNG path to a
+separate sub-agent running your same model (one sub-agent per image) and act on
+the text it returns; see "Read screenshots without blowing up context" in the
+SKILL.md. In Copilot CLI that is the `task` tool with `agent_type: "explore"`
+and `model:` set to your current model; in Claude Code it is a
+`general-purpose` `Task` sub-agent that `Read`s the path.
 
 For transitions or flaky flows, capture the action itself:
 

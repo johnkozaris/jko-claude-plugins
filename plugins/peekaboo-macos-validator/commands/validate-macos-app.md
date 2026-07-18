@@ -3,15 +3,18 @@ description: Launch a macOS app, click through each major view, and report pass/
 argument-hint: "<bundle-id> [view-names...]"
 allowed-tools:
   - Bash
-  - Read
+  - Task
 user-invocable: true
 ---
 
 # Validate macOS App
 
 Launch the target macOS app via `peekaboo`, drive each major view, capture
-an annotated snapshot of each, **read the PNG inline and critique it**,
-then report a structured pass/fail summary.
+an annotated snapshot of each, **delegate every snapshot to its own one-shot
+sub-agent (running your same model) for reading and critique**, then report a
+structured pass/fail summary. Never `Read`/`view` a screenshot in this
+command's own context — one fresh sub-agent per PNG keeps the walk from filling
+the window with pixels.
 
 `$ARGUMENTS` is `<bundle-id> [view-names...]`. The bundle ID is required
 (e.g. `com.example.myapp`). View names are optional — if omitted, discover
@@ -58,8 +61,10 @@ peekaboo see --app "$BID" --json --annotate \
 SID=$(jq -r .data.snapshot_id "$ARTIFACT_DIR/validate-initial.json")
 ```
 
-Use the `Read` tool on `$ARTIFACT_DIR/validate-initial_annotated.png`. Write a
-short scored critique (alignment, hierarchy, contrast, copy clarity).
+Spawn a sub-agent running your same model, give it only
+`$ARTIFACT_DIR/validate-initial_annotated.png`, and have it return a short
+scored critique (alignment, hierarchy, contrast, copy clarity). Do not read the
+PNG in this command's own context.
 
 **Pass criteria**: the AX tree has `element_count > 0` and the rendered
 PNG is not a blank/white surface.
@@ -110,7 +115,8 @@ Use `set-value` for settable, non-secure fields when replacement semantics are
 correct. Use `perform-action` only when a specific AX action is needed. Keep
 normal button activation on `click`; use coordinates only as a last resort.
 
-Then `Read` the new annotated PNG and write a per-view critique. Pass criteria:
+Then hand the new annotated PNG to its own fresh same-model sub-agent (one per
+view) and write a per-view critique from its text report. Pass criteria:
 - The click resolves (no `ELEMENT_NOT_FOUND`)
 - The post-click snapshot's content meaningfully changed
 - The PNG renders correctly (no obvious layout breakage, blank panes, or

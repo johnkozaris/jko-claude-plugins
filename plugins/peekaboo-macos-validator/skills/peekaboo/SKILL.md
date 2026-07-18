@@ -1,6 +1,6 @@
 ---
 name: peekaboo
-description: "Drive, observe, and critique a running native macOS app (SwiftUI/AppKit) end-to-end via Peekaboo — the macOS-native equivalent of Playwright + visual-regression review. Use when the user mentions the Mac app's UI, screens, screenshots, appearance, layout, accessibility identifiers, clicking, typing, or menus — or says 'see what it looks like', 'show me the UI', 'click X', 'take a screenshot of the app', 'critique the design', 'drive the app'. Use after a SwiftUI/AppKit edit or rebuild, and before claiming a UI feature done. NOT for Electron or web apps (use the electron-playwright validator), NOT for iOS simulators (use the Maestro validator), NOT for purely backend work. The agent reads pixels itself via `view`; no external AI keys are used."
+description: "Drive, observe, and critique a running native macOS app (SwiftUI/AppKit) end-to-end via Peekaboo — the macOS-native equivalent of Playwright + visual-regression review. Use when the user mentions the Mac app's UI, screens, screenshots, appearance, layout, accessibility identifiers, clicking, typing, or menus — or says 'see what it looks like', 'show me the UI', 'click X', 'take a screenshot of the app', 'critique the design', 'drive the app'. Use after a SwiftUI/AppKit edit or rebuild, and before claiming a UI feature done. NOT for Electron or web apps (use the electron-playwright validator), NOT for iOS simulators (use the Maestro validator), NOT for purely backend work. Screenshots go to disk and each one is read by a separate same-model sub-agent, so the driver's context never fills with pixels; no external AI keys are used."
 homepage: https://peekaboo.sh
 metadata:
   os: ["darwin"]
@@ -20,10 +20,14 @@ that every meaningful state looks intentional.
 Invoke `peekaboo` directly. Build orchestration belongs to the project's task
 runner; UI observation and driving belong here.
 
-**No external AI keys.** You are the LLM: save screenshots and `view` them
-yourself. Do not call `peekaboo agent`, `peekaboo analyze`, or any `--analyze`
-mode. Deterministic CLI commands, parsed JSON, visible postconditions, and
-retained artifacts are the verification contract.
+**No external AI keys, and never pixels in your own context.** You are the
+LLM, but do not `view` screenshots yourself: every image you load is re-sent
+on every later turn and blows up the context window. Save each screenshot with
+`--path`, then hand its path to a **separate sub-agent running your same
+model** — one sub-agent per image — which opens it and returns a short text
+report. Do not call `peekaboo agent`, `peekaboo analyze`, or any `--analyze`
+mode. Deterministic CLI commands, parsed JSON, visible postconditions,
+retained artifacts, and delegated visual reads are the verification contract.
 
 ## When to invoke
 
@@ -75,7 +79,8 @@ mkdir -p "$ARTIFACT_DIR"
    opaque element IDs.
 4. **Act once** using the most semantic reliable action.
 5. **Observe again** after the mutation; never keep using an old snapshot.
-6. **View and critique** the annotated PNG, not just the command output.
+6. **Delegate the annotated PNG to a one-shot same-model sub-agent** (see
+   below) and critique from its text report, not just the command output.
 7. **Fix and repeat** until both behavior and visible quality pass.
 
 Read [agent-runtime guidance](references/agent-runtime.md) for host selection,
@@ -83,6 +88,36 @@ permissions, background delivery, coordinate behavior, version-specific
 gotchas, and recovery. Read
 [visual-verification guidance](references/visual-verification.md) for the
 critique rubric, state coverage, responsive checks, and evidence format.
+
+## Read screenshots without blowing up context
+
+Never open a screenshot in your own context — not `view`, not `Read`, not an
+inline image. Each pixel buffer you load is resent on every later turn, and
+that is exactly what makes long UI sessions unusable.
+
+For **every** PNG you need to judge:
+
+1. Keep the file on disk (always capture with `--path`).
+2. Spawn a **fresh sub-agent running the same model you are** and give it just
+   that one image path plus a specific question. It reads the pixels in its own
+   disposable context and returns a short text report — verbatim on-screen
+   text, element positions, and a scored critique.
+3. **One image per sub-agent.** Never batch several PNGs into one sub-agent,
+   and never reuse a sub-agent for the next image — each screenshot gets its
+   own, so no pixels ever accumulate anywhere.
+4. Act on the returned text.
+
+Host mechanics:
+
+- **Copilot CLI:** `task` tool → `agent_type: "explore"` (it has `view`),
+  `model:` set to the model you are currently running, `prompt:` =
+  "view `<abs path>` and report …".
+- **Claude Code:** `Task` tool → a `general-purpose` sub-agent that `Read`s the
+  image path and returns text; run it on your model.
+- Only if the host has no sub-agent/Task capability at all: `view` exactly one
+  cropped image, then move on — never in a loop.
+
+This keeps the driver's context text-only no matter how many states you capture.
 
 ## Find and target the app
 
@@ -231,7 +266,8 @@ After every meaningful state:
 
 1. Parse the JSON envelope and assert `success`.
 2. Assert a product postcondition in the fresh AX tree or app output.
-3. `view "$ARTIFACT_DIR/state_annotated.png"`.
+3. Hand `$ARTIFACT_DIR/state_annotated.png` to its own same-model sub-agent
+   and read back its text report (never `view` it yourself).
 4. Critique intent, hierarchy, alignment, spacing, contrast, copy, and edge
    states.
 5. Rank concrete fixes and repeat after changes.
