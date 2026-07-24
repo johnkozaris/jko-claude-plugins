@@ -3,6 +3,7 @@
 Generic NDJSON probe for embedded-runtime seams: dlopen FFI dylibs and
 length-prefixed Unix-domain sockets. Carries no app-specific
 knowledge — apps are described externally via small JSON manifests.
+Manifest schema v2 uses a pointer-based callback-table ABI.
 
 Modeled after `curl`, `websocat`, and `grpcurl`: protocol-generic,
 API-agnostic, stdin/stdout NDJSON in and out.
@@ -72,10 +73,15 @@ your own.
 
 In scope:
 
-- `.dylib` (Mach-O), `.so` (ELF), `.dll` (PE) loaded via `dlopen` /
-  `LoadLibrary` exposing an `extern "C"` lifecycle + callback struct.
-- Unix-domain stream sockets with `be32`/`be64`/`varint` framing or
-  no framing.
+- Native `.dylib` (Mach-O) and `.so` (ELF) libraries exposing an
+  `extern "C"` lifecycle + callback struct.
+- `inspect` can also parse PE/COFF `.dll` files supplied on a POSIX host.
+- Unix-domain stream sockets with `be32`/`be64` framing or raw bytes.
+  The reserved `varint` option reports how to use raw mode with a manual
+  LEB128 prefix.
+
+The packaged launcher and SessionStart hook require a POSIX host.
+Native Windows execution is not currently shipped.
 
 Out of scope today (use a different tool, or extend the probe):
 
@@ -87,10 +93,11 @@ Out of scope today (use a different tool, or extend the probe):
 The plugin auto-builds on session start. First session takes a few
 seconds to compile in the background; subsequent sessions are
 instant. If `seam-probe` is invoked before the first build finishes,
-retry in a moment. Run `/seam-probe-setup` if anything looks off.
+retry in a moment. Run `/seam-probe:seam-probe-setup` if anything looks off.
 
 Requires **`cargo`** on `PATH`
-(<https://www.rust-lang.org/tools/install>).
+(<https://www.rust-lang.org/tools/install>). The bundled toolchain file pins
+Rust **1.97.1**, and Cargo rejects older compilers through `rust-version`.
 
 ## Safety
 

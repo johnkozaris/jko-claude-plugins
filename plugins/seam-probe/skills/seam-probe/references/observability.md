@@ -157,27 +157,27 @@ Then merge as above.
      produced by `cbindgen` or hand-maintained alongside the dylib.
   3. Match field order **and** signature kind exactly.
 
-### Probe hangs after `stop`
+### Runtime stop exceeds the grace deadline
 
-- **NDJSON**: last line is `{"op":"stop","kind":"rc",…}` then no exit.
-- **Means**: lifecycle stop returned but worker threads haven't
-  drained.
+- **NDJSON**: `{"kind":"error","msg":"runtime stop exceeded shutdown grace; forcing process exit",...}`.
+- **Means**: the lifecycle stop call did not return before the total
+  stop-and-drain deadline.
 - **Fix**:
-  1. Bump `--shutdown-grace-ms 5000` (or higher).
-  2. If still hangs, the runtime has a shutdown bug. SUT stderr will
-     usually show per-thread state on Ctrl-C.
+  1. Bump `--shutdown-grace-ms 5000` only to collect more diagnostics.
+  2. Fix the runtime shutdown path. SUT stderr will usually show
+     per-thread state when the deadline expires.
 
 ### Socket: probe hangs forever after the first `send`
 
 - **NDJSON**: one `rc` for the send, then nothing.
 - **Means**: framing mismatch.
-- **Fix**: try `be32`, `be64`, `varint`, `none` in order. Confirm by
-  reading the SUT's read loop (look for `length_field_type`,
-  `read_u32`, `read_u64`, or no length at all).
+- **Fix**: try `be32`, `be64`, then `none`. For varint, use raw mode with
+  a manual LEB128 prefix. Confirm by reading the SUT's read loop (look
+  for `length_field_type`, `read_u32`, `read_u64`, or no length at all).
 
-### Socket: `connect refused`
+### Socket: connection fails
 
-- **NDJSON**: `{"kind":"error","msg":"connect refused …"}`
+- **NDJSON**: `{"kind":"error","msg":"connect failed: …"}`
 - **Fix**: `ls -l $SOCK` and check the SUT log for a successful bind
   line. SUT may not be running, the path may be wrong, or you lack
   permission.
@@ -185,16 +185,18 @@ Then merge as above.
 ### Socket: `connection reset` mid-stream
 
 - **NDJSON**: events flowing, then suddenly
-  `{"kind":"error","msg":"connection reset by peer"}`.
+  `{"kind":"error","msg":"frame read error: …"}` in framed mode or
+  `{"kind":"error","msg":"read error: …"}` in raw mode.
 - **Means**: SUT crashed or closed the socket.
 - **Look in SUT**: a panic, signal, or deliberate close near the same
   timestamp.
 - **Fix**: minimise the input until the failure stops, then you have
   a repro.
 
-### Socket: `frame too large`
+### Socket: framed read is too large
 
-- **NDJSON**: `{"kind":"error","msg":"frame too large (> 8388608)"}`
+- **NDJSON**: `{"kind":"error","msg":"frame read error: …"}` with a
+  codec message indicating the frame exceeded the configured maximum.
 - **Means**: framing mismatch the other way — SUT wrote a frame
   whose length prefix decodes to > 8 MiB. Probe caps at 8 MiB to
   avoid OOM on misframed input.

@@ -14,9 +14,9 @@ Operational messages. Useful for greppable progress.
 
 ### `error`
 Recoverable error (the probe keeps running) or fatal error before exit.
-The `details` object varies by error.
+The `detail` object varies by error.
 ```json
-{"ts":"…","kind":"error","msg":"unknown lane","details":{"lane":"foo"}}
+{"ts":"…","kind":"error","msg":"unknown lane","detail":{"lane":"foo"}}
 ```
 
 ### `rc`
@@ -33,7 +33,7 @@ the underlying call.
 
 ### `event` (FFI, json kind)
 Emitted when the runtime calls a manifest-declared `kind:"json"`
-callback. `field` is the manifest field name.
+callback. `callback` is the manifest field name.
 ```json
 {"ts":"…","kind":"event","callback":"on_event","payload":{…}}
 ```
@@ -78,8 +78,9 @@ parsing succeeds; `hex` is always populated.
 
 `send` lanes match a `lanes[].name` in the manifest. `call` ops match a
 `ops[].name` in the manifest (note the `name` field — the outer `op`
-discriminator already names the operation kind). `arg` is required for
-`kind:"handle_cstr"` ops, ignored for `kind:"handle_only"`.
+discriminator already names the operation kind). Missing `arg` defaults
+to an empty C string for `kind:"handle_cstr"` and is ignored for
+`kind:"handle_only"`.
 
 ### Socket mode
 
@@ -96,15 +97,18 @@ you send arbitrary bytes (binary fuzzing).
 
 ## Lifecycle
 
-- `stop` (any mode) → call lifecycle stop, wait `--shutdown-grace-ms`,
-  exit 0.
-- EOF on stdin → same as `stop`.
-- SIGINT → same as `stop`, but with control line `cancelled (SIGINT)`.
+- FFI `stop` / EOF / SIGINT → invoke the manifest lifecycle stop on a
+  dedicated thread, enforce the total `--shutdown-grace-ms` deadline,
+  then exit.
+- Socket `stop` / EOF / SIGINT → shut down the socket write half,
+  cancel its reader, and exit. Socket mode has no lifecycle symbol or
+  shutdown-grace flag.
+- SIGINT also emits the control line `cancelled (SIGINT)`.
 
 ## Safety promises
 
 - The probe never calls `dlclose`. Loaded libraries leak intentionally;
-  see `docs/safety-notes.md` in the plugin for rationale.
+  see `skills/seam-probe/references/safety-notes.md` in the plugin for rationale.
 - Callback slots not declared in the manifest are bound to a sentinel
   that aborts the process if invoked, rather than returning to
   uninitialised memory.

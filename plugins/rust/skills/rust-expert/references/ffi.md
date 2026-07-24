@@ -28,6 +28,22 @@ unsafe extern "C" {
 
 Strict provenance is also stable since 1.84 — use `addr`, `with_addr`, `expose_provenance` instead of `as usize` round-trips for pointer math. Miri and CHERI hardware track provenance and reject the casts.
 
+### Rust 1.97 symbol and linker changes
+
+Rust 1.97 validates FFI/link attributes more strictly. Treat those diagnostics
+as ABI bugs; do not suppress them.
+
+v0 symbol mangling is now the default for Rust symbols. Explicit C ABI exports
+using `#[unsafe(no_mangle)]` or `#[unsafe(export_name = "...")]` keep their
+declared names, but debuggers, profilers, and crash symbolication must understand
+v0 for surrounding Rust frames.
+
+Linker stdout/stderr is now surfaced through the warn-by-default
+`linker_messages` lint. It is outside the `warnings` group, so audit the message
+and configure the lint explicitly rather than assuming `-D warnings` covers it.
+See the [complete Rust 1.97 compatibility digest](rust-1.97-release-notes.md#compatibility-and-behavior-changes)
+for the exact attribute validation and symbol-tooling changes.
+
 ---
 
 ## Crate types
@@ -311,7 +327,7 @@ Drop runs as `&mut Self`, not `Pin<&mut Self>` — the macros generate a `Drop` 
 
 Syntax: LLVM's internal assembler dialect. x86 defaults to `.intel_syntax noprefix`; ARM uses `.syntax unified`.
 
-`feature(cfg_asm)` (annotating individual asm lines with `#[cfg(...)]`) — still nightly in 2026.
+Individual `asm!` statements can carry `#[cfg(...)]` since Rust 1.93.
 
 ---
 

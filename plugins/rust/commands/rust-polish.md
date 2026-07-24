@@ -21,7 +21,7 @@ Work through each dimension in order.
 
 ### 1. Clippy Clean
 ```bash
-cargo clippy --all-targets --all-features -- -D warnings 2>&1 | head -40
+CARGO_BUILD_WARNINGS=deny cargo clippy --all-targets --all-features 2>&1 | head -40
 ```
 Fix every warning. No suppressions without `#[expect(lint, reason = "...")]`.
 
@@ -52,7 +52,7 @@ Every `pub` item needs a doc comment. First line: complete sentence, third perso
 ### 6. Error Handling Completeness
 Scan for:
 - `let _ = fallible_call()` — is the error intentionally discarded? Add a comment if so.
-- Bare `?` without `.context()` — add context at every propagation point.
+- Bare `?` without `.context()` — add context only where this frame knows actionable details such as a path, query, or record id.
 - `unwrap()` / `expect()` outside tests — replace with `?`.
 
 ### 7. Test Coverage

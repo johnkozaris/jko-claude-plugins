@@ -24,7 +24,7 @@ Every `unsafe` block must have a `// SAFETY:` comment explaining what invariant 
 unsafe { slice.get_unchecked(index) }
 ```
 
-Clippy warns if this is missing. This is not optional — it is enforced in major projects including the Rust compiler and Linux kernel.
+Enable `clippy::undocumented_unsafe_blocks` to warn when this is missing. Major projects including the Rust compiler and Linux kernel enforce equivalent documentation policies.
 
 ## When Unsafe Is Acceptable
 
@@ -91,3 +91,11 @@ Miri detects: dangling pointers, misaligned access, data races, Stacked Borrows 
 - `unsafe_op_in_unsafe_fn` is denied by default
 - `static mut` references now denied — use raw pointers
 - `std::env::set_var` / `remove_var` now unsafe in Edition 2024 (Rust 1.85+); on older editions the bare safe form remains compilable but triggers `deprecated_safe_2024`
+
+## Rust 1.97 soundness tightening
+
+`std::pin::pin!` no longer applies the unsound deref coercion available since
+1.88. Pin the intended value explicitly when an `&mut T` would otherwise become
+`Pin<&mut &mut T>`. See the
+[complete Rust 1.97 compatibility digest](rust-1.97-release-notes.md#compatibility-and-behavior-changes);
+FFI/link attribute tightening is covered in the dedicated FFI reference.

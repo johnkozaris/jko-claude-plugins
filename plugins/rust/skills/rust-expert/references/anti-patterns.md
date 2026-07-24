@@ -1,14 +1,18 @@
 # Anti-Pattern Catalog
 
-## Blocking — Must Fix Before Merge
+## High severity — classify by concrete consequence
+
+Treat these as blocking only when they create a plausible correctness,
+soundness, security, or availability failure. Otherwise classify them as
+important and explain the actual cost.
 
 ### Clone to Satisfy Borrow Checker
 
-Sprinkling `.clone()` on owned heap data (`Vec`, `String`, large structs) to silence the compiler creates independent copies, breaking semantic intent and wasting allocations. Fix: restructure ownership, use references, or use Rc/Arc for genuine sharing. **Not a smell:** `Arc::clone(&handle)` of long-lived service handles, DB pools, channels — that is the M-SERVICES-CLONE pattern. The author should be able to name in one sentence why each clone is correct; if not, it's the anti-pattern.
+Sprinkling `.clone()` on owned heap data (`Vec`, `String`, large structs) to silence the compiler creates independent copies and wastes allocations. It is blocking only when the copy breaks identity or state semantics; otherwise it is important. Fix: restructure ownership, use references, or use Rc/Arc for genuine sharing. **Not a smell:** `Arc::clone(&handle)` of long-lived service handles, DB pools, channels — that is the M-SERVICES-CLONE pattern. The author should be able to name in one sentence why each clone is correct; if not, it's the anti-pattern.
 
 ### `unwrap()` / `expect()` in Production Paths
 
-Both panic on None/Err. Library code that panics forces crashes on consumers. Fix: use `?` with `.context()`, `match`, `if let`, or `unwrap_or_else`.
+Both panic on `None`/`Err`. This is blocking on plausible external input or a recoverable library path. A documented `expect("invariant because ...")` remains valid when the type system cannot express the invariant. Otherwise use `?` with informative context, `match`, `if let`, or a deliberate fallback.
 
 ### `From` for Fallible Conversions
 
@@ -54,7 +58,7 @@ Swallows newly-added variants with no compiler warning. Fix: match all variants 
 
 ### `#![deny(warnings)]` in Source Code
 
-Builds fail when rustc introduces new lints. Fix: use `RUSTFLAGS="-D warnings"` in CI only.
+Builds fail when rustc introduces new lints. Fix: on Rust 1.97+, use `CARGO_BUILD_WARNINGS=deny` in CI so the policy stays outside source and does not invalidate the build cache.
 
 ### Ignoring `Result` Return Values
 
@@ -264,7 +268,7 @@ todo = "warn"
 ### CI Command
 
 ```bash
-cargo clippy --all-targets --all-features -- -D warnings
+CARGO_BUILD_WARNINGS=deny cargo clippy --all-targets --all-features
 ```
 
 ### Scope Panic Lints to Non-Test Code

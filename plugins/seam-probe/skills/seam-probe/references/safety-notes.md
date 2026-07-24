@@ -1,7 +1,7 @@
 # Safety notes
 
 The probe loads arbitrary native code into its own process and calls
-into it. Three rules matter.
+into it. Five rules matter.
 
 ## 1. The probe never calls `dlclose`
 
@@ -19,19 +19,14 @@ The fix is "don't unload". Process exit reclaims everything cleanly.
 
 ## 2. Over-allocated callback struct + sentinel
 
-The probe always passes a 64-pointer array to the runtime's `start`
-function, regardless of how many fields the manifest declares.
+The supported `start` ABI takes `const callbacks_t*`, never a callback
+struct by value. The probe allocates a 64-pointer table, passes its
+address, and keeps the allocation alive until process exit. The runtime
+reads only the prefix described by its own callback struct declaration.
 
-The C ABI rules for structs > 16 bytes (System V x86-64, Microsoft
-x64, AAPCS64) require the caller to allocate the struct and pass a
-hidden pointer to the callee. The callee reads only the bytes it
-expects. Passing a larger struct than the callee declared is harmless
-**provided the callee doesn't read past its own declaration** — which
-no correctly-written runtime ever does.
-
-But: if the runtime declared more fields than your manifest, the
-runtime will read past your declared fields into the over-allocated
-slots. Those slots are bound to a single sentinel function:
+If the runtime declared more fields than the manifest, it reads past
+the declared fields into over-allocated slots. Those slots are bound to
+a single sentinel function:
 
 ```rust
 unsafe extern "C" fn unused_callback_slot() {
@@ -49,25 +44,26 @@ position).
 
 `stop` (or stdin EOF) triggers:
 
-1. Call the lifecycle stop symbol.
-2. Sleep `--shutdown-grace-ms` (default 2000 ms).
-3. `process::exit(0)`.
+1. Call the lifecycle stop symbol on a dedicated OS thread.
+2. Allow at most `--shutdown-grace-ms` total (default 2000 ms) for stop
+   to return and callbacks to drain.
+3. Exit even if stop is still blocked.
 
-The grace period exists to give in-flight callbacks time to drain.
-Real-world runtimes can have shutdown bugs (e.g. a stop symbol that
-hangs forever) — exiting after the grace window sidesteps them.
-Bumping `--shutdown-grace-ms` to 5000 ms or more is fine; setting it to
-0 makes shutdown instant but risks racing pending callbacks.
+The deadline prevents a buggy stop symbol from hanging the probe while
+still giving in-flight callbacks time to drain. Bumping
+`--shutdown-grace-ms` to 5000 ms or more is fine; setting it to 0 makes
+shutdown immediate but can race pending callbacks.
 
 ## 4. Restricted to `extern "C"` (cdecl on Unix, cdecl on Windows)
 
 The probe's trampolines are declared `unsafe extern "C" fn`. Anything
 else (variadic, `extern "stdcall"`, `extern "fastcall"`,
 struct-by-value arguments) requires changes to
-`crates/seam-probe/src/ffi/trampolines.rs` and a recompile.
+`crate/src/ffi/trampolines.rs` and a recompile.
 
 ## 5. Bounded frame sizes
 
-Both the FFI command JSON and the UDS framed reads are bounded at
-**8 MiB**. The probe rejects larger payloads to keep accidental fuzz
-runs from OOM-ing the host.
+FFI and socket stdin lines, outbound payloads, and UDS framed reads are
+bounded at **8 MiB** before JSON parsing or network writes. Raw inbound
+reads use 8 KiB chunks. The probe rejects larger inputs to keep
+accidental fuzz runs from OOM-ing the host.

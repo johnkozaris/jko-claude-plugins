@@ -139,7 +139,7 @@ Claude Code and Copilot CLI can load the plugin command adapters in `commands/`.
 | ---------------- | ------------------------------------------------------------------------------------------ |
 | `/rust-critique` | Full code review for soundness, ownership, error handling, types, async, performance       |
 | `/rust-harden`   | Replace `unwrap` with proper errors, add SAFETY comments to unsafe, validate inputs        |
-| `/rust-architect` | Choose architecture and workspace patterns for the system being built                      |
+| `/rust-architect` | Detect architecture, compare healthy options neutrally, and assess workspace shape         |
 | `/rust-polish`   | Pre-merge cleanup: dead code, doc comments, clippy, debug artifacts                        |
 | `/rust-teach`    | One-time: scans your project and writes Rust conventions to CLAUDE.md                      |
 
@@ -217,7 +217,7 @@ Claude Code and Copilot CLI can load the plugin command adapters in `commands/`.
 
 | Command                       | What it does                                                                  |
 | ----------------------------- | ----------------------------------------------------------------------------- |
-| `/seam-probe:seam-probe-setup` | One-time `cargo build --release` of the bundled probe crate (Rust required)   |
+| `/seam-probe:seam-probe-setup` | Recovery rebuild if the automatic SessionStart build fails (Rust 1.97.1)   |
 
 ### Claude Mastery
 

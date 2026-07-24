@@ -5,35 +5,31 @@
 //! 2. `dlopen` the library (RTLD_NOW; never `dlclose`).
 //! 3. Resolve start/stop + lane + op symbols.
 //! 4. Bind callback trampoline slots.
-//! 5. Build the over-allocated callback struct (64 pointers) and call start.
+//! 5. Build a process-lifetime callback table and pass its pointer to start.
 //! 6. Drive an NDJSON stdin loop dispatching `send`/`call` messages onto
 //!    the resolved symbols.
-//! 7. On EOF / `stop` / SIGINT: call the lifecycle stop, wait the grace
-//!    period, exit.
+//! 7. On EOF / `stop` / SIGINT: run lifecycle stop on a dedicated thread,
+//!    enforce the total grace deadline, then exit.
 //!
 //! Safety notes:
 //! - We never call `dlclose`. The `Library` is leaked into a `'static`
 //!   reference. This is required because the runtime may have spawned
 //!   worker threads holding pointers into the library's `.text` segment;
 //!   unloading while a callback is in flight is undefined behaviour.
-//! - The callback struct is over-allocated to 64 pointers regardless of
-//!   how many fields the manifest declares. Real-world C struct ABIs
-//!   (System V x86_64, Microsoft x64, AArch64) pass structs > 16 bytes
-//!   via a hidden pointer to caller-allocated memory; the callee reads
-//!   only the bytes it expects, so a larger caller struct is harmless.
-//!   Trailing slots are filled with a panic-on-call sentinel: if a
-//!   runtime ever reads past what the manifest declared we abort with a
-//!   loud message rather than invoking uninitialised memory.
+//! - The start ABI takes a pointer to a callback struct. The backing table is
+//!   over-allocated to 64 pointers and leaked for the process lifetime so a
+//!   runtime may retain it safely. Trailing slots use an aborting sentinel.
 
 use std::ffi::{CString, c_char, c_void};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use libloading::{Library, Symbol};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio_stream::StreamExt;
+use tokio_util::codec::{FramedRead, LinesCodec, LinesCodecError};
 use tokio_util::sync::CancellationToken;
 
 use crate::manifest::{self, CallbackKind, OpKind};
@@ -44,6 +40,7 @@ use trampolines::Slot;
 
 /// Maximum bytes accepted in a stdin `send` payload.
 const MAX_PAYLOAD_BYTES: usize = 8 * 1024 * 1024;
+const MAX_INPUT_LINE_BYTES: usize = MAX_PAYLOAD_BYTES;
 
 pub(crate) struct Args {
     pub(crate) lib: PathBuf,
@@ -52,10 +49,7 @@ pub(crate) struct Args {
     pub(crate) shutdown_grace_ms: u64,
 }
 
-type StartFn = unsafe extern "C" fn(
-    cb_struct: [*const c_void; manifest::MAX_CALLBACK_FIELDS],
-    user: *mut c_void,
-) -> *mut c_void;
+type StartFn = unsafe extern "C" fn(cb_struct: *const c_void, user: *mut c_void) -> *mut c_void;
 type StopFn = unsafe extern "C" fn(handle: *mut c_void);
 type LaneFn = unsafe extern "C" fn(handle: *mut c_void, json: *const u8, len: usize) -> i32;
 type OpHandleCstrFn = unsafe extern "C" fn(handle: *mut c_void, arg: *const c_char) -> i32;
@@ -234,10 +228,14 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
         ),
     );
 
-    // SAFETY: cb_struct is sized to MAX_CALLBACK_FIELDS pointers. ABI
-    // rules for structs > 16 bytes pass via hidden caller-allocated
-    // pointer; the callee reads only the slots it knows about.
-    let handle: *mut c_void = unsafe { (*start_fn)(cb_struct, std::ptr::null_mut()) };
+    // Keep the callback table alive because runtimes may retain its pointer
+    // after start returns.
+    let cb_struct = Box::leak(Box::new(cb_struct));
+    // SAFETY: start_fn uses the documented pointer-based ABI. cb_struct is a
+    // process-lifetime allocation whose prefix matches the manifest-declared
+    // function-pointer fields.
+    let handle: *mut c_void =
+        unsafe { (*start_fn)(cb_struct.as_ptr().cast(), std::ptr::null_mut()) };
     if handle.is_null() {
         output::error(&writer, "start returned null handle", None);
         std::process::exit(3);
@@ -252,7 +250,7 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
     });
 
     let stdin = tokio::io::stdin();
-    let mut lines = BufReader::new(stdin).lines();
+    let mut lines = FramedRead::new(stdin, LinesCodec::new_with_max_length(MAX_INPUT_LINE_BYTES));
     let mut line_no: u64 = 0;
     'outer: loop {
         tokio::select! {
@@ -260,9 +258,9 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
                 output::control(&writer, "cancelled (SIGINT)");
                 break 'outer;
             }
-            line = lines.next_line() => {
+            line = lines.next() => {
                 match line {
-                    Ok(Some(text)) => {
+                    Some(Ok(text)) => {
                         line_no += 1;
                         if text.trim().is_empty() {
                             continue;
@@ -293,12 +291,24 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
                             handle_op(&writer, handle, &lane_table, &op_table, op).await;
                         }
                     }
-                    Ok(None) => {
-                        output::control(&writer, "stdin EOF");
+                    Some(Err(LinesCodecError::MaxLineLengthExceeded)) => {
+                        line_no += 1;
+                        output::error(
+                            &writer,
+                            "stdin line exceeds maximum length",
+                            Some(serde_json::json!({
+                                "line_no": line_no,
+                                "max_bytes": MAX_INPUT_LINE_BYTES,
+                            })),
+                        );
                         break 'outer;
                     }
-                    Err(e) => {
+                    Some(Err(LinesCodecError::Io(e))) => {
                         output::error(&writer, &format!("stdin read error: {e}"), None);
+                        break 'outer;
+                    }
+                    None => {
+                        output::control(&writer, "stdin EOF");
                         break 'outer;
                     }
                 }
@@ -306,19 +316,73 @@ pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
         }
     }
 
-    output::control(&writer, "stopping runtime");
-    // SAFETY: handle obtained from the matching start_fn on this lib.
-    unsafe { (*stop_fn)(handle) };
-    output::control(
+    stop_runtime(
         &writer,
-        &format!(
-            "waiting {} ms for callbacks to drain",
-            args.shutdown_grace_ms
-        ),
-    );
-    tokio::time::sleep(Duration::from_millis(args.shutdown_grace_ms)).await;
+        *stop_fn,
+        handle,
+        Duration::from_millis(args.shutdown_grace_ms),
+    )
+    .await;
     output::control(&writer, "exiting");
-    Ok(())
+    std::process::exit(0)
+}
+
+async fn stop_runtime(w: &NdjsonWriter, stop_fn: StopFn, handle: *mut c_void, grace: Duration) {
+    output::control(
+        w,
+        &format!("stopping runtime with {} ms total grace", grace.as_millis()),
+    );
+
+    let started = Instant::now();
+    let handle_addr = handle as usize;
+    let (done_tx, done_rx) = tokio::sync::oneshot::channel();
+    let stop_thread = std::thread::Builder::new()
+        .name(String::from("seam-probe-stop"))
+        .spawn(move || {
+            // SAFETY: handle came from the matching start function and the
+            // loaded library remains mapped for the process lifetime.
+            unsafe { stop_fn(handle_addr as *mut c_void) };
+            let _ = done_tx.send(());
+        });
+
+    if let Err(e) = stop_thread {
+        output::error(
+            w,
+            &format!("failed to start runtime stop thread: {e}"),
+            None,
+        );
+        return;
+    }
+
+    match tokio::time::timeout(grace, done_rx).await {
+        Ok(Ok(())) => {
+            let remaining = grace.saturating_sub(started.elapsed());
+            if !remaining.is_zero() {
+                output::control(
+                    w,
+                    &format!(
+                        "runtime stopped; waiting {} ms for callbacks to drain",
+                        remaining.as_millis()
+                    ),
+                );
+                tokio::time::sleep(remaining).await;
+            }
+        }
+        Ok(Err(_)) => {
+            output::error(
+                w,
+                "runtime stop thread ended without reporting completion",
+                None,
+            );
+        }
+        Err(_) => {
+            output::error(
+                w,
+                "runtime stop exceeded shutdown grace; forcing process exit",
+                Some(serde_json::json!({ "grace_ms": grace.as_millis() })),
+            );
+        }
+    }
 }
 
 async unsafe fn handle_op(

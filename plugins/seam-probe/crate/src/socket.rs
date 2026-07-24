@@ -4,7 +4,7 @@
 //! - `be32`: 4-byte big-endian u32 length prefix (gRPC-style, matches
 //!   most line-of-business RPC servers).
 //! - `be64`: 8-byte big-endian u64 length prefix (very-large-frame variants).
-//! - `varint`: protobuf-style LEB128 length prefix (compact for tiny msgs).
+//! - `varint`: reserved; reports the raw-mode LEB128 workaround.
 //! - `none`: raw bytes through, socat-equivalent. Each stdin line becomes
 //!   one `send`/`raw` payload; outbound bytes emitted in fixed-size chunks.
 //!
@@ -18,10 +18,10 @@ use std::time::Duration;
 use bytes::{Bytes, BytesMut};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 use tokio_stream::StreamExt;
-use tokio_util::codec::{Encoder, FramedRead, LengthDelimitedCodec};
+use tokio_util::codec::{Encoder, FramedRead, LengthDelimitedCodec, LinesCodec, LinesCodecError};
 use tokio_util::sync::CancellationToken;
 
 use crate::output::{self, NdjsonWriter};
@@ -145,11 +145,11 @@ async fn run_framed(
             .max_frame_length(MAX_FRAME_BYTES)
             .new_codec(),
         Framing::Varint => {
-            // tokio-util's LengthDelimitedCodec doesn't ship varint; v1
-            // errors rather than silently mis-frame.
+            // tokio-util's LengthDelimitedCodec doesn't ship varint; report
+            // the explicit raw-mode workaround rather than silently mis-frame.
             output::error(
                 &writer,
-                "varint framing is not yet implemented in seam-probe v1",
+                "varint framing is not implemented in this release",
                 Some(serde_json::json!({
                     "workaround": "use --framing none and build the varint prefix in the payload",
                 })),
@@ -187,7 +187,7 @@ async fn run_framed(
     });
 
     let stdin = tokio::io::stdin();
-    let mut lines = BufReader::new(stdin).lines();
+    let mut lines = FramedRead::new(stdin, LinesCodec::new_with_max_length(MAX_FRAME_BYTES));
     let mut line_no: u64 = 0;
     let mut encode_codec = codec;
     'outer: loop {
@@ -196,9 +196,9 @@ async fn run_framed(
                 output::control(&writer, "cancelled (SIGINT)");
                 break 'outer;
             }
-            line = lines.next_line() => {
+            line = lines.next() => {
                 match line {
-                    Ok(Some(text)) => {
+                    Some(Ok(text)) => {
                         line_no += 1;
                         if text.trim().is_empty() { continue; }
                         let op: InputOp = match serde_json::from_str(&text) {
@@ -216,12 +216,19 @@ async fn run_framed(
                         }
                         handle_framed_op(&writer, &mut encode_codec, &mut write_half, op).await;
                     }
-                    Ok(None) => {
-                        output::control(&writer, "stdin EOF");
+                    Some(Err(LinesCodecError::MaxLineLengthExceeded)) => {
+                        line_no += 1;
+                        output::error(&writer, "stdin line exceeds maximum length", Some(serde_json::json!({
+                            "line_no": line_no, "max_bytes": MAX_FRAME_BYTES,
+                        })));
                         break 'outer;
                     }
-                    Err(e) => {
+                    Some(Err(LinesCodecError::Io(e))) => {
                         output::error(&writer, &format!("stdin read error: {e}"), None);
+                        break 'outer;
+                    }
+                    None => {
+                        output::control(&writer, "stdin EOF");
                         break 'outer;
                     }
                 }
@@ -233,7 +240,7 @@ async fn run_framed(
     let _ = write_half.shutdown().await;
     cancel.cancel();
     let _ = event_task.await;
-    Ok(())
+    std::process::exit(0)
 }
 
 async fn handle_framed_op<W>(
@@ -277,26 +284,40 @@ async fn handle_framed_op<W>(
 }
 
 fn build_payload_bytes(w: &NdjsonWriter, op: &InputOp) -> Option<Vec<u8>> {
-    match op {
+    let bytes = match op {
         InputOp::Send {
             payload,
             payload_hex,
         } => {
             if let Some(hex) = payload_hex.as_deref() {
-                Some(decode_hex_or_error(w, hex)?)
+                decode_hex_or_error(w, hex)?
             } else if let Some(p) = payload {
-                serde_json::to_vec(p)
-                    .map_err(|e| {
+                match serde_json::to_vec(p) {
+                    Ok(bytes) => bytes,
+                    Err(e) => {
                         output::error(w, &format!("payload serialise failed: {e}"), None);
-                    })
-                    .ok()
+                        return None;
+                    }
+                }
             } else {
-                Some(Vec::new())
+                Vec::new()
             }
         }
-        InputOp::Raw { hex } => Some(decode_hex_or_error(w, hex)?),
-        _ => Some(Vec::new()),
+        InputOp::Raw { hex } => decode_hex_or_error(w, hex)?,
+        _ => Vec::new(),
+    };
+    if bytes.len() > MAX_FRAME_BYTES {
+        output::error(
+            w,
+            "payload exceeds maximum length",
+            Some(serde_json::json!({
+                "bytes": bytes.len(),
+                "max_bytes": MAX_FRAME_BYTES,
+            })),
+        );
+        return None;
     }
+    Some(bytes)
 }
 
 fn decode_hex_or_error(w: &NdjsonWriter, hex: &str) -> Option<Vec<u8>> {
@@ -350,7 +371,7 @@ fn emit_inbound(w: &NdjsonWriter, bytes: &[u8]) {
 }
 
 async fn run_raw(
-    _args: Args,
+    args: Args,
     stream: UnixStream,
     writer: Arc<NdjsonWriter>,
     cancel: CancellationToken,
@@ -369,6 +390,7 @@ async fn run_raw(
                         output::control(&event_writer, "socket closed by peer");
                         break;
                     }
+                    Ok(_) if args.no_events => {}
                     Ok(n) => emit_inbound(&event_writer, &buf[..n]),
                     Err(e) => {
                         output::error(&event_writer, &format!("read error: {e}"), None);
@@ -380,7 +402,7 @@ async fn run_raw(
     });
 
     let stdin = tokio::io::stdin();
-    let mut lines = BufReader::new(stdin).lines();
+    let mut lines = FramedRead::new(stdin, LinesCodec::new_with_max_length(MAX_FRAME_BYTES));
     let mut line_no: u64 = 0;
     'outer: loop {
         tokio::select! {
@@ -388,9 +410,9 @@ async fn run_raw(
                 output::control(&writer, "cancelled (SIGINT)");
                 break 'outer;
             }
-            line = lines.next_line() => {
+            line = lines.next() => {
                 match line {
-                    Ok(Some(text)) => {
+                    Some(Ok(text)) => {
                         line_no += 1;
                         if text.trim().is_empty() { continue; }
                         let op: InputOp = match serde_json::from_str(&text) {
@@ -433,12 +455,19 @@ async fn run_raw(
                             InputOp::Unknown => output::error(&writer, "unknown stdin op", None),
                         }
                     }
-                    Ok(None) => {
-                        output::control(&writer, "stdin EOF");
+                    Some(Err(LinesCodecError::MaxLineLengthExceeded)) => {
+                        line_no += 1;
+                        output::error(&writer, "stdin line exceeds maximum length", Some(serde_json::json!({
+                            "line_no": line_no, "max_bytes": MAX_FRAME_BYTES,
+                        })));
                         break 'outer;
                     }
-                    Err(e) => {
+                    Some(Err(LinesCodecError::Io(e))) => {
                         output::error(&writer, &format!("stdin read error: {e}"), None);
+                        break 'outer;
+                    }
+                    None => {
+                        output::control(&writer, "stdin EOF");
                         break 'outer;
                     }
                 }
@@ -450,5 +479,5 @@ async fn run_raw(
     let _ = write_half.shutdown().await;
     cancel.cancel();
     let _ = event_task.await;
-    Ok(())
+    std::process::exit(0)
 }

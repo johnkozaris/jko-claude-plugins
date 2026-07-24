@@ -1,6 +1,6 @@
 ---
 name: rust-expert
-description: This skill should be used when the user is writing, reviewing, debugging, or architecting Rust code. Detects edition and toolchain from the project. Provides expert critique covering ownership, error handling, unsafe review, async correctness, trait design, type system patterns, performance, SOLID principles, and Cargo/workspace practices. Use when the user asks "critique my Rust code", "review this module", "fix borrow checker error", "is this unsafe sound", "design error types", "optimize this function", "review async code", "structure my workspace", "why is the borrow checker complaining", "help with lifetimes", "make this more idiomatic", or "review my Cargo.toml".
+description: This skill should be used when the user is writing, reviewing, debugging, architecting, or upgrading Rust code. Detects edition, toolchain, and MSRV from the project. Provides expert critique covering ownership, errors, unsafe, async, traits, types, performance, architecture, Cargo, and release compatibility. Use when the user asks "critique my Rust code", "fix borrow checker error", "is this unsafe sound", "make this idiomatic", "review my Cargo.toml", "upgrade to Rust 1.97", "what changed in Rust 1.97", "is this API stable on my MSRV", or "check Rust release compatibility".
 ---
 
 This skill guides expert Rust development. Detect the project's edition and toolchain from `Cargo.toml` (`edition`, `rust-version`) and adapt guidance accordingly. Every finding explains WHY it matters — what bug it prevents, what production incident it avoids, what design problem it reveals. Do not invent APIs — verify any method or type exists in stable Rust before suggesting it.
@@ -60,7 +60,7 @@ When a compiler error appears, reframe it as a design question:
 
 ## Design Principles
 
-→ _Consult [design-principles reference](references/design-principles.md) for SOLID, Microsoft M-_ rules, modern Rust table.\*
+→ _Consult [design-principles reference](references/design-principles.md) for SOLID, Microsoft `M-*` rules, and the modern Rust table._
 
 **DO**: Apply Single Responsibility — one struct per concept, one domain per module.
 **DO**: Introduce a trait at a real substitution boundary — multiple implementations, caller-supplied behavior, runtime polymorphism, or an external I/O seam that benefits from a test double. Prefer a concrete type when there is one owned implementation.
@@ -138,7 +138,7 @@ The anti-pattern is `Arc<Mutex<WholeAppState>>` as a god-object. Split by concer
 
 → _Consult [testing](references/testing.md) and [documentation](references/documentation.md) references for test frameworks, property testing, and API docs guidelines._
 
-**DO**: Use `assert_matches!` / `debug_assert_matches!` for pattern assertions in tests — they print the actual `Debug` repr of the failing value, unlike `assert!(matches!(..))`. Not in the prelude (collides with `mockall` / `claims`); import explicitly via `use std::assert_matches::assert_matches;` (it lives in a module of the same name — verify it is stable on the project's toolchain before recommending; on older stable use the `assert_matches` crate).
+**DO**: Prefer `assert_matches!` / `debug_assert_matches!` over `assert!(matches!(...))` when the project's MSRV supports them; the testing reference covers imports and compatibility.
 
 ## Modules, Macros & Serde
 
@@ -164,95 +164,25 @@ The posture: **detect what the codebase is using, stay consistent with it, flag 
 
 ## 2026 Deprecation Watchlist
 
-→ _See [2026-currency reference](references/2026-currency.md) for the full table with RUSTSEC details, migration paths, and per-release feature index._
+→ _See [2026-currency reference](references/2026-currency.md) for the current toolchain, RUSTSEC details, migration paths, and per-release feature index. Consult [Rust 1.96.1-1.97.1 release notes](references/rust-1.97-release-notes.md) when upgrading from the previous 1.96 anchor or explaining every 1.97 compatibility change._
 
-Headline deprecations to flag in Cargo.toml scans: `async-std` ([RUSTSEC-2025-0052](https://rustsec.org/advisories/RUSTSEC-2025-0052.html)) and `bincode` ([RUSTSEC-2025-0141](https://rustsec.org/advisories/RUSTSEC-2025-0141)) are unmaintained; `once_cell`/`lazy_static!`/`if_chain!`/`cfg-if`/`addr_of!` are superseded by std equivalents; `async-trait` for static dispatch is replaced by native AFIT (1.75); `#[bench]` is a hard error on stable since 1.88; `sled` is best avoided for new projects (use `redb` or `fjall`); `actions-rs/*` GitHub Actions are deprecated.
+Headline Cargo.toml flags: unmaintained `async-std` and `bincode`, crates superseded by std, deprecated `actions-rs/*`, and `sled` in new projects. Use the currency reference for evidence and migration targets; migrate working code deliberately rather than mechanically.
 
-Existing code mostly still works — migrate when natural, not urgently. **`jiff` is the new datetime canon for IANA tz correctness but still pre-1.0**, so libraries with strict public-API stability should stay on `chrono` until jiff 1.0 ships.
+## Still in Motion (July 2026)
 
-## Still in Motion (June 2026)
-
-These remain unstable or actively-debated. Use the workaround; don't pick winners.
-
-- **AsyncDrop** — nightly, tracking #126482. Workaround: explicit `async fn close(self)` with `DropBomb` to catch missed calls.
-- **`AsyncIterator` / `Stream` in std** — nightly. Use `futures::Stream` + `async-stream::stream!` macro.
-- **`gen` blocks / coroutines** — nightly. `gen` is reserved in Edition 2024.
-- **`Allocator` trait per-collection** — 6+ years nightly. `allocator_api2` polyfill.
-- **Pin language support** — library-only. `pin-project-lite`.
-- **Polonius borrow checker** — nightly, 2026 stabilization goal for alpha. Workaround: restructure or use `entry()`-style APIs.
-- **Parallel rustc frontend** (`-Z threads=N`) — nightly, 15-50% wallclock improvement.
-- **Cranelift codegen backend** (`rustc_codegen_cranelift`) — nightly-only as `rustc-codegen-cranelift-preview`. Active 2025H2 project goal to ship stable. ~20% dev-build speedup when used.
+Do not recommend unstable features as production defaults. Consult the currency reference's "Still nightly" table for current status and stable workarounds.
 
 ## Anti-Patterns
 
 → _Consult [anti-patterns reference](references/anti-patterns.md) for the full severity-labeled catalog._
 
-## Hard-won opinions the catalog doesn't cover
+## Review Process
 
-- **A dropped `JoinHandle` is a detached task.** `tokio::spawn` keeps running after the handle is gone, and its panics vanish into the runtime. Hold the handle, use `JoinSet`, or write a comment saying why fire-and-forget is intended. Silent orphan tasks are the async equivalent of a leaked thread.
-- **`let _ = fallible();` is error-swallowing with extra steps.** Either handle the `Result`, `.expect("invariant …")` it, or log it — an underscore is a decision to lose the failure, and it should look like one (`.ok(); // deliberately ignored: <why>`).
-- **`Instant` for durations, `SystemTime` for wall-clock, never mixed.** `SystemTime` can go backwards (NTP); subtracting two of them returns a `Result` for a reason. Elapsed-time logic on `SystemTime` is a clock-skew bug waiting for deployment.
-- **Floats have no total order.** `sort_by(|a, b| a.partial_cmp(b).unwrap())` panics on the first NaN that arrives from real data — use `total_cmp`. A float as a `HashMap` key is a design error, not a style issue.
-- **On public APIs, prefer named generics over `impl Trait` in argument position.** `fn f(x: impl Iterator<Item = u8>)` cannot be turbofished by callers and can't be referenced in `where` clauses. `impl Trait` in *return* position is fine and idiomatic.
-- **`use x::*` is for preludes and test modules only.** Anywhere else it hides where names come from and turns dependency bumps into mystery compile errors.
-- **File-named modules over `mod.rs`.** Eight `mod.rs` files in an editor tab bar is self-inflicted pain; the 2018-edition style (`foo.rs` + `foo/` directory) exists — use it consistently.
-- **`#[derive(Clone)]` is not free on aggregate types.** A reflexive `Clone` on a struct holding `Vec`s and `String`s hands every future caller a deep-copy escape hatch for borrow-checker friction — exactly the AI-slop clone pattern, but blessed at the type. Derive it when the type is *meant* to be duplicated, not by habit.
-- **Default to `pub(crate)`; promote to `pub` deliberately.** Every `pub` item in a library is a semver contract. A module tree where everything is `pub` has no interior — nothing can be refactored without a major version.
-- **Exhaustive error enums beat `#[from]` soup.** `thiserror` with a `#[from]` for every dependency error type turns your error into a mirror of your dependency graph; callers can't tell which variants are actionable. Group by what the *caller* can do (retryable / bad-input / bug), not by what library failed.
-
-## Zoom out before you edit
-
-Sessions that skip this produce split-brain code (a second implementation of an existing helper) and orphans. Non-negotiable sequence for any change:
-
-1. **Before adding a function, type, or trait: search for an existing one** — `rg -i` the concept, not just the name you were about to pick, and check the crate's existing `util`/`common` modules. A second implementation is a drift bug on a timer.
-2. **Read the whole module and its callers before editing**, not just the flagged lines — in Rust especially, ownership decisions upstream are usually the cause of the symptom downstream.
-3. **After the change, grep the old symbol names**; delete anything now unreferenced in the same change (the compiler's `dead_code` lint will only catch the private cases).
-4. **Say in one sentence where the change sits in the crate's architecture.** If you can't name the layer or boundary, you don't understand the change yet.
-5. **Verification is output, not assertion.** `cargo build`/`cargo test`/`cargo clippy` results pasted into the report are verification; the word "verified" without them is not. If you didn't run it, write "unverified".
+→ _Consult [review-process reference](references/review-process.md) before reviewing or editing: search-before-change workflow, evidence standard, verification loop, and high-signal Rust judgments._
 
 ## The Rust AI Slop Test
 
-→ _Consult [ai-slop reference](references/ai-slop.md) for the complete fingerprint catalog._
-
-**Critical quality check**: If a senior Rust engineer reviewed this code, would they immediately suspect AI generated it? If yes, that's the problem.
-
-The most common AI tells in Rust:
-
-- `.clone()` everywhere to silence the borrow checker
-- `Arc<Mutex<T>>` as default concurrency for everything
-- `.unwrap()` on every `Result` and `Option`
-- Traits with exactly one implementation
-- Over-annotated lifetimes where elision works
-- `async` on functions that never `.await`
-- Verbose comments explaining WHAT, never WHY
-- Generic variable names (`data`, `result`, `item` instead of domain names)
-- Premature generalization with unused generic parameters
-- No refactoring — duplicated blocks with minor variations
-- `#[allow(...)]` to suppress warnings instead of fixing root cause
-
-## Thinking Prompts
-
-Before suggesting any fix, work through:
-
-1. **What bug does this prevent?** If you cannot name a concrete bug, the fix may not be worth the complexity.
-2. **What would happen in production?** Think in terms of incidents, not style.
-3. **Is the type system doing enough work?** Every runtime `assert!` is a type waiting to be born.
-
-## How to reason: the scientific method, applied to code review
-
-Approach every finding the same way you'd approach a scientific hypothesis. The steps are straightforward and the plugin should run through them in order.
-
-Start by discovering what the code actually does. Read it before suggesting anything — scan for patterns, dependencies, the shape of state, the I/O boundaries, the test setup. A finding that ignores what the code is doing is just noise.
-
-Then evaluate what you found against the evidence. Compare to known patterns and named consequences. When you see `.unwrap()` on external input, that's the Cloudflare class of bug — name the incident, explain the failure mode, propose the fix. When the dependency is `async-std`, cite RUSTSEC-2025-0052. When the codebase is a mix of architectures, the harm is concrete (the team has to keep multiple mental models in their heads at once) — say so. Findings backed by evidence get stated directly and confidently.
-
-Make sure you actually understand the code before recommending changes. An `Arc<Mutex<>>` that looks like a god-object might turn out to be a correctly-scoped cache with short critical sections. A trait with one implementor might be the deliberate seam for a planned second implementation. If you can't tell which case you're looking at, that's the time to ask the developer — not the time to invent a confident-sounding wrong answer.
-
-Every fix proposal should come with a way to verify it worked. If you suggest replacing `.unwrap()` with `?` and `.context(...)`, also tell the developer which test should now pass that didn't before — or that this is the time to write that test. If you suggest adding `overflow-checks = true`, tell them which arithmetic-heavy code path will now panic where it silently wrapped. A fix without a verification plan is a guess that hasn't been tested yet.
-
-Through all of this, use your judgment. The scientific method is a discipline, not a substitute for thinking. When the evidence supports a strong call, make it. When the codebase looks coherent and well-considered, say so and don't manufacture findings to look thorough. When the right answer genuinely depends on something the code can't tell you, ask the specific question that would clarify it — but ask it once, not as a tic.
-
-The thing to avoid is hedging that masquerades as humility. "Consider whether X applies; this depends on your specific context" is not honest uncertainty — it's a sentence with no information in it. The honest version of uncertainty is specific: "I can't tell from the code whether the `OrderRepository` trait is positioned for a planned second implementation — if it is, it's justified; if not, it's overhead. Which is it?" That kind of question helps the developer. Vague hedging just wastes their time.
+→ _Consult [ai-slop reference](references/ai-slop.md) for the fingerprint catalog. Flag clone-heavy ownership avoidance, default `Arc<Mutex<_>>`, one-implementation traits, indiscriminate unwraps, and comments that narrate syntax rather than intent._
 
 ## Severity Levels
 

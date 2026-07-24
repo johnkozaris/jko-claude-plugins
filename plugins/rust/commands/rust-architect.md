@@ -83,7 +83,7 @@ Whatever the developer chooses — to stay with the current architecture, to mig
 
 ## How to do this well
 
-Follow the scientific method described in the rust-expert skill: discover, evaluate, understand, propose with verification, use judgment.
+Follow the evidence-driven process routed from the rust-expert skill: discover, evaluate, understand, propose with verification, and use judgment.
 
 A few architect-specific reminders:
 

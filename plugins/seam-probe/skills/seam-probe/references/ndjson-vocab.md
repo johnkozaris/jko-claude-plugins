@@ -70,8 +70,9 @@ succeeds; `hex` is always populated.
 
 `send` lanes match a `lanes[].name` in the manifest. `call` ops match
 an `ops[].name` (the field is `name`, not `op` — the outer `op`
-discriminator already names the operation kind). `arg` is required for
-`kind:"handle_cstr"` ops, ignored for `kind:"handle_only"`.
+discriminator already names the operation kind). Missing `arg` defaults
+to an empty C string for `kind:"handle_cstr"` and is ignored for
+`kind:"handle_only"`.
 
 ### Socket mode
 
@@ -88,6 +89,10 @@ you send arbitrary bytes for binary fuzzing.
 
 ## Lifecycle
 
-- `stop` on stdin → call lifecycle stop, wait `--shutdown-grace-ms`, exit 0.
-- EOF on stdin → same as `stop`.
-- SIGINT → same as `stop`, with a `cancelled (SIGINT)` control line.
+- FFI `stop` / EOF / SIGINT → invoke the manifest lifecycle stop on a
+  dedicated thread, enforce the total `--shutdown-grace-ms` deadline,
+  then exit.
+- Socket `stop` / EOF / SIGINT → shut down the socket write half,
+  cancel its reader, and exit. Socket mode has no lifecycle symbol or
+  shutdown-grace flag.
+- SIGINT also emits a `cancelled (SIGINT)` control line.

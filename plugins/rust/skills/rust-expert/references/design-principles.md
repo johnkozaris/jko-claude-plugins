@@ -141,6 +141,8 @@ Adopt features from recent stable releases. Check the project's `rust-version` i
 | `core::range::{Range, RangeFrom, RangeInclusive, RangeToInclusive}` + iterators | 1.95 (`RangeInclusive`) / 1.96 (`Range`, `RangeFrom`, `RangeToInclusive`) | Legacy `core::ops` ranges. New types implement `IntoIterator` (not `Iterator`) and are `Copy` when bounds are `Copy`. Syntax `0..n` still produces legacy types; staged migration |
 | `assert_matches!` / `debug_assert_matches!` | 1.96 | `assert!(matches!(value, pat))` — prints the actual `Debug` repr of the failing value; not in prelude (collides with `mockall` / `claims`) |
 | `From<T> for AssertUnwindSafe<T>`, `LazyCell<T,F>`, `LazyLock<T,F>` | 1.96 | `AssertUnwindSafe(x)` tuple-struct calls and manually pre-initialized `LazyLock`s at API boundaries |
+| `{integer}::bit_width`, `highest_one`, `lowest_one` | 1.97 | Hand-written leading/trailing-zero arithmetic and zero-sensitive bit-index logic |
+| `{integer}::isolate_highest_one`, `isolate_lowest_one` | 1.97 | Hand-written masks that retain the highest/lowest set bit |
 | `core::hint::cold_path()`                                                                       | 1.95  | `#[cold]` attribute on entire functions when only one branch is cold                   |
 | `Layout::repeat`, `repeat_packed`, `extend_packed`, `dangling_ptr`                              | 1.95  | Manual layout arithmetic for arrays of allocations                                     |
 | `MaybeUninit<[T;N]>` ↔ `[MaybeUninit<T>;N]` (`From`/`AsRef`/`AsMut`)                            | 1.95  | Pointer-cast `transmute` between the two layouts                                       |
@@ -176,6 +178,8 @@ Adopt features from recent stable releases. Check the project's `rust-version` i
 | `const_item_interior_mutations`           | warn            | 1.93  | Mutating interior-mutable `const` items (each call site has its own copy) |
 | `unused_visibilities`                     | warn            | 1.94  | Visibility on `const _` declarations                                      |
 | `ambiguous_glob_imported_traits`          | future-incompat | 1.95  | Glob-imported traits with ambiguous resolution                            |
+| `dead_code_pub_in_binary`                 | allow           | 1.97  | Unused `pub` items in binary crates; applications should opt into warning |
+| `linker_messages`                         | warn            | 1.97  | Linker output previously hidden; deliberately outside `warnings`          |
 
 ### Build Tooling
 
@@ -186,6 +190,8 @@ Adopt features from recent stable releases. Check the project's `rust-version` i
 - **`powerpc64-unknown-linux-musl` Tier 2 with host tools** (1.95)
 - **`x86_64-apple-darwin` demoted to Tier 2** (1.90) — Intel Mac no longer guaranteed (1.89 was last Tier 1 release)
 - **JSON target specs destabilized** (1.95) — now require `-Z unstable-options`. Cargo's new `-Z json-target-spec` flag passes the gate automatically.
+- **v0 symbol mangling is the default** (1.97) — update old debuggers/profilers; legacy mangling is now nightly-only.
+- **Cargo `build.warnings` is stable** (1.97) — use `CARGO_BUILD_WARNINGS=deny` in CI instead of cache-invalidating `RUSTFLAGS="-D warnings"`.
 
 ## Evidence-Backed Critical Rules
 

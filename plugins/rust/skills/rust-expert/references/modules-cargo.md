@@ -96,6 +96,32 @@ my-internal-crate = { version = "0.4", git = "https://github.com/acme/my-interna
 
 Keep `version` set — it's what publish uses. Prefer a `rev = "<sha>"` over `branch` for reproducible local builds. Don't use this combo for normal third-party deps — it confuses the resolver story for downstream consumers.
 
+### Cargo 1.97 warning policy and lockfile placement
+
+Cargo 1.97 stabilizes a cache-safe warning policy. Prefer the environment form
+in CI so local development remains flexible:
+
+```bash
+CARGO_BUILD_WARNINGS=deny cargo clippy --all-targets --all-features
+```
+
+For a repository-wide policy, put this in `.cargo/config.toml` (not
+`Cargo.toml`):
+
+```toml
+[build]
+warnings = "deny"
+```
+
+Unlike `RUSTFLAGS="-D warnings"`, changing this setting does not invalidate
+compiled artifacts. The new `linker_messages` lint is outside the `warnings`
+group; configure it explicitly under `[lints.rust]` if linker output must fail
+CI.
+
+Cargo 1.97 also stabilizes `resolver.lockfile-path` for read-only source trees
+and adds `-m` as shorthand for `--manifest-path` after a subcommand:
+`cargo check -m path/to/Cargo.toml`.
+
 ## Build Profiles
 
 ```toml
@@ -136,7 +162,7 @@ workspace = true
 **DO**: Centralize lints in workspace root — one source of truth.
 **DO**: Use `priority = -1` on group lints so individual overrides take effect.
 **DO**: Comment every `allow` with a reason.
-**DON'T**: Use `#![deny(warnings)]` in source — breaks on new rustc versions. Use `RUSTFLAGS="-D warnings"` in CI only.
+**DON'T**: Use `#![deny(warnings)]` in source — breaks on new rustc versions. On Rust 1.97+, use `CARGO_BUILD_WARNINGS=deny` in CI.
 **DON'T**: Use `#[allow(...)]` — use `#[expect(...)]` (Rust 1.81+) which warns when stale.
 
 ## Cargo.toml Dos and Don'ts

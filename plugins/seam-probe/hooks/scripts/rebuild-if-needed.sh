@@ -2,8 +2,8 @@
 # hooks/scripts/rebuild-if-needed.sh
 #
 # Runs from the SessionStart hook in async mode. Fingerprints the bundled
-# Cargo manifests and Rust source; if they differ from the successful build
-# stamp, rebuilds the probe from source. Exit codes:
+# toolchain, Cargo manifests, vocabulary, and Rust source; if they differ from
+# the successful build stamp, rebuilds the probe from source. Exit codes:
 #   0  no work needed, or build succeeded
 #   2  build failed or environment misconfigured (asyncRewake surfaces
 #      stderr to Claude as a system reminder)
@@ -22,8 +22,8 @@ STAMP=$DATA/source.stamp
 BIN=$DATA/target/release/seam-probe
 
 SOURCE_STAMP=$(
-  cd "$ROOT/crate" || exit 2
-  find Cargo.toml Cargo.lock src -type f -print |
+  cd "$ROOT" || exit 2
+  find .cargo/config.toml rust-toolchain.toml crate/Cargo.toml crate/Cargo.lock crate/VOCAB.md crate/src -type f -print |
     LC_ALL=C sort |
     while IFS= read -r file; do
       cksum "$file" | awk -v file="$file" '{ print file ":" $1 ":" $2 }'
@@ -51,9 +51,12 @@ if ! command -v cargo >/dev/null 2>&1; then
   exit 2
 fi
 
-if cargo build --release --locked \
-     --manifest-path "$ROOT/crate/Cargo.toml" \
-     --target-dir "$DATA/target" >&2; then
+if (
+  cd "$ROOT" || exit 2
+  cargo build --release --locked \
+    --manifest-path crate/Cargo.toml \
+    --target-dir "$DATA/target"
+) >&2; then
   STAMP_TMP=$STAMP.$$
   if printf '%s\n' "$SOURCE_STAMP" >"$STAMP_TMP" &&
      mv "$STAMP_TMP" "$STAMP"; then
@@ -64,6 +67,6 @@ if cargo build --release --locked \
   exit 2
 else
   rm -f "$STAMP"
-  echo "seam-probe: cargo build failed. Run /seam-probe-setup for verbose output." >&2
+  echo "seam-probe: cargo build failed. Run /seam-probe:seam-probe-setup for verbose output." >&2
   exit 2
 fi

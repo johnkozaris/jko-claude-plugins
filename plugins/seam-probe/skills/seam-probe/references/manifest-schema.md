@@ -1,4 +1,4 @@
-# Manifest schema (v1)
+# Manifest schema (v2)
 
 The manifest is a JSON document that tells `seam-probe` how to drive an
 unfamiliar shared library. It describes the **shape** of exported
@@ -8,7 +8,7 @@ symbols, not their semantics.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "label": "optional human-readable label echoed in control output",
   "lifecycle": {
     "start_symbol": "<name of (callbacks, user) -> handle>",
@@ -20,7 +20,7 @@ symbols, not their semantics.
 }
 ```
 
-- `schema_version` MUST be `1`.
+- `schema_version` MUST be `2`.
 - `label` is cosmetic.
 - `callback_struct[]`, `lanes[]`, `ops[]` may all be empty if the
   surface doesn't need them.
@@ -32,7 +32,7 @@ Two symbols describing the runtime's start/stop pair.
 The probe assumes the **start** signature is, in C terms:
 
 ```c
-void* start(struct callbacks_t cb, void* user);
+void* start(const struct callbacks_t* cb, void* user);
 ```
 
 …and **stop** is:
@@ -44,12 +44,19 @@ void  stop(void* handle);
 If your app's surface differs, the probe cannot drive it without code
 changes.
 
+Schema v1's by-value callback ABI was removed because a runtime-sized
+struct cannot be called soundly through one fixed function signature.
+The loader rejects v1 manifests before opening the library. Migrate by
+changing the exported start function to take `const callbacks_t*` and
+set `schema_version` to `2`.
+
 ## `callback_struct[]`
 
 An ordered list of fields in the runtime's callback struct. **Field
 order MUST match the C struct's declaration order byte-for-byte** —
-the probe builds an over-allocated 64-pointer array and the runtime
-reads from index 0 forward according to its own declaration. A
+the probe passes a process-lifetime pointer to an over-allocated
+64-pointer table, and the runtime reads from index 0 forward according
+to its own declaration. A
 mismatched order means the runtime invokes the wrong trampoline, with
 the wrong signature: undefined behaviour.
 
@@ -89,5 +96,5 @@ Op name is the value you put in `{"op":"call","name":"…","arg":"…"}` on stdi
 ## Limits
 
 - `MAX_CALLBACK_FIELDS = 64` — raise the constant in
-  `crates/seam-probe/src/manifest.rs` and rebuild if you need more.
+  `crate/src/manifest.rs` and rebuild if you need more.
 - Command JSON is bounded at 8 MiB on the way in.

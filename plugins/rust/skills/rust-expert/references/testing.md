@@ -23,8 +23,8 @@ mod tests {
 Stable since Rust 1.96. Preferable to `assert!(matches!(value, pat))` because the macro prints the actual `Debug` representation of the value when the pattern doesn't match — turning "assertion failed" into "left does not match pattern: `Err(NotFound)`".
 
 ```rust
-use std::assert_matches::assert_matches;       // std build
-// use core::assert_matches::assert_matches;   // no_std build
+use std::{assert_matches, debug_assert_matches};       // std build
+// use core::{assert_matches, debug_assert_matches};   // no_std build
 
 #[test]
 fn parses_to_expected_shape() {
@@ -169,7 +169,7 @@ Doc tests not supported — run separately with `cargo test --doc`.
 
 ```bash
 cargo fmt --check
-cargo clippy --all-targets --all-features -- -D warnings
+CARGO_BUILD_WARNINGS=deny cargo clippy --all-targets --all-features
 cargo test
 cargo test --doc
 cargo audit

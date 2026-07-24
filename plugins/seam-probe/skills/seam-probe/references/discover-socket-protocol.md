@@ -6,7 +6,7 @@ The probe gives you four framing modes:
   RPC servers).
 - `be64` — 8-byte big-endian length prefix (very-large-frame variants).
 - `varint` — protobuf-style LEB128 length prefix. **Not implemented in
-  v1**; use `none` and build the prefix yourself.
+  the current release**; use `none` and build the prefix yourself.
 - `none` — raw bytes, no framing. socat-equivalent.
 
 ## 1. Find where the server binds

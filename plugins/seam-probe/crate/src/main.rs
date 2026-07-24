@@ -12,6 +12,7 @@ mod ffi;
 mod inspect;
 mod manifest;
 mod output;
+#[cfg(unix)]
 mod socket;
 mod vocab;
 
@@ -43,15 +44,16 @@ enum Mode {
         /// Path to the manifest JSON describing the FFI surface.
         #[arg(long)]
         manifest: PathBuf,
-        /// Suppress all event callbacks (only emit `rc` + control lines).
+        /// Suppress callback events; errors, return codes, and controls remain.
         #[arg(long, default_value_t = false)]
         no_events: bool,
-        /// Milliseconds to wait after calling stop before exiting.
+        /// Total milliseconds allowed for stop plus callback draining.
         #[arg(long, default_value_t = 2000)]
         shutdown_grace_ms: u64,
     },
 
     /// Connect to a Unix domain socket and ferry framed/raw bytes.
+    #[cfg(unix)]
     Socket {
         /// Path to the Unix socket.
         #[arg(long)]
@@ -59,7 +61,7 @@ enum Mode {
         /// Framing mode.
         #[arg(long, value_enum, default_value_t = socket::Framing::Be32)]
         framing: socket::Framing,
-        /// Suppress inbound frame events (only emit `rc` + control lines).
+        /// Suppress frame events; errors, return codes, and controls remain.
         #[arg(long, default_value_t = false)]
         no_events: bool,
     },
@@ -92,6 +94,7 @@ async fn main() -> anyhow::Result<()> {
             })
             .await
         }
+        #[cfg(unix)]
         Mode::Socket {
             path,
             framing,

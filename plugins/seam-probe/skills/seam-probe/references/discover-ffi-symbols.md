@@ -52,7 +52,7 @@ common patterns:
 
 If the runtime exposes a callback shape outside these three, **stop**.
 The probe cannot bind a trampoline of the wrong arity safely. Add a
-new kind in `crates/seam-probe/src/ffi/trampolines.rs` and rebuild.
+new kind in `crate/src/ffi/trampolines.rs` and rebuild.
 
 ## 4. Cross-check
 

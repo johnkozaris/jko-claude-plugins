@@ -21,17 +21,26 @@ if ! command -v cargo >/dev/null 2>&1; then
   echo "❌ cargo not on PATH. Install Rust: https://www.rust-lang.org/tools/install"
   exit 1
 fi
-cargo --version
+(
+  cd "${CLAUDE_PLUGIN_ROOT}" || exit 1
+  rustc --version
+  cargo --version
+)
 ```
 
-If cargo is missing, stop and tell the user to install Rust.
+If cargo is missing, stop and tell the user to install Rust. The bundled
+`rust-toolchain.toml` selects Rust 1.97.1; rustup installs that pinned toolchain
+on first use when necessary.
 
 ### 2. Build the crate (release profile)
 
 ```bash
-cargo build --release --locked \
-  --manifest-path "${CLAUDE_PLUGIN_ROOT}/crate/Cargo.toml" \
-  --target-dir "${CLAUDE_PLUGIN_DATA}/target"
+(
+  cd "${CLAUDE_PLUGIN_ROOT}" || exit 1
+  cargo build --release --locked \
+    --manifest-path crate/Cargo.toml \
+    --target-dir "${CLAUDE_PLUGIN_DATA}/target"
+)
 ```
 
 Output goes to `${CLAUDE_PLUGIN_DATA}/target/release/seam-probe`. That
@@ -47,5 +56,5 @@ Should print the NDJSON I/O contract.
 
 ### 4. Report
 
-- ✅ `seam-probe vX.Y.Z` built and on PATH
+- ✅ `seam-probe v0.2.0` built with Rust 1.97.1 and on PATH
 - Hand off to the `seam-probe` skill for probing work.

@@ -43,11 +43,15 @@ The probe handles **dynamically-loaded native code** (FFI mode) and
 **Unix-domain sockets carrying byte frames** (socket mode). Concretely
 in scope:
 
-- `.dylib` (Mach-O), `.so` (ELF), `.dll` (PE) loaded via `dlopen` /
-  `LoadLibrary`. The library must export an `extern "C"` lifecycle
-  function and accept a plain C-ABI callback struct.
-- Unix-domain stream sockets with `be32` / `be64` / `varint` framing,
-  or no framing at all.
+- Native `.dylib` (Mach-O) and `.so` (ELF) libraries loaded through
+  `dlopen`. The library must export an `extern "C"` lifecycle function
+  and accept a plain C-ABI callback struct.
+- `inspect` can also parse PE/COFF `.dll` files supplied on a POSIX host.
+- Unix-domain stream sockets with `be32` / `be64` framing or no framing.
+  `varint` is a reserved option that reports the raw-mode LEB128 workaround.
+
+The packaged launcher and SessionStart hook require a POSIX host.
+Native Windows execution is not currently shipped.
 
 Out of scope today (would need probe extensions, not just a manifest):
 
@@ -134,7 +138,7 @@ seam-probe vocab >/dev/null
 If this errors with `seam-probe is not built`, the SessionStart hook
 either hasn't finished yet (fresh install or plugin update — wait a
 moment and retry) or it failed. Tell the user to run
-`/seam-probe-setup` for verbose recovery output.
+`/seam-probe:seam-probe-setup` for verbose recovery output.
 
 If the command runs but a flag in this skill is missing or behaviour
 disagrees with the docs, stop and ask the user to **update** the
@@ -185,7 +189,7 @@ seam-probe ffi \
 | `--lib` | Required. Shared library to dlopen. |
 | `--manifest` | Required. JSON describing the FFI surface (`references/manifest-schema.md`). |
 | `--no-events` | Mute callback `event`/`json_with_sid`/`raw_with_seq` lines. Use when you only care about send/call return codes. |
-| `--shutdown-grace-ms` | Time to wait between `stop` and process exit. Bump it (e.g. `5000`) if the runtime has worker threads that need longer to drain. Symptom of "too short": probe hangs at exit, or the runtime later complains about lost messages. |
+| `--shutdown-grace-ms` | Total deadline for the stop call plus callback draining. Bump it (e.g. `5000`) if workers need longer. A hanging stop is cut off at this deadline. |
 
 Read input from stdin (one JSON op per line). Heredoc is the cleanest
 way to drive a deterministic sequence:
@@ -215,6 +219,10 @@ seam-probe socket \
 | `--path` | Required. The Unix socket the SUT bound. |
 | `--framing` | Default `be32`. Switch when the SUT's read loop expects something else (`references/framing-modes.md`). |
 | `--no-events` | Suppress inbound `frame` events; emit only `rc`/`control`/`error`. |
+
+`varint` is reserved but not implemented directly; selecting it exits with the
+manual-prefix workaround. Use `none` and prepend the LEB128 length as described
+in `references/framing-modes.md`.
 
 Socket mode talks to a separate process — start it (or have the user
 start it) and tail its log file in parallel. See "Read both streams".
@@ -320,12 +328,12 @@ If the user already has the SUT running, ask:
 | no `event` lines despite `send` | `WARN dropped event` or silence | Lane not wired in runtime, or a callback field is missing/wrong in the manifest. |
 | probe process aborts mid-run | `thread '…' panicked at …` + backtrace | Bug in the runtime. **This is what the probe is for** — capture stdin as a repro. |
 | probe process aborts, no panic | `Segmentation fault (core dumped)` | ABI mismatch. Manifest's `callback_struct[]` is wrong (field order or signature kind). Re-run `inspect`, recheck the C header. |
-| probe hangs after `stop` | `worker N still running` or nothing | Runtime didn't honour shutdown. Try `--shutdown-grace-ms 5000`; if still hangs → runtime bug. |
+| `runtime stop exceeded shutdown grace` | `worker N still running` or nothing | Runtime stop is blocked. Increase `--shutdown-grace-ms` only for diagnosis; the runtime owns the shutdown bug. |
 | `kind:"error"` `msg:"unknown lane"` | nothing | Typo in `lane` op or in `manifest.lanes[].name`. |
-| `kind:"error"` `msg:"connect refused"` (socket) | `bind: Address already in use` or nothing | SUT not listening, wrong path, or permission. `ls -l $SOCK`. |
-| probe hangs after first `send` (socket) | nothing | Wrong framing. Try `be64`, `varint`, `none`. |
-| `kind:"error"` `msg:"frame too large"` (socket) | `wrote oversized frame` | Framing mismatch the other way. |
-| `kind:"error"` `msg:"connection reset"` (socket) | panic / `signal: aborted` | SUT crashed handling your message. Capture as repro. |
+| `kind:"error"` `msg` starts with `connect failed:` (socket) | `bind: Address already in use` or nothing | SUT not listening, wrong path, or permission. `ls -l $SOCK`. |
+| probe hangs after first `send` (socket) | nothing | Wrong framing. Try `be64` or `none`; for varint, use raw mode with a manual LEB128 prefix. |
+| `kind:"error"` `msg` starts with `frame read error:` (socket) | `wrote oversized frame` | Framing mismatch or an oversized framed read. |
+| `kind:"error"` `msg` starts with `frame read error:` / `read error:` (socket) | panic / `signal: aborted` | SUT crashed or closed the connection. Capture as repro. |
 
 For the long-form playbook with recovery steps for each pattern, see
 `references/observability.md`.
@@ -367,8 +375,8 @@ manifest.
    `length_field_type::<u32>` (be32), explicit byte reads of 4 or 8
    bytes, or no length prefix at all.
 3. Probe with `--framing be32` first. If the server hangs forever on the
-   first byte, framing is wrong — try `be64` or `varint`, or fall back to
-   `none` and reverse-engineer.
+   first byte, framing is wrong — try `be64`, or use `none` and
+   reverse-engineer. For varint, prepend the LEB128 length manually.
 
 See `references/discover-ffi-symbols.md` and
 `references/discover-socket-protocol.md` for concrete steps.
@@ -383,7 +391,7 @@ They exist to show the shape; real apps need real manifests.
 ```bash
 cat > /tmp/foo.manifest.json <<'EOF'
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "lifecycle": {
     "start_symbol": "lib_start",
     "stop_symbol":  "lib_stop"
@@ -455,7 +463,7 @@ rules guard against UB:
   dylib's surface.
 - `references/discover-socket-protocol.md` — how to learn an unfamiliar
   UDS endpoint's protocol.
-- `references/framing-modes.md` — be32 / be64 / varint / none.
+- `references/framing-modes.md` — be32 / be64 / none, plus the varint workaround.
 - `references/ndjson-vocab.md` — every input op and every output kind.
 - `references/safety-notes.md` — never-unload, ABI over-allocation,
   shutdown grace, sentinel slots.

@@ -25,7 +25,7 @@ servers that move large blobs (file transfers, ML model uploads).
 
 ## `varint`
 
-**Not implemented in v1.** Reserved name. If you need varint framing,
+**Not implemented.** Reserved name. If you need varint framing,
 use `--framing none` and prepend the LEB128 length to your payload
 manually:
 
@@ -47,12 +47,12 @@ Useful when:
 - The protocol uses non-supported framing (varint, COBS, custom).
 - You want to fuzz byte sequences without the codec rejecting them.
 
-## Maximum frame size
+## Maximum payload size
 
-All framing modes cap an individual frame at **8 MiB**. The probe will
-emit an error and close the connection if a peer sends a length header
-exceeding this. Raise `MAX_FRAME_BYTES` in
-`crates/seam-probe/src/socket.rs` if you need more.
+Framed reads, stdin command lines, and outbound payloads are capped at
+**8 MiB**. The probe rejects a larger length header, command, or payload.
+Raw inbound reads arrive in bounded 8 KiB chunks. Raise `MAX_FRAME_BYTES`
+in `crate/src/socket.rs` if a trusted protocol genuinely needs more.
 
 ## Why no little-endian variants?
 

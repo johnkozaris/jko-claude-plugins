@@ -108,7 +108,7 @@ Work through findings in severity order:
 6. **suggestion** — Alternative worth considering. No action required.
 7. **praise** — Highlight well-written code. Reinforce good patterns.
 
-The SKILL.md uses the 5-level scaffold (`blocking / important / nit / suggestion / praise`) for general code review; this command adds `architecture` and `polish` because the critique workflow needs to route architectural concerns to a focused command and to surface pre-merge cleanup as a distinct prioritization.
+Use the same seven-level scaffold as the skill. `architecture` routes design-level concerns to a focused workflow, while `polish` keeps pre-merge cleanup distinct from correctness findings.
 
 ### For each finding
 
@@ -210,7 +210,7 @@ Only list commands with ≥1 routed finding. Skip if none.
 
 ## How to do this well
 
-Follow the scientific method described in the rust-expert skill: discover, evaluate against evidence, understand before suggesting, propose with verification, use judgment. The skill has the full framing; don't re-derive it here.
+Follow the evidence-driven process routed from the rust-expert skill: discover, evaluate against evidence, understand before suggesting, propose with verification, and use judgment.
 
 A few critique-specific reminders:
 

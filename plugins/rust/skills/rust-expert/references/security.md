@@ -194,7 +194,7 @@ uninit_vec             = "deny"
 unsafe_code = "deny"   # then surgically allow per-module if needed
 ```
 
-`cargo clippy --all-targets -- -D warnings` in CI catches all of these at compile time.
+`CARGO_BUILD_WARNINGS=deny cargo clippy --all-targets` in CI catches all of these at compile time without invalidating the build cache when the warning policy changes (Cargo 1.97+).
 
 ## Further Reading
 

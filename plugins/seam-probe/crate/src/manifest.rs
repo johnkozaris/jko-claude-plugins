@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use serde::Deserialize;
 
 /// Schema version. Bumped on breaking changes to manifest layout.
-pub(crate) const MANIFEST_SCHEMA_VERSION: u32 = 1;
+pub(crate) const MANIFEST_SCHEMA_VERSION: u32 = 2;
 
 /// Maximum number of fields in a callback struct. Raise if needed; the
 /// probe pre-generates this many indexed trampolines per kind. 64 covers
@@ -47,7 +47,7 @@ pub(crate) struct Manifest {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Lifecycle {
-    /// Symbol returning a handle. Signature: `(callbacks_struct, *mut user) -> *mut handle`.
+    /// Symbol returning a handle. Signature: `(*const callbacks_struct, *mut user) -> *mut handle`.
     pub(crate) start_symbol: String,
     /// Symbol releasing a handle. Signature: `(*mut handle) -> ()`.
     pub(crate) stop_symbol: String,
@@ -109,6 +109,13 @@ pub(crate) fn load(path: &PathBuf) -> anyhow::Result<Manifest> {
         .map_err(|e| anyhow::anyhow!("parse manifest {}: {e}", path.display()))?;
 
     if manifest.schema_version != MANIFEST_SCHEMA_VERSION {
+        if manifest.schema_version == 1 {
+            anyhow::bail!(
+                "manifest schema_version 1 used the removed by-value start ABI; \
+                 migrate to schema_version 2 and expose \
+                 `start(const callbacks_t*, void*) -> void*`"
+            );
+        }
         anyhow::bail!(
             "manifest schema_version {} not supported (probe expects {})",
             manifest.schema_version,
