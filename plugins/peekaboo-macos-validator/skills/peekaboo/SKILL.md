@@ -1,15 +1,13 @@
 ---
 name: peekaboo
 description: >-
-  This skill should be used only when observing or interacting with a running
-  native macOS UI is itself required: screenshots or visual critique,
-  accessibility inspection, UI-only controls, menus, windows, dialogs, or an
-  end-to-end SwiftUI/AppKit workflow. Prefer a direct project command, app API,
-  test, deep link, filesystem/process tool, or macOS CLI when it can produce the
-  result without driving the interface. Do not trigger merely because the
-  repository is a Mac app, a change touches SwiftUI, or the user wants to
-  launch, configure, query, or inspect app data. Not for Electron/web apps, iOS
-  simulators, or backend-only work.
+  Provides runtime observation and interaction for native macOS interfaces
+  through accessibility state and screenshots. Use when the task depends on
+  visible or interactive state in a running SwiftUI/AppKit app: what is
+  rendered, focused, selected, enabled, reachable through menus/windows/dialogs,
+  or experienced across a UI workflow. Tasks about source, configuration, data,
+  logs, processes, or app APIs do not need this skill unless their result must
+  be verified in the interface. Not for Electron/web apps or iOS simulators.
 homepage: https://peekaboo.sh
 metadata:
   os: ["darwin"]
@@ -23,20 +21,9 @@ metadata:
 
 # Peekaboo
 
-Use Peekaboo for runtime evidence: whether a native macOS workflow works and
-whether each meaningful state looks intentional.
-
-## Use the narrowest interface
-
-Before invoking Peekaboo, check whether the outcome is available through the
-project's existing commands or tests, an app-supported CLI/API/deep link, or
-ordinary filesystem, process, log, and macOS system tools. Prefer that direct
-interface when it answers the request.
-
-Use Peekaboo when the evidence or action exists only in the running UI, or when
-the user explicitly asks for visible/interactive validation. Do not add a UI
-round trip merely to launch an app, read state, change configuration, collect
-logs, manage files/processes, or invoke behavior already exposed semantically.
+Use Peekaboo when the unresolved evidence or action lives in the running native
+interface: whether a workflow works, what state it reached, and whether that
+state looks intentional.
 
 ## Preserve the driver's context
 

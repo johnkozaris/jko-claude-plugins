@@ -104,8 +104,8 @@
     {
       "name": "peekaboo-macos-validator",
       "source": "./plugins/peekaboo-macos-validator",
-      "description": "UI-only native macOS automation and visual critique via Peekaboo when no direct CLI or API fits",
-      "version": "1.4.1",
+      "description": "Runtime observation, interaction, and visual critique for native macOS interfaces via Peekaboo",
+      "version": "1.4.2",
       "category": "testing",
       "tags": [
         "peekaboo",

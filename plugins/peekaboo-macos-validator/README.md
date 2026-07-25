@@ -2,9 +2,9 @@
 
 Runtime automation and visual verification for native SwiftUI and AppKit apps.
 
-Peekaboo is a UI-only fallback. Project commands, tests, app APIs, deep links,
-filesystem/process tooling, and macOS CLIs take precedence when they can produce
-the requested result without driving the interface.
+Use Peekaboo when the unresolved part of a task lives in the running interface:
+rendering, accessibility state, focus, selection, menus, windows, dialogs, or a
+visible workflow.
 
 When UI evidence is required, the plugin prefers accessibility state and
 semantic actions. Screenshots are captured only when pixels answer a real
