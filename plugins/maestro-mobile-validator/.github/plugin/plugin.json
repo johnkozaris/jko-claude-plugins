@@ -1,7 +1,7 @@
 {
   "name": "maestro-mobile-validator",
   "description": "iOS and Android mobile app validation via Maestro flows with simulator management and CI patterns",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "license": "MIT",
   "author": {
     "name": "John Kozaris"

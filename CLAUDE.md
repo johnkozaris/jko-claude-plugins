@@ -9,18 +9,14 @@ myClaudeSkills/
 ├── .github/plugin/marketplace.json    # GitHub Copilot CLI marketplace manifest
 ├── .claude-plugin/marketplace.json    # Claude Code marketplace manifest
 ├── plugins/
-│   ├── swiftui/                       # SwiftUI expert plugin
-│   ├── rust/                          # Rust expert plugin
-│   ├── esp32-cpp/                     # ESP32 C++ firmware plugin
-│   ├── python-backend/                # Python backend plugin
-│   ├── dotnet-backend/                # .NET backend plugin
-│   ├── dead-code/                     # Dead code detection plugin
+│   ├── backend-architecture/           # Small cross-stack architecture guide
+│   ├── swiftui/                       # SwiftUI-specific judgment
+│   ├── esp32-cpp/                     # ESP32 hardware/runtime judgment
 │   ├── backend-validator/             # Token acquisition + HTTP/WS validation (hurl, oauth2c, websocat)
 │   ├── peekaboo-macos-validator/      # macOS app UI validation via peekaboo CLI
 │   ├── electron-playwright-validator/ # Electron app validation via persistent CDP session (e-cli)
 │   ├── maestro-mobile-validator/      # iOS/Android flow validation via Maestro
-│   ├── seam-probe/                    # FFI dylib / UDS seam probing (Rust CLI built on demand)
-│   └── claude-mastery/                # Agent/skill/workflow design guidance
+│   └── seam-probe/                    # FFI dylib / UDS seam probing (Rust CLI built on demand)
 ```
 
 ## Installing This Marketplace
@@ -59,9 +55,12 @@ claude --plugin-dir "$PWD/plugins/<plugin-name>"
 - Plugin names: kebab-case
 - Keep GitHub Copilot CLI component paths in `.github/plugin/plugin.json`; when both manifest styles exist, Copilot reads the `.github/plugin/*` manifests.
 - Keep `.claude-plugin/plugin.json` metadata-only unless Claude needs non-default paths; Claude Code can use default discovery for `skills/`, `commands/`, and `hooks/` without duplicating those component paths.
-- One type per file in skills
-- Skills: lean SKILL.md (1,500-2,000 words), detailed references/ on-demand
-- Commands: instructions FOR Claude, not messages to user
+- Apply the same context discipline to Claude Code, Copilot CLI, Codex, and OpenCode.
+- Do not create generic language handbooks. A plugin must contribute hard-to-infer opinions, local/domain gotchas, or an executable interface.
+- Keep SKILL.md as the smallest sufficient trigger-time routing and opinion layer. Put detail in references and require evidence before loading it.
+- Commands are thin explicit workflows, not alternate copies of a skill.
+- Prefer current tools, project evidence, and primary documentation over copied API catalogues or dated version trivia.
+- Preserve model judgment. Use hard rules only for safety invariants or observed failure modes.
 - Always use `${CLAUDE_PLUGIN_ROOT}` for portable paths
 - Skill descriptions: third-person with specific trigger phrases
 - Skill bodies: imperative form (verb-first)

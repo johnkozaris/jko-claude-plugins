@@ -5,25 +5,29 @@ Thanks for your interest in contributing! This marketplace contains specialized 
 ## Ways to Contribute
 
 - **Bug reports** -- Found incorrect advice in a skill or a broken command? Open an issue.
-- **Improve existing plugins** -- Better examples, additional anti-patterns, updated library versions.
+- **Improve existing plugins** -- Add demonstrated failure modes, sharpen
+  triggers, or replace repeated prose with a better executable interface.
 - **New plugins** -- Propose a new domain-specific plugin via a discussion or issue first.
 - **Documentation** -- Typo fixes, clearer installation instructions, better examples.
 
 ## Getting Started
 
 1. Fork and clone the repo
-2. Look at an existing plugin (e.g., `plugins/rust/`) to understand the structure
+2. Look at an existing plugin such as `plugins/backend-validator/` to understand the structure
 
 ## Plugin Quality Standards
 
 Every plugin in this marketplace follows strict quality guidelines:
 
-- **Skills** use lean SKILL.md files (1,500-2,000 words) with detailed `references/` loaded on demand
-- **Commands** contain instructions FOR Claude, not messages to the user
+- **Skills** are lightweight routing and opinion layers; generic framework knowledge does not belong in a plugin
+- **References** load only when repository evidence makes them relevant
+- **Commands** are thin explicit workflows, not duplicate skill bodies
+- **Interfaces beat prose** -- prefer executable verification, schemas, and live tool help over copied catalogues
+- **Judgment beats blanket rules** -- reserve hard constraints for safety or demonstrated failure modes
 - **All paths** use `${CLAUDE_PLUGIN_ROOT}` for portability
 - **Facts are verified** -- no fake CVEs, no unsourced statistics, no hallucinated library versions
-- **Anti-patterns include both BAD and GOOD code** examples
-- **AI slop is banned** -- no filler phrases, no over-engineered abstractions, no unnecessary backward compatibility
+- **Examples earn their space** -- keep only examples that expose a non-obvious interface or failure mode
+- **AI slop is banned** -- no filler, repeated doctrine, ornamental taxonomies, or speculative compatibility
 
 ## Validation
 
@@ -32,6 +36,9 @@ Before submitting, validate your plugin:
 ```bash
 # Validate marketplace and plugin manifests
 python3 scripts/check_plugin_manifests.py
+
+# Check context budgets, reference routing, versions, and stale command links
+python3 scripts/lint-plugins.py
 
 # Load plugin in a session and test commands
 claude --plugin-dir ./plugins/<your-plugin>

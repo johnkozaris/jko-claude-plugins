@@ -8,9 +8,8 @@ user-invocable: true
 
 # seam-probe Setup
 
-The plugin auto-builds the probe on session start. This command is the
-verbose recovery path — use it when the auto-build failed (e.g. `cargo`
-wasn't on PATH, source/lock mismatch, network issue fetching crates).
+Claude Code runs the plugin build hook on session start. Use this command for
+recovery there and as one-time setup on hosts that do not run plugin hooks.
 
 ## Steps
 
@@ -35,26 +34,27 @@ on first use when necessary.
 ### 2. Build the crate (release profile)
 
 ```bash
+DATA_DIR="${CLAUDE_PLUGIN_DATA:-${XDG_CACHE_HOME:-$HOME/.cache}/seam-probe}"
 (
   cd "${CLAUDE_PLUGIN_ROOT}" || exit 1
   cargo build --release --locked \
     --manifest-path crate/Cargo.toml \
-    --target-dir "${CLAUDE_PLUGIN_DATA}/target"
+    --target-dir "$DATA_DIR/target"
 )
 ```
 
-Output goes to `${CLAUDE_PLUGIN_DATA}/target/release/seam-probe`. That
-dir survives plugin updates per the Claude Code spec.
+Output goes to `$DATA_DIR/target/release/seam-probe`.
 
 ### 3. Smoke test
 
 ```bash
-seam-probe vocab | head -5
+"${CLAUDE_PLUGIN_ROOT}/bin/seam-probe" vocab | head -5
 ```
 
 Should print the NDJSON I/O contract.
 
 ### 4. Report
 
-- ✅ `seam-probe v0.2.0` built with Rust 1.97.1 and on PATH
+- Report the actual output of
+  `"${CLAUDE_PLUGIN_ROOT}/bin/seam-probe" --version`.
 - Hand off to the `seam-probe` skill for probing work.

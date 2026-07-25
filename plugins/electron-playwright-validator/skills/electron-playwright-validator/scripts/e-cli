@@ -1,0 +1,881 @@
+#!/usr/bin/env node
+'use strict';
+
+const { createRequire } = require('node:module');
+const path = require('node:path');
+const fs = require('node:fs');
+const net = require('node:net');
+const os = require('node:os');
+const { spawn, spawnSync, execSync } = require('node:child_process');
+
+const PROJECT = path.resolve(process.env.E_CLI_PROJECT || process.cwd());
+const STATE_FILE = path.join(PROJECT, '.e-cli-state.json');
+const LAUNCH_LOCK = path.join(PROJECT, '.e-cli-launch.lock');
+const DEFAULT_PORT = 9222;
+
+function pageSelectionFromEnv() {
+  const indexText = process.env.E_CLI_PAGE_INDEX;
+  const index = indexText === undefined ? undefined : Number(indexText);
+  if (index !== undefined && (!Number.isInteger(index) || index < 0)) {
+    die(`Invalid E_CLI_PAGE_INDEX: ${indexText}`);
+  }
+  return {
+    index,
+    url: process.env.E_CLI_PAGE_URL || undefined,
+    excludeUrls: (process.env.E_CLI_EXCLUDE_URL || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  };
+}
+
+function pickMainPage(pages, selection = pageSelectionFromEnv()) {
+  if (selection.index !== undefined) return pages[selection.index];
+  if (selection.url) return pages.find((p) => p.url().includes(selection.url));
+  return (
+    pages.find(
+      (p) => !selection.excludeUrls.some((substring) => p.url().includes(substring)),
+    ) || pages[0]
+  );
+}
+
+function startupTimeoutMs() {
+  const timeout = Number(process.env.E_CLI_STARTUP_TIMEOUT_MS || 30_000);
+  if (!Number.isInteger(timeout) || timeout < 100) {
+    die(`Invalid E_CLI_STARTUP_TIMEOUT_MS: ${process.env.E_CLI_STARTUP_TIMEOUT_MS}`);
+  }
+  return timeout;
+}
+
+// ─── Helpers ────────────────────────────────────────────────
+
+function die(msg) {
+  throw new Error(msg);
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function readState() {
+  if (!fs.existsSync(STATE_FILE)) return null;
+  try {
+    const state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+    validateState(state);
+    return state;
+  } catch (error) {
+    throw new Error(`Cannot read ${STATE_FILE}: ${error.message}`);
+  }
+}
+
+function writeState(state) {
+  validateState(state);
+  const temp = `${STATE_FILE}.${process.pid}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(state, null, 2) + '\n', {
+    mode: 0o600,
+  });
+  fs.renameSync(temp, STATE_FILE);
+  fs.chmodSync(STATE_FILE, 0o600);
+}
+
+function removeFile(file) {
+  try {
+    fs.unlinkSync(file);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
+
+function ownedLogPath(file) {
+  return (
+    typeof file === 'string' &&
+    path.dirname(file) === os.tmpdir() &&
+    /^e-cli-\d+-\d+\.stderr\.log$/.test(path.basename(file))
+  );
+}
+
+function validateState(state) {
+  if (!state || typeof state !== 'object') die('state must be an object');
+  if (!Number.isInteger(state.pid) || state.pid < 1) die('state has invalid pid');
+  if (!Number.isInteger(state.port) || state.port < 1 || state.port > 65_535) {
+    die('state has invalid port');
+  }
+  if (!['launching', 'ready'].includes(state.status)) die('state has invalid status');
+  if (!Number.isFinite(state.createdAt)) die('state has invalid createdAt');
+  if (!ownedLogPath(state.stderrLog)) die('state has unowned stderrLog path');
+  if (state.status === 'ready' && typeof state.webSocketDebuggerUrl !== 'string') {
+    die('ready state has no CDP ownership identity');
+  }
+}
+
+function clearState(state = readState(), { preserveLog = false } = {}) {
+  if (!preserveLog && state?.stderrLog && ownedLogPath(state.stderrLog)) {
+    removeFile(state.stderrLog);
+  }
+  removeFile(STATE_FILE);
+}
+
+function processIsRunning(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error.code === 'ESRCH') return false;
+    throw error;
+  }
+}
+
+function processTreeIsRunning(pid) {
+  if (process.platform === 'win32') return processIsRunning(pid);
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch (error) {
+    if (error.code === 'ESRCH') return false;
+    throw error;
+  }
+}
+
+async function waitForProcessTreeExit(pid, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!processTreeIsRunning(pid)) return true;
+    await sleep(100);
+  }
+  return !processTreeIsRunning(pid);
+}
+
+async function waitForChildClose(childClosed, pid, timeoutMs = 5_000) {
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error(`Electron child ${pid} did not emit close`)),
+      timeoutMs,
+    );
+    childClosed.then(
+      () => {
+        clearTimeout(timeout);
+        resolve();
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function terminateProcessTree(pid, childClosed) {
+  if (process.platform === 'win32') {
+    if (processIsRunning(pid)) {
+      const result = spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+        encoding: 'utf8',
+      });
+      if (result.status !== 0 && processIsRunning(pid)) {
+        throw new Error(`taskkill failed for Electron process tree ${pid}: ${result.stderr}`);
+      }
+    }
+  } else if (processTreeIsRunning(pid)) {
+    try {
+      process.kill(-pid, 'SIGTERM');
+    } catch (error) {
+      if (error.code !== 'ESRCH') throw error;
+    }
+    if (!(await waitForProcessTreeExit(pid, 5_000))) {
+      try {
+        process.kill(-pid, 'SIGKILL');
+      } catch (error) {
+        if (error.code !== 'ESRCH') throw error;
+      }
+      if (!(await waitForProcessTreeExit(pid, 5_000))) {
+        throw new Error(`Electron process group ${pid} did not exit after SIGKILL`);
+      }
+    }
+  }
+
+  if (childClosed) {
+    await waitForChildClose(childClosed, pid);
+  }
+}
+
+function acquireLaunchLock() {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const fd = fs.openSync(LAUNCH_LOCK, 'wx', 0o600);
+      try {
+        fs.writeFileSync(fd, `${process.pid}\n`);
+      } finally {
+        fs.closeSync(fd);
+      }
+      return () => {
+        if (fs.existsSync(LAUNCH_LOCK)) {
+          const owner = Number(fs.readFileSync(LAUNCH_LOCK, 'utf8').trim());
+          if (owner === process.pid) removeFile(LAUNCH_LOCK);
+        }
+      };
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      const ownerText = fs.readFileSync(LAUNCH_LOCK, 'utf8').trim();
+      const owner = /^\d+$/.test(ownerText) ? Number(ownerText) : null;
+      const lockAgeMs = Date.now() - fs.statSync(LAUNCH_LOCK).mtimeMs;
+      if (Number.isInteger(owner) && processIsRunning(owner)) {
+        die(`Another e-cli launch is already in progress (pid: ${owner})`);
+      }
+      if (!Number.isInteger(owner) && lockAgeMs < 60_000) {
+        die('Another e-cli launch may be in progress (unreadable lock owner)');
+      }
+      removeFile(LAUNCH_LOCK);
+    }
+  }
+  die(`Could not acquire launch lock: ${LAUNCH_LOCK}`);
+}
+
+function parsePort(value) {
+  const port = value === undefined ? DEFAULT_PORT : Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    die(`Invalid CDP port: ${value}`);
+  }
+  return port;
+}
+
+async function assertPortAvailable(port) {
+  const server = net.createServer();
+  server.unref();
+  await new Promise((resolve, reject) => {
+    server.once('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        reject(new Error(`CDP port ${port} is already in use; pass --port=<free-port>`));
+      } else {
+        reject(error);
+      }
+    });
+    server.listen({ host: '127.0.0.1', port, exclusive: true }, () => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  });
+}
+
+function readStartupLog(file) {
+  if (!file || !fs.existsSync(file)) return '';
+  const text = fs.readFileSync(file, 'utf8').trim();
+  return text ? `\nElectron stderr:\n${text.slice(-4000)}` : '';
+}
+
+function readOwnedDevToolsEndpoint(file, port) {
+  if (!fs.existsSync(file)) return null;
+  const matches = [
+    ...fs.readFileSync(file, 'utf8').matchAll(/DevTools listening on (ws:\/\/\S+)/g),
+  ];
+  if (matches.length === 0) return null;
+  const endpoint = matches.at(-1)[1];
+  const parsed = new URL(endpoint);
+  if (Number(parsed.port) !== port) {
+    throw new Error(
+      `Electron reported CDP port ${parsed.port}, but e-cli requested ${port}`,
+    );
+  }
+  return endpoint;
+}
+
+function endpointIdentity(endpoint) {
+  const parsed = new URL(endpoint);
+  return `${parsed.port}${parsed.pathname}`;
+}
+
+async function readCDPVersion(port) {
+  const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+  if (!response.ok) {
+    throw new Error(`CDP version endpoint returned HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+async function verifyCDPOwnership(state) {
+  if (!state.webSocketDebuggerUrl) {
+    die('Session predates CDP ownership tracking. Run: e-cli close && e-cli launch');
+  }
+  const version = await readCDPVersion(state.port);
+  if (
+    !version.webSocketDebuggerUrl ||
+    endpointIdentity(version.webSocketDebuggerUrl) !==
+      endpointIdentity(state.webSocketDebuggerUrl)
+  ) {
+    die('CDP endpoint no longer belongs to the Electron session in e-cli state');
+  }
+}
+
+function projectRequire(mod) {
+  return createRequire(path.join(PROJECT, 'package.json'))(mod);
+}
+
+function getElectronPath() {
+  try {
+    return projectRequire('electron');
+  } catch {
+    die('electron not found in project devDependencies. Install: pnpm add -D electron');
+  }
+}
+
+function getChromium() {
+  try {
+    return projectRequire('@playwright/test').chromium;
+  } catch (error) {
+    if (error.message.startsWith('Electron reported CDP port')) throw error;
+  }
+  try {
+    return projectRequire('playwright-core').chromium;
+  } catch {}
+  die(
+    '@playwright/test or playwright-core not found. Install: pnpm add -D @playwright/test',
+  );
+}
+
+function parseOpts(args) {
+  const opts = {};
+  const pos = [];
+  for (const a of args) {
+    if (a.startsWith('--')) {
+      const eq = a.indexOf('=');
+      opts[eq > 0 ? a.slice(2, eq) : a.slice(2)] = eq > 0 ? a.slice(eq + 1) : true;
+    } else {
+      pos.push(a);
+    }
+  }
+  return { opts, pos };
+}
+
+async function waitForCDP(port, child, stderrLog, timeoutMs = 30_000) {
+  let spawnError;
+  child.once('error', (error) => {
+    spawnError = error;
+  });
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (spawnError) throw new Error(`Electron failed to start: ${spawnError.message}`);
+    if (child.exitCode !== null || child.signalCode !== null) {
+      throw new Error(
+        `Electron exited before CDP was ready (${child.signalCode || `code ${child.exitCode}`})`,
+      );
+    }
+    try {
+      const ownedEndpoint = readOwnedDevToolsEndpoint(stderrLog, port);
+      if (ownedEndpoint) {
+        const version = await readCDPVersion(port);
+        if (
+          version.webSocketDebuggerUrl &&
+          endpointIdentity(version.webSocketDebuggerUrl) ===
+            endpointIdentity(ownedEndpoint)
+        ) {
+          return ownedEndpoint;
+        }
+      }
+    } catch {}
+    await sleep(500);
+  }
+  die(`CDP not available on port ${port} after ${timeoutMs / 1000}s`);
+}
+
+async function connect() {
+  const state = readState();
+  if (!state) die('No running app. Run: e-cli launch');
+  if (!processTreeIsRunning(state.pid)) {
+    clearState(state);
+    die('App not running (stale state cleaned). Run: e-cli launch');
+  }
+  await verifyCDPOwnership(state);
+  const chromium = getChromium();
+  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${state.port}`);
+  const pages = browser.contexts().flatMap((c) => c.pages());
+  const page = pickMainPage(pages, state.pageSelection);
+  if (!page) {
+    await browser.close();
+    die('No renderer page found');
+  }
+  return { browser, page, pages, state };
+}
+
+function formatTree(node, depth = 0) {
+  if (!node) return '';
+  const pad = '  '.repeat(depth);
+  let line = `${pad}${node.role}`;
+  if (node.name) line += ` "${node.name}"`;
+  if (node.value !== undefined && node.value !== '') line += ` value="${node.value}"`;
+  if (node.level !== undefined) line += ` level=${node.level}`;
+  if (node.checked !== undefined) line += ` checked=${node.checked}`;
+  if (node.pressed !== undefined) line += ` pressed=${node.pressed}`;
+  if (node.selected !== undefined) line += ` selected=${node.selected}`;
+  if (node.expanded !== undefined) line += ` expanded=${node.expanded}`;
+  if (node.focused) line += ' focused';
+  if (node.readonly) line += ' readonly';
+  if (node.disabled) line += ' disabled';
+  let out = line;
+  for (const c of node.children || []) out += '\n' + formatTree(c, depth + 1);
+  return out;
+}
+
+// ─── Commands ───────────────────────────────────────────────
+
+async function launch(args) {
+  const releaseLock = acquireLaunchLock();
+  try {
+    await launchWithLock(args);
+  } finally {
+    releaseLock();
+  }
+}
+
+async function launchWithLock(args) {
+  const { opts } = parseOpts(args);
+  const port = parsePort(opts.port);
+  const startupTimeout = startupTimeoutMs();
+  const pageSelection = pageSelectionFromEnv();
+
+  const prev = readState();
+  if (prev) {
+    if (processTreeIsRunning(prev.pid)) {
+      if (prev.status === 'ready') {
+        await verifyCDPOwnership(prev);
+        console.log(`Already running (pid: ${prev.pid}, port: ${prev.port})`);
+        return;
+      }
+      if (Date.now() - prev.createdAt < startupTimeout * 2) {
+        console.log(`Launch still in progress (pid: ${prev.pid}, port: ${prev.port})`);
+        return;
+      }
+      clearState(prev, { preserveLog: true });
+      die(`Refusing to trust stale launching state; inspect process ${prev.pid} manually`);
+    }
+    clearState(prev);
+  }
+
+  const electronBin = getElectronPath();
+  getChromium();
+
+  // Main entry: explicit setting, package.json "main", then electron-vite default.
+  let pkgMain;
+  try {
+    pkgMain = JSON.parse(fs.readFileSync(path.join(PROJECT, 'package.json'), 'utf8')).main;
+  } catch {}
+  const configuredEntry = opts.entry || process.env.E_CLI_ENTRY || pkgMain;
+  const mainEntry = path.resolve(
+    PROJECT,
+    configuredEntry || path.join('out', 'main', 'index.js'),
+  );
+  if (!fs.existsSync(mainEntry)) {
+    if (opts['no-build']) {
+      die(`Main entry not found and --no-build was set: ${mainEntry}`);
+    }
+    // Build command: E_CLI_BUILD_CMD wins; otherwise use the project's own build script.
+    let buildCmd = process.env.E_CLI_BUILD_CMD;
+    if (!buildCmd) {
+      let hasBuildScript = false;
+      try {
+        hasBuildScript = !!JSON.parse(
+          fs.readFileSync(path.join(PROJECT, 'package.json'), 'utf8')
+        ).scripts?.build;
+      } catch {}
+      if (hasBuildScript) {
+        const pm = fs.existsSync(path.join(PROJECT, 'pnpm-lock.yaml'))
+          ? 'pnpm'
+          : null;
+        if (!pm) {
+          die('Automatic builds require pnpm-lock.yaml; set E_CLI_BUILD_CMD for another project toolchain');
+        }
+        buildCmd = `${pm} run build`;
+      } else {
+        die(`Main entry not found; set --entry or E_CLI_BUILD_CMD: ${mainEntry}`);
+      }
+    }
+    console.log(`Building (${mainEntry} not found): ${buildCmd}`);
+    execSync(buildCmd, { cwd: PROJECT, stdio: 'inherit' });
+    if (!fs.existsSync(mainEntry)) die(`Build failed — ${mainEntry} not created`);
+  }
+
+  await assertPortAvailable(port);
+  console.log(`Launching on CDP port ${port}...`);
+
+  const stderrLog = path.join(
+    os.tmpdir(),
+    `e-cli-${process.pid}-${Date.now()}.stderr.log`,
+  );
+  let stderrFd = fs.openSync(stderrLog, 'wx', 0o600);
+  let child;
+  let childClosed;
+  let state;
+  try {
+    let appArgs = [];
+    if (process.env.E_CLI_APP_ARGS) {
+      try {
+        appArgs = JSON.parse(process.env.E_CLI_APP_ARGS);
+      } catch {
+        die('E_CLI_APP_ARGS must be a JSON array');
+      }
+      if (!Array.isArray(appArgs) || appArgs.some((arg) => typeof arg !== 'string')) {
+        die('E_CLI_APP_ARGS must be a JSON array of strings');
+      }
+    }
+    const electronArgs = [
+      `--remote-debugging-port=${port}`,
+      '--enable-logging=stderr',
+    ];
+    if (process.env.E_CLI_USER_DATA_DIR) {
+      electronArgs.push(
+        `--user-data-dir=${path.resolve(PROJECT, process.env.E_CLI_USER_DATA_DIR)}`,
+      );
+    }
+    electronArgs.push(mainEntry, ...appArgs);
+
+    child = spawn(electronBin, electronArgs, {
+      cwd: PROJECT,
+      stdio: ['ignore', 'ignore', stderrFd],
+      detached: true,
+      env: {
+        ...process.env,
+        NODE_ENV: process.env.E_CLI_NODE_ENV || process.env.NODE_ENV || 'test',
+      },
+    });
+    childClosed = new Promise((resolve) => child.once('close', resolve));
+    const openStderrFd = stderrFd;
+    stderrFd = undefined;
+    fs.closeSync(openStderrFd);
+
+    state = {
+      pid: child.pid,
+      port,
+      status: 'launching',
+      stderrLog,
+      createdAt: Date.now(),
+      pageSelection,
+    };
+    writeState(state);
+
+    const webSocketDebuggerUrl = await waitForCDP(
+      port,
+      child,
+      stderrLog,
+      startupTimeout,
+    );
+
+    const chromium = getChromium();
+    const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+    let page;
+    try {
+      const deadline = Date.now() + startupTimeout;
+      while (Date.now() < deadline) {
+        const pages = browser.contexts().flatMap((c) => c.pages());
+        page = pickMainPage(pages, pageSelection);
+        if (page) break;
+        await sleep(500);
+      }
+      if (!page) {
+        die(`No renderer page appeared within ${startupTimeout / 1000}s`);
+      }
+      await page.waitForLoadState('domcontentloaded');
+    } finally {
+      await browser.close();
+    }
+
+    writeState({ ...state, status: 'ready', webSocketDebuggerUrl });
+    child.unref();
+    console.log(`Ready (pid: ${child.pid}, port: ${port})`);
+  } catch (error) {
+    if (stderrFd !== undefined) fs.closeSync(stderrFd);
+    if (child?.pid) await terminateProcessTree(child.pid, childClosed);
+    const details = readStartupLog(stderrLog);
+    clearState(state || { stderrLog });
+    throw new Error(`${error.message}${details}`);
+  }
+}
+
+async function snapshot(args) {
+  const { opts } = parseOpts(args);
+  const { browser, page } = await connect();
+  try {
+    const tree = await page.accessibility.snapshot({ interestingOnly: !opts.full });
+    console.log(formatTree(tree));
+  } finally {
+    await browser.close();
+  }
+}
+
+async function screenshot(args) {
+  const { opts, pos } = parseOpts(args);
+  const requested =
+    pos[0] || path.join(PROJECT, `.e-cli-screenshot-${Date.now()}.png`);
+  const out = path.resolve(PROJECT, requested);
+  const { browser, page } = await connect();
+  try {
+    if (opts.selector) {
+      await page.locator(opts.selector).screenshot({ path: out });
+    } else {
+      await page.screenshot({ path: out });
+    }
+    console.log(out);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function click(args) {
+  const sel = args.join(' ');
+  if (!sel) die('Usage: e-cli click <selector>');
+  const { browser, page } = await connect();
+  try {
+    await page.locator(sel).click();
+    console.log(`Clicked: ${sel}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function fill(args) {
+  if (args.length < 2) die('Usage: e-cli fill <selector> <value>');
+  const sel = args[0];
+  const val = args.slice(1).join(' ');
+  const { browser, page } = await connect();
+  try {
+    await page.locator(sel).fill(val);
+    console.log(`Filled: ${sel}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function press(args) {
+  if (!args[0]) die('Usage: e-cli press <key>');
+  const { browser, page } = await connect();
+  try {
+    await page.keyboard.press(args[0]);
+    console.log(`Pressed: ${args[0]}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function hover(args) {
+  const sel = args.join(' ');
+  if (!sel) die('Usage: e-cli hover <selector>');
+  const { browser, page } = await connect();
+  try {
+    await page.locator(sel).hover();
+    console.log(`Hovered: ${sel}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function text(args) {
+  const sel = args.join(' ');
+  if (!sel) die('Usage: e-cli text <selector>');
+  const { browser, page } = await connect();
+  try {
+    const t = await page.locator(sel).textContent();
+    console.log(t);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function evalJs(args) {
+  const js = args.join(' ');
+  if (!js) die('Usage: e-cli eval <js-expression>');
+  const { browser, page } = await connect();
+  try {
+    const result = await page.evaluate(js);
+    console.log(JSON.stringify(result, null, 2));
+  } finally {
+    await browser.close();
+  }
+}
+
+async function wait(args) {
+  const { opts, pos } = parseOpts(args);
+  const timeout = Number(opts.timeout || pos[1] || 10_000);
+  if (!Number.isFinite(timeout) || timeout < 1) die(`Invalid timeout: ${timeout}`);
+  const { browser, page } = await connect();
+  try {
+    if (opts.url) {
+      await page.waitForURL(opts.url, { timeout });
+      console.log(`URL matched: ${opts.url}`);
+      return;
+    }
+    if (opts.predicate) {
+      await page.waitForFunction(opts.predicate, undefined, { timeout });
+      console.log('Predicate matched.');
+      return;
+    }
+    const selector = pos[0];
+    if (!selector) {
+      die('Usage: e-cli wait <selector> [timeout_ms] [--state=visible|hidden|attached|detached]');
+    }
+    const state = opts.state || 'visible';
+    await page.locator(selector).waitFor({ state, timeout });
+    if (opts.text) {
+      const deadline = Date.now() + timeout;
+      while (Date.now() < deadline) {
+        const content = await page.locator(selector).textContent();
+        if (content?.includes(opts.text)) break;
+        await sleep(100);
+      }
+      const content = await page.locator(selector).textContent();
+      if (!content?.includes(opts.text)) {
+        die(`Text not found before timeout: ${opts.text}`);
+      }
+    }
+    console.log(`${state}: ${selector}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+async function pages() {
+  const { browser, pages: allPages, state } = await connect();
+  try {
+    const selected = pickMainPage(allPages, state.pageSelection);
+    for (let index = 0; index < allPages.length; index += 1) {
+      const page = allPages[index];
+      console.log(
+        JSON.stringify({
+          index,
+          selected: page === selected,
+          title: await page.title(),
+          url: page.url(),
+        }),
+      );
+    }
+  } finally {
+    await browser.close();
+  }
+}
+
+async function logs(args) {
+  const state = readState();
+  if (!state) die('No running app. Run: e-cli launch');
+  const lines = Number(args[0] || 100);
+  if (!Number.isInteger(lines) || lines < 1) die(`Invalid line count: ${args[0]}`);
+  if (!fs.existsSync(state.stderrLog)) {
+    console.log('No Electron log file.');
+    return;
+  }
+  const content = fs.readFileSync(state.stderrLog, 'utf8').split('\n');
+  console.log(content.slice(-lines).join('\n'));
+}
+
+async function close() {
+  const state = readState();
+  if (!state) {
+    console.log('Not running.');
+    return;
+  }
+  if (!processTreeIsRunning(state.pid)) {
+    const details = readStartupLog(state.stderrLog);
+    clearState(state);
+    console.log(`Not running (stale state cleaned).${details}`);
+    return;
+  }
+  if (state.status !== 'ready') {
+    clearState(state, { preserveLog: true });
+    die(`Refusing to signal unverified launching process ${state.pid}; inspect it manually`);
+  }
+  try {
+    await verifyCDPOwnership(state);
+  } catch (error) {
+    clearState(state, { preserveLog: true });
+    die(`Refusing to signal process ${state.pid}: ${error.message}`);
+  }
+  await terminateProcessTree(state.pid);
+  clearState(state);
+  console.log('Closed.');
+}
+
+async function status() {
+  const state = readState();
+  if (!state) {
+    console.log('Not running.');
+    process.exitCode = 1;
+    return;
+  }
+  if (processTreeIsRunning(state.pid)) {
+    if (state.status !== 'launching') await verifyCDPOwnership(state);
+    console.log(
+      `${state.status === 'launching' ? 'Launching' : 'Running'} (pid: ${state.pid}, port: ${state.port})`,
+    );
+  } else {
+    const details = readStartupLog(state.stderrLog);
+    clearState(state);
+    console.log(`Not running (stale state cleaned).${details}`);
+    process.exitCode = 1;
+  }
+}
+
+// ─── Entry ──────────────────────────────────────────────────
+
+const CMDS = {
+  launch,
+  snapshot,
+  screenshot,
+  click,
+  fill,
+  press,
+  hover,
+  text,
+  eval: evalJs,
+  wait,
+  pages,
+  logs,
+  close,
+  status,
+};
+
+async function main() {
+  const nodeMajor = Number(process.versions.node.split('.')[0]);
+  if (!Number.isInteger(nodeMajor) || nodeMajor < 18) {
+    die(`Node.js 18 or newer is required; found ${process.versions.node}`);
+  }
+  const [cmd, ...rest] = process.argv.slice(2);
+  if (!cmd || cmd === 'help' || cmd === '-h' || cmd === '--help') {
+    console.log(`e-cli — Electron Playwright automation
+
+Commands:
+  launch [--port=9222] [--entry=path] [--no-build]
+                           Launch Electron with CDP
+  pages                    List renderer windows and current selection
+  snapshot [--full]        Dump compact or full accessibility tree
+  screenshot [path] [--selector=sel]
+                           Save page or element PNG
+  click <selector>         Click element
+  fill <selector> <value>  Fill input field
+  press <key>              Keyboard press (Enter, Tab, Meta+n)
+  hover <selector>         Hover over element
+  text <selector>          Print element textContent
+  eval <js>                Run trusted JavaScript with app/preload privileges
+  wait <sel> [timeout] [--state=...] [--text=...]
+  wait --url=glob | --predicate=js
+                           Wait for a product postcondition
+  logs [lines]             Tail Electron/renderer stderr
+  close                    Close running app
+  status                   Check if app is running
+
+Environment:
+  E_CLI_PROJECT             Electron project root (default: cwd)
+  E_CLI_ENTRY               Main entry override
+  E_CLI_BUILD_CMD           Explicit build command when entry is absent
+  E_CLI_NODE_ENV            NODE_ENV override
+  E_CLI_STARTUP_TIMEOUT_MS  Startup timeout (default: 30000)
+  E_CLI_PAGE_INDEX          Renderer page index to persist
+  E_CLI_PAGE_URL            Renderer URL substring to persist
+  E_CLI_EXCLUDE_URL         Comma-separated URL substrings to skip
+  E_CLI_USER_DATA_DIR       Explicit Electron profile directory
+  E_CLI_APP_ARGS            JSON array of arguments passed after the entry
+
+Selectors: text=X, role=button[name=X], [data-testid=X], CSS`);
+    return;
+  }
+  const fn = CMDS[cmd];
+  if (!fn) die(`Unknown command: ${cmd}. Run: e-cli help`);
+  await fn(rest);
+}
+
+main().catch((e) => {
+  console.error(`error: ${e.message}`);
+  process.exitCode = 1;
+});

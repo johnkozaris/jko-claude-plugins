@@ -1,283 +1,59 @@
-# e-cli Command Reference
+# e-cli interface
 
-`e-cli` is a CLI wrapper around Playwright's Electron automation API. It maintains a persistent session via Chrome DevTools Protocol (CDP), enabling fast sequential commands against a running Electron app.
+Treat `e-cli --help` as the command source of truth. This reference explains
+state, ownership, and environment behavior that help cannot show compactly.
 
-## Prerequisites
+## Requirements
 
-The project must have these in `devDependencies`:
-- `electron` — the Electron framework
-- `@playwright/test` or `playwright-core` — Playwright automation library
+- Node.js 18 or newer
+- Electron in the target project's dependencies
+- `@playwright/test` or `playwright-core` in that project
 
-The tool resolves these from the **project's own `node_modules`** using `createRequire(process.cwd())`. No global installs needed.
+The script resolves modules from `E_CLI_PROJECT` or the current working
+directory. It does not install dependencies.
 
-## State File
+## State and ownership
 
-`e-cli` stores session state in `.e-cli-state.json` in the project root:
+The project-local state file records PID, CDP port, launch status, private
+stderr-log path, creation time, persisted page selection, and the exact
+child-issued DevTools WebSocket identity. It is written atomically with mode
+`0600`.
 
-```json
-{
-  "pid": 12345,
-  "port": 9222,
-  "status": "ready",
-  "stderrLog": "/tmp/e-cli-12345.stderr.log",
-  "webSocketDebuggerUrl": "ws://127.0.0.1:9222/devtools/browser/session-id"
-}
-```
+Ready sessions verify the live CDP identity before connecting or terminating a
+process. Malformed or mismatched state is rejected rather than trusted. Log
+deletion is restricted to e-cli-owned files in the OS temporary directory.
 
-Add `.e-cli-state.json`, `.e-cli-launch.lock`, and `.e-cli-screenshot.png` to `.gitignore`.
+Add `.e-cli-state.json`, `.e-cli-launch.lock`, and `.e-cli-screenshot-*.png` to
+the target project's ignore rules.
 
-## Commands
+## Launch inputs
 
-### `e-cli launch [--port=9222]`
+Use environment variables for host-portable configuration:
 
-Start the Electron app with CDP enabled.
+- `E_CLI_PROJECT`: Electron package root
+- `E_CLI_ENTRY`: main-process entry override
+- `E_CLI_BUILD_CMD`: explicit build command when the entry is absent
+- `E_CLI_NODE_ENV`: environment override
+- `E_CLI_STARTUP_TIMEOUT_MS`: startup bound
+- `E_CLI_PAGE_INDEX`, `E_CLI_PAGE_URL`, `E_CLI_EXCLUDE_URL`: persisted window
+  selection
+- `E_CLI_USER_DATA_DIR`: explicit Electron profile
+- `E_CLI_APP_ARGS`: JSON string array passed after the entry
 
-**Behavior:**
-1. Checks if an app is already running (reads state file, validates PID)
-2. Resolves the project's `electron` binary
-3. If `out/main/index.js` doesn't exist, runs `npx electron-vite build`
-4. Acquires a per-project launch lock and refuses occupied ports
-5. Spawns Electron in an isolated process group with `--remote-debugging-port=<port>` and captures stderr
-6. Immediately saves provisional process state so failed launches can be cleaned up
-7. Matches Electron's child-issued DevTools endpoint to `/json/version`, preventing attachment to unrelated browsers
-8. Connects via Playwright, waits for the renderer page to reach `domcontentloaded`
-9. Marks the session ready; failures terminate the complete process group, await the child, and surface captured stderr
+Launch never invents an `npx` build. It uses an explicit build command or a
+project build script with an identifiable lockfile/package manager.
 
-**Options:**
-- `--port=<number>` — CDP port (default: 9222)
+`pages` lists renderer index, title, URL, and current selection. Use it before
+persisting a page selector in a multi-window app.
 
-**Examples:**
-```bash
-e-cli launch                  # default port 9222
-e-cli launch --port=9333      # custom port
-```
+## Evidence interfaces
 
-**Output:**
-```
-Launching on CDP port 9222...
-Ready (pid: 45678, port: 9222)
-```
+- `snapshot` is compact by default; `--full` includes uninteresting AX nodes.
+- `screenshot [path] --selector=<selector>` captures a page or one element.
+- `wait` supports Playwright states, text, URL, or a trusted predicate.
+- `logs [lines]` tails Electron/renderer stderr captured through Electron
+  logging.
+- `eval` executes arbitrary JavaScript with the renderer and preload bridge's
+  privileges. Treat it as a trusted, side-effect-capable escape hatch.
 
-If already running:
-```
-Already running (pid: 45678, port: 9222)
-```
-
----
-
-### `e-cli snapshot`
-
-Dump the full accessibility tree of the main renderer page as indented text.
-
-**Output format:**
-```
-WebArea "MyApp"
-  navigation "Main"
-    tab "Sessions" pressed=true
-    tab "Rooms"
-  main
-    heading "Sessions" level=1
-```
-
-Each line shows: `role "name" [attributes]`. Indentation reflects the tree hierarchy.
-
-**Attributes shown:** `value`, `checked`, `pressed`, `expanded`, `disabled`.
-
-**Example:**
-```bash
-e-cli snapshot
-```
-
----
-
-### `e-cli screenshot [path]`
-
-Save a PNG screenshot of the main renderer page.
-
-**Arguments:**
-- `path` (optional) — output file path. Default: `.e-cli-screenshot.png` in project root.
-
-**Output:** Prints the absolute path to the saved file.
-
-**Examples:**
-```bash
-e-cli screenshot                          # saves to .e-cli-screenshot.png
-e-cli screenshot /tmp/app-state.png       # custom path
-```
-
----
-
-### `e-cli click <selector>`
-
-Click an element matching the selector.
-
-**Selector formats:**
-- `role=tab[name="Sessions"]` — role selector (preferred)
-- `text=Sessions` — text content match
-- `[data-testid=session-list]` — attribute selector
-- `.sidebar button` — CSS selector
-
-**Examples:**
-```bash
-e-cli click 'role=tab[name="Rooms"]'
-e-cli click 'text=Create Session'
-e-cli click '[data-testid=new-session-btn]'
-e-cli click '.header .menu-button'
-```
-
----
-
-### `e-cli fill <selector> <value>`
-
-Clear an input field and type a new value.
-
-**Arguments:**
-- `selector` — element selector (first argument)
-- `value` — text to type (remaining arguments, joined with spaces)
-
-**Examples:**
-```bash
-e-cli fill '[data-testid=session-name]' "my-session"
-e-cli fill 'role=textbox[name="Search"]' "hello world"
-```
-
----
-
-### `e-cli press <key>`
-
-Send a keyboard event to the focused element.
-
-**Key format:** Playwright key names — `Enter`, `Escape`, `Tab`, `Backspace`, `ArrowDown`, `Meta+n`, `Control+c`, `Shift+Tab`.
-
-**Examples:**
-```bash
-e-cli press Enter
-e-cli press Escape
-e-cli press Meta+n
-e-cli press Tab
-```
-
----
-
-### `e-cli hover <selector>`
-
-Hover over an element to trigger tooltips, dropdown menus, or hover states.
-
-**Examples:**
-```bash
-e-cli hover 'role=button[name="Settings"]'
-e-cli hover '.user-avatar'
-```
-
----
-
-### `e-cli text <selector>`
-
-Print the `textContent` of the first element matching the selector.
-
-**Examples:**
-```bash
-e-cli text 'role=heading[level=1]'        # print the page heading
-e-cli text '.status-bar'                  # print status bar content
-e-cli text '[data-testid=error-message]'  # read an error message
-```
-
----
-
-### `e-cli eval <js>`
-
-Evaluate a JavaScript expression in the renderer context and print the result as JSON.
-
-**Arguments:** All remaining arguments are joined as a single JS expression.
-
-**Examples:**
-```bash
-e-cli eval "document.title"
-e-cli eval "Object.keys(window.api).length"
-e-cli eval "document.querySelectorAll('.session-item').length"
-e-cli eval "window.api.getSettings()"
-```
-
-**Output:** JSON-formatted result.
-
----
-
-### `e-cli wait <selector> [timeout_ms]`
-
-Wait for an element to become visible.
-
-**Arguments:**
-- `selector` — element selector
-- `timeout_ms` (optional) — timeout in milliseconds (default: 10000)
-
-**Examples:**
-```bash
-e-cli wait 'role=tab[name="Sessions"]'           # default 10s timeout
-e-cli wait '[data-testid=session-list]' 30000     # 30s timeout
-```
-
-**Output:**
-```
-Visible: role=tab[name="Sessions"]
-```
-
----
-
-### `e-cli close`
-
-Terminate the running Electron app and clean up the state file.
-
-Sends `SIGTERM` to the stored PID and removes `.e-cli-state.json`.
-
-**Example:**
-```bash
-e-cli close
-```
-
-**Output:**
-```
-Closed.
-```
-
----
-
-### `e-cli status`
-
-Check if the Electron app is currently running.
-
-Reads the state file and validates the PID is alive. Cleans up stale state if the process has died.
-
-**Example:**
-```bash
-e-cli status
-```
-
-**Output (running):**
-```
-Running (pid: 45678, port: 9222)
-```
-
-**Output (not running):**
-```
-Not running.
-```
-
-Exit code: `0` if running, `1` if not.
-
----
-
-## Error Messages
-
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `electron not found in project devDependencies` | No `electron` package | `pnpm add -D electron` |
-| `@playwright/test or playwright-core not found` | No Playwright package | `pnpm add -D @playwright/test` |
-| `Build failed — out/main/index.js not created` | electron-vite build error | Fix build errors, then retry |
-| `CDP not available on port 9222 after 30s` | Electron crashed on startup | Check for main process errors |
-| `No running app. Run: e-cli launch` | State file missing | Launch the app first |
-| `App not running (stale state cleaned)` | Process died since launch | Launch again |
-| `No renderer page found` | App started but no window opened | Check main process window creation |
-
-## Page Selection
-
-When the app has multiple windows (e.g., main app + agent intel window), `e-cli` targets the **main app window** by default. It filters out pages whose URL contains `intel.html`.
+`close` terminates the process group only after CDP ownership verification.

@@ -1,107 +1,37 @@
-# OIDC Token Flows
+# OIDC token flows and diagnosis
 
-Choose the right grant for the situation. Most mistakes come from trying the wrong one.
+Read the provider discovery document and client configuration before choosing a
+grant. Public interactive clients usually use authorization code + PKCE.
+Machine callers may use client credentials; headless user authorization may use
+device authorization when the provider enables it. Avoid password grants for
+new integrations.
 
-## Authorization Code + PKCE (recommended for public clients)
+Refresh-token lifetime, scope, and rotation are provider policy. A refresh
+request may omit scope; when supplied it cannot expand the original grant.
+Persist a rotated refresh token returned by the endpoint.
 
-**Use when:** your app's runtime client is a browser SPA, mobile app, or any "public" client that can't safely store a secret. This is what the validation script uses.
+OIDC requires the discovered issuer identifier to match the configured issuer
+exactly. Token endpoints can legitimately use another HTTPS origin; the bundled
+script rejects that by default and requires
+`ALLOW_CROSS_ORIGIN_TOKEN_ENDPOINT=1` after the metadata is verified.
 
-```bash
-oauth2c https://auth.example.com/application/o/your-app/ \
-  --client-id your-public-client-id \
-  --auth-method none \
-  --grant-type authorization_code \
-  --response-types code \
-  --response-mode query \
-  --pkce \
-  --prompt login \
-  --scopes "openid profile email offline_access"
-```
+Access tokens may be opaque. For a JWT-shaped token, `scripts/decode-jwt.sh`
+inspects claims using Base64url decoding, but does not verify signature,
+algorithm, key rotation, or authorization.
 
-- `--auth-method none` = public client (no client_secret)
-- `--pkce` = PKCE challenge required for security
-- `--prompt login` = force fresh authentication even if a session exists (avoids picking up admin sessions)
-- `offline_access` scope is required to receive a `refresh_token`
+For a 401, compare the backend's configured issuer and resource audience,
+expiry/leeway, required roles/groups/tenant/identity claims, and JWT/JWKS
+verification errors. Client-credentials tokens can contain `sub`; its meaning is
+provider-specific.
 
-First run opens a browser; you log in; oauth2c captures the callback at `http://localhost:9876/callback` (Authentik and others require this exact URI to be in the client's allowed redirects).
+Provider notes -- verify against the tenant:
 
-## Refresh Token (silent renewal)
+- Authentik clients require an authentication-flow binding; the exact flow is
+  tenant configuration.
+- When a backend requires `email_verified: true`, Authentik user attributes use
+  a plain YAML scalar rather than a one-item list.
+- Authentik and Auth0 deployments may rotate refresh tokens when rotation is
+  enabled.
 
-```bash
-curl -sS -X POST https://auth.example.com/application/o/your-app/token/ \
-  --data-urlencode "grant_type=refresh_token" \
-  --data-urlencode "refresh_token=$REFRESH_TOKEN" \
-  --data-urlencode "client_id=your-public-client-id" \
-  --data-urlencode "scope=openid profile email offline_access" \
-  | jq -r '.access_token'
-```
-
-- No client_secret for public clients
-- Many providers (Authentik, Auth0) rotate the refresh_token on each use — capture the new one
-- Refresh tokens typically last 30 days; re-auth via browser when they expire
-
-## Client Credentials (machine-to-machine)
-
-**Use when:** the caller is a server or automated job, not a user. Requires a **confidential** client.
-
-```bash
-oauth2c https://auth.example.com/application/o/your-service/ \
-  --client-id your-confidential-client \
-  --client-secret "$CLIENT_SECRET" \
-  --grant-type client_credentials \
-  --scopes "api.read api.write"
-```
-
-Token has no user context — only client identity. Endpoints requiring `sub` claim (user ID) won't work with this.
-
-## ROPC (Resource Owner Password Credentials)
-
-**Do not use.** Deprecated in OAuth 2.1. Most providers refuse it on public clients. Even on confidential clients, it exposes user passwords to your script. Authorization-code + PKCE is strictly better for every use case where ROPC would work.
-
-Symptom: providers return `invalid_grant` with identical error text for both wrong credentials and missing client support — impossible to debug from the client side.
-
-## Device Code
-
-**Use when:** no browser on the device (CLI tool on a headless server, IoT device, smart TV).
-
-```bash
-oauth2c https://auth.example.com/application/o/your-app/ \
-  --client-id your-public-client \
-  --grant-type urn:ietf:params:oauth:grant-type:device_code \
-  --scopes "openid profile"
-```
-
-Prints a code + URL. User visits URL on another device, enters code, script polls token endpoint until authorized.
-
-## Debugging tokens
-
-```bash
-# Decode JWT claims
-echo "$TOKEN" | awk -F. '{print $2}' | base64 -d 2>/dev/null | jq
-
-# Verify specific claims
-echo "$TOKEN" | awk -F. '{print $2}' | base64 -d 2>/dev/null \
-  | jq '{iss, aud, sub, preferred_username, email_verified, exp}'
-
-# Check expiry
-echo "$TOKEN" | awk -F. '{print $2}' | base64 -d 2>/dev/null \
-  | jq -r '"exp: " + (.exp | todate)'
-```
-
-Common 401 causes:
-1. `exp` in the past — token expired, refresh it
-2. `iss` doesn't match backend's configured authority — wrong tenant or wrong app
-3. `aud` missing or wrong — backend's `Audiences` list doesn't include this client
-4. `email_verified: false` — backend rejects unverified emails (add attribute in user profile)
-5. Clock skew — client's time is off; NTP-sync and retry
-
-## Discovery endpoint
-
-Every OIDC provider publishes config at `/.well-known/openid-configuration`:
-
-```bash
-curl -s https://auth.example.com/application/o/your-app/.well-known/openid-configuration \
-  | jq '{issuer, token_endpoint, authorization_endpoint, grant_types_supported, scopes_supported}'
-```
-
-Critical when onboarding a new provider — confirms the issuer URL, advertises supported grants, and lists scopes. `grant_types_supported` can lie — it shows what the server software supports, not what this specific client is allowed to use.
+Provider metadata describes server capability, not necessarily grants enabled
+for one client.

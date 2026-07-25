@@ -11,8 +11,10 @@ the target app's source — the probe will not.
 seam-probe inspect --lib path/to/libfoo.dylib
 ```
 
-This emits one NDJSON line per global function (and data) symbol, plus
-a summary. Filter to function symbols:
+This parses the file without loading or executing it and emits NDJSON symbols
+plus a summary. `sym_kind` can be `function`, `data`, or `other`; metadata may
+be incomplete for some export formats. Filter to functions when that field is
+available:
 
 ```bash
 seam-probe inspect --lib libfoo.dylib | \
@@ -57,10 +59,11 @@ new kind in `crate/src/ffi/trampolines.rs` and rebuild.
 ## 4. Cross-check
 
 Build a manifest. Run `seam-probe ffi` against the dylib. If the first
-control line emits `"runtime started"` you've cleared the start
-boundary. If you see an `error` line about a missing symbol, check
-spelling and exported visibility (`#[no_mangle]`, `#[unsafe(no_mangle)]`,
-custom `*_API`-style export macros some projects use).
+control line emits `"runtime started"` you've cleared the start boundary.
+Manifest and symbol-resolution failures exit 1 and print `Error: resolve ...
+symbol <name>` on stderr rather than as NDJSON error lines. Check spelling and
+exported visibility (`#[no_mangle]`, `#[unsafe(no_mangle)]`, or the project's
+export macro).
 
 If the runtime invokes a callback you didn't declare, the probe
 **aborts** with a loud message — that means your `callback_struct[]`
@@ -71,10 +74,10 @@ under-declares the runtime's actual struct. Add the missing field.
 - **Mangled symbol names** — Rust without `#[no_mangle]` will mangle. The
   app's symbols should be unmangled if they're meant to be called from
   C/Swift/JS.
-- **Static vs dynamic** — `seam-probe ffi` only takes dynamic libraries
-  (`.dylib`, `.so`, `.dll`). For staticlibs, link them into a small
+- **Static vs dynamic** — packaged FFI mode takes POSIX dynamic libraries
+  (`.dylib`, `.so`). For staticlibs, link them into a small
   cdylib first.
-- **Calling convention** — the probe uses the platform default (cdecl on
-  x86-64, AAPCS on ARM64). stdcall/fastcall require code changes.
+- **Calling convention** — the probe uses the platform default C ABI.
+  stdcall/fastcall require code changes.
 - **Variadics & struct-by-value args** — explicitly out of scope. Reject
   manifests that need them.

@@ -38,7 +38,7 @@ struct Cli {
 enum Mode {
     /// Drive a shared library via dlopen + a manifest-described surface.
     Ffi {
-        /// Path to the shared library (.so / .dylib / .dll).
+        /// Path to the shared library (.so / .dylib on packaged POSIX builds).
         #[arg(long)]
         lib: PathBuf,
         /// Path to the manifest JSON describing the FFI surface.

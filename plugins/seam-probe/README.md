@@ -5,8 +5,9 @@ length-prefixed Unix-domain sockets. Carries no app-specific
 knowledge — apps are described externally via small JSON manifests.
 Manifest schema v2 uses a pointer-based callback-table ABI.
 
-Modeled after `curl`, `websocat`, and `grpcurl`: protocol-generic,
-API-agnostic, stdin/stdout NDJSON in and out.
+Modeled after `curl`, `websocat`, and `grpcurl`: protocol-generic and
+API-agnostic. `ffi`, `socket`, and `inspect` emit NDJSON; `vocab` and help emit
+text.
 
 ## Modes
 
@@ -34,7 +35,11 @@ EOF
 
 # Send a be32-framed JSON message to a UDS endpoint
 echo '{"op":"send","payload":{"ping":"pong"}}' | \
-  seam-probe socket --path /tmp/foo.sock --framing be32
+  seam-probe socket --path /tmp/foo.sock --framing be32 <<'EOF'
+{"op":"send","payload":{"ping":"pong"}}
+{"op":"sleep_ms","ms":250}
+{"op":"stop"}
+EOF
 
 # Print the I/O contract
 seam-probe vocab
@@ -42,12 +47,9 @@ seam-probe vocab
 
 ## Why two streams matter
 
-`stdout` is the probe's NDJSON: events, return codes, transport
-errors. `stderr` is the **system-under-test's** voice: panics,
-backtraces, `tracing`/`log` output. In FFI mode the SUT runs inside
-the probe's process, so its stderr is the probe's stderr — capture
-it. In socket mode the SUT is a separate process; capture **its**
-log file in parallel.
+`stdout` is probe NDJSON. In FFI mode stderr is shared by probe diagnostics,
+sentinel failures, panics, and the loaded library. In socket mode the SUT is a
+separate process; capture its log independently.
 
 Bugs and runtime issues are usually only diagnosable by reading
 both. The skill teaches Claude how to capture, filter, and time-
@@ -90,10 +92,10 @@ Out of scope today (use a different tool, or extend the probe):
 
 ## Setup
 
-The plugin auto-builds on session start. First session takes a few
-seconds to compile in the background; subsequent sessions are
-instant. If `seam-probe` is invoked before the first build finishes,
-retry in a moment. Run `/seam-probe:seam-probe-setup` if anything looks off.
+Claude Code auto-builds through a SessionStart hook. Hosts that do not run
+plugin hooks need one-time `/seam-probe:seam-probe-setup` or the Cargo command
+printed by `bin/seam-probe`. A direct skill-only install does not include the
+launcher or crate; install the binary independently.
 
 Requires **`cargo`** on `PATH`
 (<https://www.rust-lang.org/tools/install>). The bundled toolchain file pins
@@ -103,8 +105,8 @@ Rust **1.97.1**, and Cargo rejects older compilers through `rust-version`.
 
 - Loaded libraries leak intentionally — never `dlclose`. See
   `skills/seam-probe/references/safety-notes.md` for the rationale.
-- Callback slots beyond the manifest's declared fields abort the
-  process loudly if the runtime ever calls them. Fix the manifest.
+- Callback structs up to 64 pointer fields receive aborting sentinel slots
+  beyond the manifest declaration. Larger structs are out of scope.
 - Frame sizes capped at 8 MiB (FFI commands and UDS frames).
 - Restricted to `extern "C"` callbacks. Anything else needs a code
   change.

@@ -1,0 +1,21 @@
+{
+  "name": "backend-architecture",
+  "description": "Small, opinionated architecture guide for production backend services across languages and frameworks",
+  "version": "1.0.0",
+  "license": "MIT",
+  "author": {
+    "name": "John Kozaris"
+  },
+  "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
+  "repository": "https://github.com/johnkozaris/jko-claude-plugins",
+  "keywords": [
+    "backend",
+    "architecture",
+    "modular-monolith",
+    "microservices",
+    "boundaries",
+    "production",
+    "distributed-systems"
+  ],
+  "skills": "./skills"
+}

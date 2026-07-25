@@ -1,34 +1,21 @@
 #!/usr/bin/env bash
-# peekaboo-macos-validator — SessionStart sanity check.
-#
-# Silent on success. Prints a short, actionable hint to stderr if peekaboo
-# is missing or the OS is not macOS, then exits 0 so the session continues.
-#
-# Why stderr-only-on-failure: every Claude Code session would otherwise emit
-# noise. Shipping a doctor command (/peekaboo-macos-validator:peekaboo-doctor) is the right
-# place for verbose output.
+# Silent SessionStart prerequisite check. Use the doctor command for details.
 
 set -u
 
-# Only macOS is supported.
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  echo "⚠️  peekaboo-macos-validator: requires macOS (uname=$(uname -s)). Skipping." >&2
-  exit 0
-fi
+[[ "$(uname -s)" == "Darwin" ]] || exit 0
 
 if ! command -v peekaboo >/dev/null 2>&1; then
   cat >&2 <<'EOF'
-⚠️  peekaboo-macos-validator: `peekaboo` binary not found.
-
-Install it once with Homebrew:
-
-    brew install steipete/tap/peekaboo
-
-Then grant System Settings → Privacy & Security → Screen Recording AND
-Accessibility to your terminal (or to whichever process invokes peekaboo).
-
-Run `/peekaboo-macos-validator:peekaboo-doctor` for a full health check.
+peekaboo-macos-validator: `peekaboo` is missing.
+Install: brew install steipete/tap/peekaboo
+Run `/peekaboo-macos-validator:peekaboo-doctor` to identify the runtime that
+needs Screen Recording and Accessibility; it may not be the terminal.
 EOF
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo "peekaboo-macos-validator: jq is required for structured output." >&2
 fi
 
 exit 0

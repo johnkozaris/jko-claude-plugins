@@ -1,51 +1,12 @@
-# ESP32 C++ Expert Plugin
+# ESP32 C++
 
-Expert firmware review and guidance for ESP32 and variants (ESP32-S2, S3, C3, C6, H2, P4) using ESP-IDF or PlatformIO.
+Evidence-first firmware guidance for ESP32 projects using ESP-IDF, Arduino, or
+PlatformIO.
 
-## What It Does
+The skill focuses on hardware and runtime facts a generic C++ review can miss:
+execution context, chip capabilities, memory regions, DMA, FreeRTOS behavior,
+peripherals, power, and long-uptime failure modes. Detailed references load only
+when the project or failure report exposes a matching signal.
 
-A senior firmware engineer skill that reviews code for correctness, safety, performance, FreeRTOS patterns, and hardware interaction quality. Every finding explains WHY it matters -- what crash it prevents, what field failure it avoids.
-
-## Installation
-
-```bash
-# From the marketplace
-claude plugin marketplace add /path/to/myClaudeSkills
-claude plugin install esp32-cpp@jko-claude-plugins
-
-# Or load for one session
-claude --plugin-dir /path/to/myClaudeSkills/plugins/esp32-cpp
-```
-
-## Commands
-
-| Command | Purpose |
-|---|---|
-| `/esp-harden` | Scan for anti-patterns (34 patterns, AP-01 through AP-34) and inspect/fix |
-| `/esp-debug` | Crash analysis, backtrace decoding, and root cause investigation |
-| `/esp-optimize` | Speed, memory, power, or binary size optimization |
-| `/esp-teach` | One-time: scan project, discover hardware, persist context to CLAUDE.md |
-
-## Skill
-
-The `esp32-expert` skill activates automatically when working with ESP32 firmware. It provides:
-
-- Framework detection (ESP-IDF vs PlatformIO) and variant identification
-- 4-layer thinking model (Hardware / RTOS / Application / C++)
-- 16 reference files covering every embedded domain
-- 34 anti-patterns catalog with BAD/GOOD code examples
-- AI slop detection for embedded code
-
-## Hook
-
-No active runtime hooks.
-
-## References
-
-16 reference files organized by domain:
-
-freertos, concurrency, memory, cpp-guidelines, embedded-cpp, peripherals, build-system, networking, security, power, debugging, testing, design-patterns, lvgl, libraries, anti-patterns
-
-## License
-
-MIT
+Where plugin commands are exposed, use `/esp32-cpp:esp-debug <symptom>` for an
+explicit crash or field-failure investigation; otherwise request it directly.

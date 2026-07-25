@@ -14,14 +14,13 @@ according to your `--framing` flag.
   └ length=12 ┘└ 12-byte body  ┘
 ```
 
-This is the de-facto standard. Used by gRPC, many Rust RPC servers,
-many Go RPC servers. Try this first.
+Use it only when the target's read loop or protocol contract shows a 32-bit
+big-endian length.
 
 ## `be64`
 
-8-byte big-endian unsigned length, then payload. Same idea as be32 but
-allows individual frames > 4 GiB. Rare in practice; you'd see it in
-servers that move large blobs (file transfers, ML model uploads).
+8-byte big-endian unsigned length, then payload. The wire field can represent
+larger lengths, but this probe still caps every frame at 8 MiB.
 
 ## `varint`
 
@@ -54,8 +53,5 @@ Framed reads, stdin command lines, and outbound payloads are capped at
 Raw inbound reads arrive in bounded 8 KiB chunks. Raise `MAX_FRAME_BYTES`
 in `crate/src/socket.rs` if a trusted protocol genuinely needs more.
 
-## Why no little-endian variants?
-
-Almost no real-world UDS protocols use little-endian length prefixes —
-network byte order convention dominates. If you encounter one in the
-wild, file a feature request.
+Little-endian length fields are not implemented. Inspect the target read loop
+instead of relying on protocol-frequency guesses.

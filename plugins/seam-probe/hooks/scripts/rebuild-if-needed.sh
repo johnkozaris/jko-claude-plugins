@@ -51,12 +51,14 @@ if ! command -v cargo >/dev/null 2>&1; then
   exit 2
 fi
 
+BUILD_LOG=$DATA/build.$$.log
 if (
   cd "$ROOT" || exit 2
   cargo build --release --locked \
     --manifest-path crate/Cargo.toml \
     --target-dir "$DATA/target"
-) >&2; then
+) >"$BUILD_LOG" 2>&1; then
+  rm -f "$BUILD_LOG"
   STAMP_TMP=$STAMP.$$
   if printf '%s\n' "$SOURCE_STAMP" >"$STAMP_TMP" &&
      mv "$STAMP_TMP" "$STAMP"; then
@@ -67,6 +69,8 @@ if (
   exit 2
 else
   rm -f "$STAMP"
+  cat "$BUILD_LOG" >&2
+  rm -f "$BUILD_LOG"
   echo "seam-probe: cargo build failed. Run /seam-probe:seam-probe-setup for verbose output." >&2
   exit 2
 fi

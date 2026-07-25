@@ -3,14 +3,16 @@
 
 Every check here corresponds to a bug found in a real review of this repo:
   1. SKILL.md frontmatter description over the 1024-char limit
-  2. Pattern-ID citations (CODE-xx / ARCH-xx / AP-xx / DN-xx) that don't exist
+  2. Trigger-time skill or command bodies large enough to become handbooks
+  3. Commands without routing frontmatter
+  4. Pattern-ID citations (CODE-xx / ARCH-xx / AP-xx / DN-xx) that don't exist
      in the plugin's own catalog (drift between commands and references)
-  3. Marketplace version/description out of sync with plugin.json, or the two
+  5. Marketplace version/description out of sync with plugin.json, or the two
      marketplace.json files diverging
-  4. Reference files never routed from their SKILL.md (orphans)
-  5. Private project names leaking into plugin content
-  6. Empty hooks.json stubs
-  7. Slash-command references to command files that don't exist (e.g. a
+  6. Reference files never routed from their SKILL.md (orphans)
+  7. Private project names leaking into plugin content
+  8. Empty hooks.json stubs
+  9. Slash-command references to command files that don't exist (e.g. a
      deleted command still cited in the root README or a plugin reference)
 
 Exit code 0 = clean, 1 = findings. Output is the evidence.
@@ -21,9 +23,16 @@ import re
 import sys
 from pathlib import Path
 
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
 ROOT = Path(__file__).resolve().parent.parent
 PLUGINS = ROOT / "plugins"
 DESCRIPTION_LIMIT = 1024
+SKILL_BODY_WORD_LIMIT = 1600
+COMMAND_BODY_WORD_LIMIT = 1200
 PRIVATE_NAMES = ["kodosi"]  # lowercase; add private project names here
 ID_PREFIXES = ("CODE", "ARCH", "AP", "DN")
 
@@ -63,6 +72,71 @@ def check_descriptions() -> None:
             finding(f"{rel}: no frontmatter description found")
         elif len(desc) > DESCRIPTION_LIMIT:
             finding(f"{rel}: description is {len(desc)} chars (limit {DESCRIPTION_LIMIT})")
+        else:
+            text = skill_md.read_text(encoding="utf-8")
+            match = re.match(r"---\n(.*?)\n---", text, re.S)
+            line = re.search(r"^description:\s*(.*)$", match.group(1), re.M) if match else None
+            raw = line.group(1).strip() if line else ""
+            if raw and raw not in (">", ">-", "|") and not raw.startswith(("'", '"')):
+                if re.search(r":\s", raw):
+                    finding(
+                        f"{rel}: unquoted ':' in description can break YAML; "
+                        "quote it or use a folded block"
+                    )
+
+
+def body_after_frontmatter(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    match = re.match(r"---\n.*?\n---\n?", text, re.S)
+    return text[match.end():] if match else text
+
+
+def check_context_budgets() -> None:
+    for skill_md in PLUGINS.glob("*/skills/*/SKILL.md"):
+        words = len(body_after_frontmatter(skill_md).split())
+        if words > SKILL_BODY_WORD_LIMIT:
+            finding(
+                f"{skill_md.relative_to(ROOT)}: trigger-time body is {words} words "
+                f"(limit {SKILL_BODY_WORD_LIMIT}); route detail to references"
+            )
+    for command in PLUGINS.glob("*/commands/*.md"):
+        words = len(body_after_frontmatter(command).split())
+        if words > COMMAND_BODY_WORD_LIMIT:
+            finding(
+                f"{command.relative_to(ROOT)}: command body is {words} words "
+                f"(limit {COMMAND_BODY_WORD_LIMIT}); keep commands as thin workflows"
+            )
+
+
+def check_command_frontmatter() -> None:
+    for command in PLUGINS.glob("*/commands/*.md"):
+        text = command.read_text(encoding="utf-8")
+        match = re.match(r"---\n(.*?)\n---", text, re.S)
+        rel = command.relative_to(ROOT)
+        if not match:
+            finding(f"{rel}: command has no frontmatter")
+        elif not re.search(r"^description:\s*\S", match.group(1), re.M):
+            finding(f"{rel}: command frontmatter has no description")
+
+
+def check_frontmatter_yaml() -> None:
+    if yaml is None:
+        return
+    for path in [
+        *PLUGINS.glob("*/skills/*/SKILL.md"),
+        *PLUGINS.glob("*/commands/*.md"),
+    ]:
+        text = path.read_text(encoding="utf-8")
+        match = re.match(r"---\n(.*?)\n---", text, re.S)
+        if not match:
+            continue
+        try:
+            parsed = yaml.safe_load(match.group(1))
+        except yaml.YAMLError as exc:
+            finding(f"{path.relative_to(ROOT)}: invalid YAML frontmatter: {exc}")
+            continue
+        if not isinstance(parsed, dict):
+            finding(f"{path.relative_to(ROOT)}: frontmatter must be a YAML mapping")
 
 
 def check_pattern_ids() -> None:
@@ -117,11 +191,15 @@ def check_manifests() -> None:
                 f"{name}: marketplace version {market[name].get('version')} != "
                 f"plugin.json version {meta.get('version')}"
             )
+        if market[name].get("description") != meta.get("description"):
+            finding(f"{name}: marketplace description differs from plugin.json")
         gh = plugin / ".github" / "plugin" / "plugin.json"
         if gh.exists():
             gh_meta = json.loads(gh.read_text())
             if gh_meta.get("version") != meta.get("version"):
                 finding(f"{name}: .github plugin.json version differs from .claude-plugin")
+            if gh_meta.get("description") != meta.get("description"):
+                finding(f"{name}: .github plugin.json description differs from .claude-plugin")
     for name in market:
         if not (PLUGINS / name).is_dir():
             finding(f"{name}: in marketplace.json but plugins/{name}/ does not exist")
@@ -189,6 +267,9 @@ def check_command_references() -> None:
 def main() -> int:
     for check in (
         check_descriptions,
+        check_context_budgets,
+        check_command_frontmatter,
+        check_frontmatter_yaml,
         check_pattern_ids,
         check_manifests,
         check_reference_orphans,

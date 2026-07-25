@@ -6,9 +6,9 @@ correct, legible, intentional, or resilient.
 
 ## Critique contract
 
-Delegate the annotated PNG to a one-shot sub-agent running your same model
-(see "Read screenshots without blowing up context" in the peekaboo SKILL.md).
-Never `view` it yourself. From the sub-agent's text report, answer:
+Give the visual reader a bounded set of artifact paths, the state or comparison
+being judged, and the rubric below. Keep image payloads in that disposable
+context and return only a compact text report to the driver:
 
 - **Intent:** Did the change visibly achieve what the user requested?
 - **Hierarchy:** Does attention land on the primary information/action first?
@@ -27,19 +27,20 @@ problem, user impact, and proposed fix.
 
 ## Output shape
 
-Use a compact scored table followed by ranked fixes:
+Prefer a compact `PASS`, `WARN`, or `FAIL` table with evidence and an intent
+verdict. Numeric scores are optional and need an anchored rubric:
 
 ```markdown
 **Critique - Settings panel**
 
-| Dimension        | Score | Evidence |
-|------------------|------:|----------|
-| Intent           |   4/5 | The new grouping is clearer, but Save is visually weak. |
-| Hierarchy        |   3/5 | Section title and secondary help compete at equal weight. |
-| Alignment        |   4/5 | Toggle rows align; footer misses the grid by 4 px. |
-| Spacing          |   3/5 | The final two rows read as one group. |
-| Contrast         |   5/5 | Critical copy remains legible in this appearance. |
-| Copy             |   4/5 | One label truncates at the minimum width. |
+| Dimension        | Verdict | Evidence |
+|------------------|---------|----------|
+| Intent           | WARN    | The grouping is clearer, but Save is visually weak. |
+| Hierarchy        | WARN    | Section title and secondary help compete at equal weight. |
+| Alignment        | PASS    | Toggle rows align to one grid. |
+| Spacing          | WARN    | The final two rows read as one group. |
+| Contrast         | PASS    | Critical copy is legible in this appearance. |
+| Copy             | WARN    | One label truncates at the minimum width. |
 
 Top fixes:
 1. Increase the primary Save action's visual emphasis.
@@ -67,9 +68,9 @@ control indiscriminately:
 7. Long content, localization, and narrow-window overflow.
 8. Final success state and any persisted result.
 
-For each state, assert an AX/product postcondition and delegate a pixel read to
-a same-model sub-agent. A different screenshot hash or snapshot ID is not
-itself a meaningful postcondition.
+For each state, assert an AX/product postcondition and request pixel inspection
+only when it can reveal something the structured state cannot. A different
+screenshot hash or snapshot ID is not itself a meaningful postcondition.
 
 ## Responsive checks
 
@@ -109,6 +110,7 @@ incorrect intermediate layout, and missing final-state settle.
 - Give files semantic names tied to a state or step.
 - Keep raw and annotated captures; use annotated for targeting and raw for
   visual judgment when labels obscure the interface.
+- Keep artifact directories out of version control.
 - Do not retain credentials or private user content in evidence.
 - Keep before/after captures at the same window geometry and appearance.
 - Report the exact artifact path for failures so another agent or human can

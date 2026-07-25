@@ -35,8 +35,12 @@ unsafe extern "C" fn unused_callback_slot() {
 }
 ```
 
-If the runtime ever calls into one of those slots, we abort with a
-loud message. **Never silently corrupt memory.** The fix is to add the
+This protection applies only when the runtime callback struct contains at most
+64 pointer fields. A larger struct can read beyond the allocation and is out of
+scope; verify field count before loading.
+
+If the runtime calls one of the protected undeclared slots, the probe aborts
+with a loud message. The fix is to add the
 missing field to the manifest's `callback_struct[]` (in the correct
 position).
 
@@ -54,9 +58,13 @@ still giving in-flight callbacks time to drain. Bumping
 `--shutdown-grace-ms` to 5000 ms or more is fine; setting it to 0 makes
 shutdown immediate but can race pending callbacks.
 
-## 4. Restricted to `extern "C"` (cdecl on Unix, cdecl on Windows)
+The grace deadline does not cover lifecycle `start`, lane calls, or manifest
+ops. Those calls execute synchronously and may block indefinitely. Run
+hang-prone or untrusted inputs under an external process supervisor/timeout.
 
-The probe's trampolines are declared `unsafe extern "C" fn`. Anything
+## 4. Restricted to `extern "C"`
+
+The probe uses the platform's default C calling convention. Anything
 else (variadic, `extern "stdcall"`, `extern "fastcall"`,
 struct-by-value arguments) requires changes to
 `crate/src/ffi/trampolines.rs` and a recompile.

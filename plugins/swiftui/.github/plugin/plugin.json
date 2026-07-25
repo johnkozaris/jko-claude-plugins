@@ -1,7 +1,7 @@
 {
   "name": "swiftui",
-  "description": "Opinionated SwiftUI/Swift expert for iOS, macOS, visionOS apps. MV pattern, @Observable, NavigationStack typed routes, Approachable Concurrency, SwiftData, Liquid Glass selective adoption. Five commands: critique, architect, ios, mac, teach.",
-  "version": "2.1.1",
+  "description": "Lightweight, opinionated SwiftUI guidance with detailed Apple-platform references loaded only when relevant",
+  "version": "3.0.0",
   "license": "MIT",
   "author": {
     "name": "John Kozaris"

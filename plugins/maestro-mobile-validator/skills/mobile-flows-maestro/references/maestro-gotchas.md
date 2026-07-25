@@ -1,111 +1,52 @@
-# Maestro Gotchas and CI Patterns
+# Maestro gotchas
 
-Extended reference for edge cases that surface once you have >3 flows.
+## Diagnose before changing the flow
 
-## Flakiness root causes
+Classify a failure from evidence:
 
-In rough order of how often they bite:
+- **App defect:** the expected product state is absent in the hierarchy and
+  screenshots/logs show the app did not reach it.
+- **Selector problem:** the state exists but the matcher resolves zero or
+  multiple elements, or required accessibility metadata is not exposed.
+- **Timing sensitivity:** the state eventually appears; identify the product
+  operation and expected bound before extending the wait.
+- **State leak:** Keychain, app data, permissions, backend fixtures, or device
+  state differ between runs.
+- **Environment failure:** app install/launch, driver, Java, simulator/emulator,
+  network, or tooling failed before the product assertion.
 
-1. **Missing waits after navigation.** Use `extendedWaitUntil` instead of bare `assertVisible` after any action that triggers a transition.
-2. **testID drift.** Developers rename test IDs without updating flows. Pin testIDs in a shared constants file referenced from both app code and flow YAML where possible.
-3. **Keychain bleed between flows.** `clearState` doesn't clear iOS Keychain. Use `clearKeychain: true` or wipe the simulator between independent flows.
-4. **System permission prompts surfacing late.** If a permission is triggered mid-flow (not at launch), Maestro may not see it. Grant all perms at `launchApp` time.
-5. **Font loading races.** Custom fonts on first launch can delay text rendering by 100-500ms. `extendedWaitUntil` saves you.
-6. **Network fixture drift.** If the flow hits a real backend, data changes over time. Use mock servers or seeded test accounts.
-7. **Screen scale differences.** Coordinate-based taps work on one simulator size, fail on another. Always prefer text or testID targeting.
+Retain the failed step, debug output, device identifier, hierarchy, and the
+smallest visual evidence needed to distinguish these cases.
 
-## CI patterns
+## Device and platform state
 
-### GitHub Actions — iOS
+Use explicit device identifiers when multiple devices are attached. For
+Android, accept only `adb devices` entries in the `device` state and distinguish
+emulators from intentionally selected physical devices. For iOS, wait for the
+chosen simulator to finish booting rather than masking boot errors.
 
-```yaml
-name: mobile-e2e
-on: [pull_request]
-jobs:
-  maestro:
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Maestro
-        run: curl -Ls "https://get.maestro.mobile.dev" | bash
-      - run: echo "$HOME/.maestro/bin" >> $GITHUB_PATH
-      - name: Boot simulator
-        run: |
-          xcrun simctl boot "iPhone 15" || true
-          xcrun simctl list
-      - name: Build app
-        run: xcodebuild -scheme MyApp -destination 'platform=iOS Simulator,name=iPhone 15' build
-      - name: Install app on sim
-        run: xcrun simctl install booted path/to/MyApp.app
-      - name: Run Maestro flows
-        run: maestro test --format junit --output report.xml tests/maestro/
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: maestro-report
-          path: report.xml
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: maestro-screenshots
-          path: ~/.maestro/tests/*/screenshots/
-```
+Maestro permission configuration covers supported iOS and Android permissions,
+including custom Android permission IDs. Use `adb -s <serial> shell pm ...` or
+`xcrun simctl ...` only when current Maestro documentation does not expose the
+required state.
 
-### Retry on flakes
+System authentication, share sheets, cross-app handoffs, biometrics, WebViews,
+and push delivery depend on platform-owned UI. Inspect the live hierarchy and
+tool support before assuming they are automatable in the same way as app-owned
+controls.
 
-Historically, automatic retries were a Maestro Cloud / workspace-config feature, not an open-source CLI flag. Check `maestro test --help` on the installed version before assuming a `--retry` flag exists; if it doesn't, wrap the invocation in a shell retry loop or use the `retry` YAML command (verify with `maestro --help` / MCP `listDocumentation` first).
+## CI facts worth preserving
 
-Use sparingly — retries hide real regressions. Prefer fixing the flake.
+- Pin Maestro using its current supported installation mechanism rather than
+  downloading an unspecified latest build.
+- Make device boot readiness an explicit step and pass the selected device to
+  Maestro.
+- Use JUnit output when the CI system consumes test reports.
+- Retain the Maestro test artifact directory on failure instead of assuming a
+  stable nested screenshot path.
+- Upload flows and their referenced JavaScript files together.
+- Keep secrets in the CI platform's secret store and pass only the values the
+  flow requires.
 
-## Debugging a flaky flow
-
-1. **Reproduce locally.** `maestro test --continuous flow.yaml` — Maestro re-runs on file save. Tighten the flow until it passes 10 runs in a row.
-2. **Inspect hierarchy at the failing step.** Add a `takeScreenshot` right before the failing command, and run `maestro hierarchy` in a second terminal while the app sits in the failing state to dump the live view tree. (Do not invent JS APIs inside `runScript` — the GraalJS sandbox exposes only the documented `output`/`http`/env surface; check `maestro --help` or MCP `listDocumentation` before using anything else.)
-3. **Increase timeouts temporarily.** If boosting `extendedWaitUntil.timeout` from 5000 to 30000 fixes it, the UI is slow or the network call is slow — not a Maestro bug.
-4. **Disable animations on the simulator.** `xcrun simctl spawn booted defaults write com.apple.UIKit UIAnimationsEnabled NO` — faster and more deterministic.
-
-## Simulator management
-
-```bash
-# List available devices
-xcrun simctl list devices
-
-# Boot a specific device
-xcrun simctl boot "iPhone 15 Pro"
-
-# Erase (clean slate — use between flow suites)
-xcrun simctl shutdown "iPhone 15 Pro"
-xcrun simctl erase "iPhone 15 Pro"
-xcrun simctl boot "iPhone 15 Pro"
-
-# Take a screenshot from outside a flow
-xcrun simctl io booted screenshot /tmp/sim.png
-
-# Record video
-xcrun simctl io booted recordVideo --codec=h264 /tmp/session.mp4
-# Ctrl-C to stop
-```
-
-## Android-specific notes
-
-- Use `adb` for the equivalent of `simctl` (install, screenshot, input)
-- Android app permissions are granular per-install; Maestro's `launchApp.permissions` doesn't apply to Android the same way — grant explicitly via `adb shell pm grant <pkg> <permission>` in a pre-test hook
-- Emulator boot times are slower than iOS sim — bake in 60s extra at CI startup
-
-## MCP vs CLI — when to use which
-
-| Situation | Reach for |
-|---|---|
-| Exploring a new app's UI interactively | MCP — lets Claude read hierarchy, screenshot, try things |
-| Running an existing flow suite | CLI — deterministic, faster, integrates with CI |
-| Generating a flow from natural language | MCP — Claude can iterate with real UI feedback |
-| Debugging why a flow fails in CI but not locally | CLI + `--debug` output |
-| Running in parallel on multiple simulators | CLI with `--device <udid>` per invocation |
-
-## What Maestro does NOT handle well
-
-- **Cross-app handoff** (launch another app, do something, return) — unreliable, especially on iOS where the switcher animation varies
-- **Live biometric prompts** without simctl pre-enrollment
-- **WebView content in hybrid apps** — Maestro sees the native container but has limited access to WebView DOM. For Cordova/Ionic/Capacitor heavy webview testing, consider Appium with `XCUITest` driver + Safari Web Inspector instead
-- **Push notifications** — deliver via `xcrun simctl push`, but timing them to land mid-flow is manual
-- **Native share sheets** — OS-controlled UI that may not expose elements to Maestro reliably
+Generate host-specific CI YAML from the repository's existing workflow and
+current Maestro docs rather than copying a pinned generic workflow.

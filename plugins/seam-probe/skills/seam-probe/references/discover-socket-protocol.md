@@ -2,9 +2,8 @@
 
 The probe gives you four framing modes:
 
-- `be32` — 4-byte big-endian length prefix (gRPC, most line-of-business
-  RPC servers).
-- `be64` — 8-byte big-endian length prefix (very-large-frame variants).
+- `be32` — 4-byte big-endian length prefix.
+- `be64` — 8-byte big-endian length prefix.
 - `varint` — protobuf-style LEB128 length prefix. **Not implemented in
   the current release**; use `none` and build the prefix yourself.
 - `none` — raw bytes, no framing. socat-equivalent.
@@ -26,11 +25,14 @@ Identify the server's read loop. Look for:
   probably varint.
 - No length read, just `read_to_end` or `read_buf` → `none`.
 
-## 3. Try the most likely framing first
+## 3. Probe a framing supported by source evidence
 
 ```bash
-echo '{"op":"send","payload":{"hello":"world"}}' | \
-  seam-probe socket --path /tmp/foo.sock --framing be32
+seam-probe socket --path /tmp/foo.sock --framing be32 <<'EOF'
+{"op":"send","payload":{"hello":"world"}}
+{"op":"sleep_ms","ms":250}
+{"op":"stop"}
+EOF
 ```
 
 If the server processes the frame, you'll see it in its logs (or the
@@ -53,9 +55,8 @@ at the inbound `frame` events. The probe attempts JSON decode; if
   104 bytes. Ensure your path is short enough.
 - **Permissions** — `EACCES` means the server's socket is owned by a
   different user or has restrictive mode bits. Check with `ls -la`.
-- **Header byte ordering** — `be32` is what 99% of Rust/Tokio servers
-  use. If the Rust source explicitly says `little_endian()`, you need a
-  custom framing path: file a feature request.
+- **Header byte ordering** — if source uses `little_endian()`, the probe needs a
+  custom framing path.
 - **SOCK_SEQPACKET vs SOCK_STREAM** — the probe currently uses
   `SOCK_STREAM`. SEQPACKET endpoints will reject the connection with
   `EPROTOTYPE`. File a feature request if you need it.
