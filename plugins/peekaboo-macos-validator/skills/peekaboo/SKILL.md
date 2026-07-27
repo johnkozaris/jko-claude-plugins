@@ -25,22 +25,30 @@ Use Peekaboo when the unresolved evidence or action lives in the running native
 interface: whether a workflow works, what state it reached, and whether that
 state looks intentional.
 
-## Preserve the driver's context
+## Protect context and resources
 
-Text is cheaper than pixels, but an accessibility tree is not free. Persist
-structured JSON and query only the fields needed for the next decision rather
-than loading whole trees into the conversation. Some hosts retain and resend
-every image loaded into a conversation, so a long capture-inspect loop can
-consume the context window even when each screenshot is small.
+Apply these rules throughout every workflow:
 
-Prefer structured inspection until pixels are necessary. When visual judgment
-is required, save artifacts to disk and inspect them through a bounded,
-disposable visual context when the host provides one. Return only the text
-finding to the driving conversation. A visual task may compare a small related
-set such as before/after states; the invariant is bounded isolation, not one
-particular sub-agent choreography. If isolation is unavailable, inspect only
-the smallest necessary image or crop and avoid accumulating further images in
-the same long-running context.
+- Rule out files, source, CLI commands, app APIs, logs, and processes before
+  using the live UI.
+- Predict JSON size before running a command. Persist accessibility trees,
+  browser snapshots, capture results, and other likely-large JSON, then query
+  only the fields needed for the next decision.
+- Treat every screenshot as large, including crops. Keep pixels on disk and
+  return only compact text findings to the driving conversation.
+- When a screenshot reader is needed, let it read the minimum related captures,
+  then immediately terminate it with the host's kill/stop/remove control and
+  verify through worker listing that it is gone. A blocking or synchronous
+  result does not prove teardown. Do not create the reader if termination and
+  verification are unavailable.
+- Track every task-created artifact. Delete screenshots, JSON, traces, videos,
+  contact sheets, and empty temporary directories by exact path as soon as they
+  are no longer needed and again before the final response. Retain only
+  requested artifacts or necessary failure evidence.
+
+Prefer structured inspection until pixels are necessary. A visual task may
+compare a small related set such as before/after states, but it must follow the
+same read-then-terminate and artifact-cleanup lifecycle.
 
 Read `references/agent-runtime.md` for host-specific options and
 `references/visual-verification.md` for the visual-reader contract.

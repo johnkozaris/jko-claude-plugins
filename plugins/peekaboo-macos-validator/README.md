@@ -9,8 +9,9 @@ visible workflow.
 When UI evidence is required, the plugin prefers accessibility state and
 semantic actions. Screenshots are captured only when pixels answer a real
 question. When the host supports isolated visual work, artifacts stay in a
-bounded inspection context; otherwise the skill limits inspection to the
-smallest necessary image or crop.
+separate reader until it returns a compact report; the reader is then
+terminated and verified gone. Every screenshot is treated as large, likely-large
+JSON is filtered from disk, and temporary artifacts are deleted after use.
 
 Requires `peekaboo` and `jq` on macOS.
 

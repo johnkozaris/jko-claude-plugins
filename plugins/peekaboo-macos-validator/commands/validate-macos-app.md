@@ -27,12 +27,14 @@ only when this command launched it; preserve a pre-existing process and report
 that choice.
 
 Use an artifact directory outside version control. Add the directory to
-`.gitignore` when it lives under the repository.
+`.gitignore` when it lives under the repository. Track every task-created path
+for cleanup.
 
 ## Observe and choose states
 
-Persist each `see` or `inspect-ui` JSON response to a named file and query only
-the fields needed for targeting and assertions.
+Predict JSON response size before each command. Persist every `see`,
+`inspect-ui`, browser snapshot, capture result, or other likely-large response
+to a named file and query only the fields needed for targeting and assertions.
 
 If view labels were supplied, validate those. Otherwise discover likely
 top-level navigation controls from roles and hierarchy. Do not include
@@ -51,12 +53,15 @@ mutation.
 
 ## Visual evidence
 
-Capture raw and annotated images when pixels can answer the question. Give the
-bounded visual reader the raw image for judgment and the annotated image for
-target context. A small before/after pair can share one visual task.
+Treat every screenshot as large. Capture raw and annotated images only when
+each answers a distinct question. Give a visual reader the minimum related
+paths and request a compact report. As soon as it returns, terminate it with
+the host's kill/stop/remove control and verify through worker listing that it is
+gone. A blocking or synchronous result does not prove teardown.
 
-If no isolated visual context exists, inspect the smallest necessary image or
-crop and avoid accumulating further images in the driver.
+Do not invoke `Task` for screenshot reading unless the runtime exposes both
+termination and worker-listing controls. If it does not, continue with
+structured evidence or report that isolated visual inspection is unavailable.
 
 Use evidence-backed `PASS`, `WARN`, or `FAIL` plus an intent verdict; numeric
 scores are optional and require an anchored rubric.
@@ -66,3 +71,6 @@ scores are optional and require an anchored rubric.
 Report each requested state, its exact behavioral postcondition, visual verdict
 when applicable, and artifact path for failures. In guaranteed cleanup, quit
 only an app started by this command and report whether restoration succeeded.
+Delete every temporary screenshot, JSON file, trace, video, contact sheet, and
+empty artifact directory by exact path before returning. Retain only requested
+artifacts or necessary failure evidence.

@@ -105,7 +105,7 @@
       "name": "peekaboo-macos-validator",
       "source": "./plugins/peekaboo-macos-validator",
       "description": "Runtime observation, interaction, and visual critique for native macOS interfaces via Peekaboo",
-      "version": "1.4.2",
+      "version": "1.4.3",
       "category": "testing",
       "tags": [
         "peekaboo",

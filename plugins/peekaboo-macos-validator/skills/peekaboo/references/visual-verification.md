@@ -6,9 +6,12 @@ correct, legible, intentional, or resilient.
 
 ## Critique contract
 
-Give the visual reader a bounded set of artifact paths, the state or comparison
-being judged, and the rubric below. Keep image payloads in that disposable
-context and return only a compact text report to the driver:
+Treat every screenshot as large. Give the visual reader the minimum artifact
+paths, the state or comparison being judged, and the rubric below. Keep image
+payloads out of the driver and return only a compact text report. Immediately
+after the report, terminate the reader with the host's kill/stop/remove control
+and verify through worker listing that it is gone. If those controls are
+unavailable, do not create the reader.
 
 - **Intent:** Did the change visibly achieve what the user requested?
 - **Hierarchy:** Does attention land on the primary information/action first?
@@ -108,13 +111,16 @@ incorrect intermediate layout, and missing final-state settle.
 ## Artifact discipline
 
 - Give files semantic names tied to a state or step.
-- Keep raw and annotated captures; use annotated for targeting and raw for
-  visual judgment when labels obscure the interface.
+- Track every task-created artifact path.
+- Create both raw and annotated captures only when each answers a distinct
+  question; delete either as soon as its purpose is complete.
 - Keep artifact directories out of version control.
 - Do not retain credentials or private user content in evidence.
 - Keep before/after captures at the same window geometry and appearance.
-- Report the exact artifact path for failures so another agent or human can
-  inspect the same evidence.
+- Before the final response, delete temporary screenshots, JSON, traces, videos,
+  contact sheets, and empty artifact directories by exact path.
+- Retain and report exact paths only for user-requested artifacts or necessary
+  failure evidence.
 
 When a snapshot exposes a specialized issue, invoke the matching available
 design, accessibility, typography, color, layout, or SwiftUI review skill,

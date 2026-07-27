@@ -1,7 +1,7 @@
 {
   "name": "peekaboo-macos-validator",
   "description": "Runtime observation, interaction, and visual critique for native macOS interfaces via Peekaboo",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "license": "MIT",
   "author": {
     "name": "John Kozaris"
