@@ -8,5 +8,5 @@ execution context, chip capabilities, memory regions, DMA, FreeRTOS behavior,
 peripherals, power, and long-uptime failure modes. Detailed references load only
 when the project or failure report exposes a matching signal.
 
-Where plugin commands are exposed, use `/esp32-cpp:esp-debug <symptom>` for an
-explicit crash or field-failure investigation; otherwise request it directly.
+The `esp32-expert` skill covers implementation, review, crash diagnosis, and
+field-failure investigation.

@@ -15,7 +15,5 @@ JSON is filtered from disk, and temporary artifacts are deleted after use.
 
 Requires `peekaboo` and `jq` on macOS.
 
-Commands:
-
-- `/peekaboo-macos-validator:peekaboo-doctor`
-- `/peekaboo-macos-validator:validate-macos-app <bundle-id>`
+The primary `peekaboo` skill includes setup diagnosis. Use the additional
+`validate-macos-app` skill for a state-preserving application validation flow.

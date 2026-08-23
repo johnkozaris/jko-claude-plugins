@@ -69,6 +69,10 @@ for background keyboard input and coordinate/synthetic fallback. In agent,
 SSH, or launchd sessions the selected process may be the daemon or Peekaboo.app
 Bridge rather than the terminal.
 
+When diagnosing setup, also inspect Bridge and daemon health and run one
+non-secure capture/AX self-test. Report which runtime needs a missing grant;
+do not change permissions or delete existing artifacts as part of diagnosis.
+
 ## Observe, act, verify
 
 1. Identify the app by bundle ID when possible.

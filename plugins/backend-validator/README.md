@@ -14,17 +14,13 @@ Backend API and WebSocket validation via Hurl, websocat, and oauth2c. Acquires O
 claude --plugin-dir /path/to/myClaudeSkills/plugins/backend-validator
 ```
 
-## Commands
+## Skills
 
-| Command | Purpose |
+| Skill | Purpose |
 |---------|---------|
-| `/validate-api` | Run Hurl-based API validation, acquiring OIDC token if needed |
-| `/validate-ws` | Smoke-test a WebSocket endpoint with bearer auth |
-| `/get-dev-token` | Acquire an OIDC access token via auth-code + PKCE |
-
-## Skill
-
-**backend-validation** — teaches Claude the Hurl + websocat + oauth2c workflow for backend validation behind OIDC auth. Activates when asked to test, validate, or smoke-check a backend API or WebSocket endpoint.
+| `validate-api` | Run Hurl-based API validation, acquiring OIDC token if needed |
+| `validate-ws` | Smoke-test a WebSocket endpoint with bearer auth |
+| `get-dev-token` | Acquire an OIDC access token via auth-code + PKCE |
 
 ## Hook
 
@@ -32,7 +28,7 @@ No active runtime hooks. Reserved for future command-based hooks.
 
 ## References
 
-- **hurl-patterns** — captures, assertions, retries, GraphQL, parallel runs, CI output
-- **websocat-patterns** — subprotocols, mTLS, reconnect, debugging
-- **oidc-token-flows** — grant-type comparison, 401 debugging, discovery endpoint
-- **token-script.sh** — macOS reference script for token acquisition + Keychain-backed refresh caching
+- `validate-api/references/hurl-patterns.md` — captures, assertions, retries, parallel runs, CI output
+- `validate-ws/references/websocat-patterns.md` — subprotocols, mTLS, reconnect, debugging
+- `get-dev-token/references/oidc-token-flows.md` — grant selection, 401 diagnosis, discovery
+- `get-dev-token/references/token-script.sh` — macOS token acquisition with Keychain-backed refresh caching

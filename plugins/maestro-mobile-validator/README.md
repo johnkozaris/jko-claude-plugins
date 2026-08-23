@@ -5,6 +5,4 @@ Maestro-specific failure modes: device targeting, accessibility selectors,
 Keychain state, permissions, system surfaces, JavaScript constraints, waits,
 artifacts, and CI.
 
-Where plugin commands are available, use
-`/maestro-mobile-validator:validate-mobile <flow>`; otherwise request the same
-workflow directly.
+Use the `validate-mobile` skill for the explicit flow-validation workflow.

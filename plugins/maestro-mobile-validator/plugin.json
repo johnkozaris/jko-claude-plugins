@@ -17,5 +17,6 @@
     "validation",
     "simulator",
     "xcrun"
-  ]
+  ],
+  "skills": "./skills"
 }

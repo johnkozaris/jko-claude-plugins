@@ -1,0 +1,25 @@
+{
+  "name": "code-cleanup",
+  "description": "Evidence-first cleanup of agent trajectory residue, dead islands, split-brain authority, stale dependencies, and unnecessary code across repositories",
+  "version": "1.4.0",
+  "license": "MIT",
+  "author": {
+    "name": "John Kozaris"
+  },
+  "homepage": "https://github.com/johnkozaris/jko-claude-plugins",
+  "repository": "https://github.com/johnkozaris/jko-claude-plugins",
+  "keywords": [
+    "cleanup",
+    "dead-code",
+    "split-brain",
+    "architecture",
+    "simplification",
+    "reachability",
+    "lifecycle",
+    "ai-generated-code",
+    "dependencies",
+    "supply-chain",
+    "maintenance"
+  ],
+  "skills": "./skills"
+}

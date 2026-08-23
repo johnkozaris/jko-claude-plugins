@@ -71,6 +71,6 @@ else
   rm -f "$STAMP"
   cat "$BUILD_LOG" >&2
   rm -f "$BUILD_LOG"
-  echo "seam-probe: cargo build failed. Run /seam-probe:seam-probe-setup for verbose output." >&2
+  echo "seam-probe: cargo build failed. Follow the setup fallback in the seam-probe skill." >&2
   exit 2
 fi

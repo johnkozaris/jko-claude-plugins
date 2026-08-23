@@ -3,17 +3,16 @@
 
 Every check here corresponds to a bug found in a real review of this repo:
   1. SKILL.md frontmatter description over the 1024-char limit
-  2. Trigger-time skill or command bodies large enough to become handbooks
-  3. Commands without routing frontmatter
+  2. Trigger-time skill bodies large enough to become handbooks
+  3. Legacy commands/ directories instead of portable Agent Skills
   4. Pattern-ID citations (CODE-xx / ARCH-xx / AP-xx / DN-xx) that don't exist
-     in the plugin's own catalog (drift between commands and references)
+     in the plugin's own catalog (drift between skills and references)
   5. Marketplace version/description out of sync with plugin.json, or the two
      marketplace.json files diverging
   6. Reference files never routed from their SKILL.md (orphans)
   7. Private project names leaking into plugin content
   8. Empty hooks.json stubs
-  9. Slash-command references to command files that don't exist (e.g. a
-     deleted command still cited in the root README or a plugin reference)
+  9. Slash-skill references to skills that don't exist
 
 Exit code 0 = clean, 1 = findings. Output is the evidence.
 """
@@ -32,8 +31,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PLUGINS = ROOT / "plugins"
 DESCRIPTION_LIMIT = 1024
 SKILL_BODY_WORD_LIMIT = 1600
-COMMAND_BODY_WORD_LIMIT = 1200
-PRIVATE_NAMES = ["kodosi"]  # lowercase; add private project names here
+PRIVATE_NAMES: tuple[str, ...] = ()  # lowercase; add private project names here
 ID_PREFIXES = ("CODE", "ARCH", "AP", "DN")
 
 findings: list[str] = []
@@ -99,33 +97,20 @@ def check_context_budgets() -> None:
                 f"{skill_md.relative_to(ROOT)}: trigger-time body is {words} words "
                 f"(limit {SKILL_BODY_WORD_LIMIT}); route detail to references"
             )
-    for command in PLUGINS.glob("*/commands/*.md"):
-        words = len(body_after_frontmatter(command).split())
-        if words > COMMAND_BODY_WORD_LIMIT:
-            finding(
-                f"{command.relative_to(ROOT)}: command body is {words} words "
-                f"(limit {COMMAND_BODY_WORD_LIMIT}); keep commands as thin workflows"
-            )
 
 
-def check_command_frontmatter() -> None:
-    for command in PLUGINS.glob("*/commands/*.md"):
-        text = command.read_text(encoding="utf-8")
-        match = re.match(r"---\n(.*?)\n---", text, re.S)
-        rel = command.relative_to(ROOT)
-        if not match:
-            finding(f"{rel}: command has no frontmatter")
-        elif not re.search(r"^description:\s*\S", match.group(1), re.M):
-            finding(f"{rel}: command frontmatter has no description")
+def check_legacy_commands() -> None:
+    for commands in PLUGINS.glob("*/commands"):
+        finding(
+            f"{commands.relative_to(ROOT)}: legacy commands directory; "
+            "use skills/<name>/SKILL.md"
+        )
 
 
 def check_frontmatter_yaml() -> None:
     if yaml is None:
         return
-    for path in [
-        *PLUGINS.glob("*/skills/*/SKILL.md"),
-        *PLUGINS.glob("*/commands/*.md"),
-    ]:
+    for path in PLUGINS.glob("*/skills/*/SKILL.md"):
         text = path.read_text(encoding="utf-8")
         match = re.match(r"---\n(.*?)\n---", text, re.S)
         if not match:
@@ -193,13 +178,13 @@ def check_manifests() -> None:
             )
         if market[name].get("description") != meta.get("description"):
             finding(f"{name}: marketplace description differs from plugin.json")
-        gh = plugin / ".github" / "plugin" / "plugin.json"
+        gh = plugin / "plugin.json"
         if gh.exists():
             gh_meta = json.loads(gh.read_text())
             if gh_meta.get("version") != meta.get("version"):
-                finding(f"{name}: .github plugin.json version differs from .claude-plugin")
+                finding(f"{name}: root plugin.json version differs from .claude-plugin")
             if gh_meta.get("description") != meta.get("description"):
-                finding(f"{name}: .github plugin.json description differs from .claude-plugin")
+                finding(f"{name}: root plugin.json description differs from .claude-plugin")
     for name in market:
         if not (PLUGINS / name).is_dir():
             finding(f"{name}: in marketplace.json but plugins/{name}/ does not exist")
@@ -240,12 +225,11 @@ def check_hooks_stubs() -> None:
             finding(f"{hooks.relative_to(ROOT)}: empty hooks stub — delete it")
 
 
-def check_command_references() -> None:
-    # command names are valid marketplace-wide (plugins legitimately point at
-    # each other's commands), and the namespaced /plugin:command form is legal
-    all_commands = {p.stem for p in PLUGINS.glob("*/commands/*.md")}
-    prefixes = {name.split("-")[0] for name in all_commands}
-    cmd_re = re.compile(
+def check_skill_references() -> None:
+    # Skill names are valid marketplace-wide, and /plugin:skill is legal.
+    all_skills = {p.parent.name for p in PLUGINS.glob("*/skills/*/SKILL.md")}
+    prefixes = {name.split("-")[0] for name in all_skills}
+    skill_re = re.compile(
         r"(?<![\w./])/(?:[a-z0-9-]+:)?((?:"
         + "|".join(map(re.escape, prefixes))
         + r")-[a-z0-9-]+)\b"
@@ -253,14 +237,15 @@ def check_command_references() -> None:
     docs = [ROOT / "README.md", *PLUGINS.rglob("*.md")]
     for f in sorted(docs):
         for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
-            for m in cmd_re.finditer(line):
+            for m in skill_re.finditer(line):
                 name = m.group(1)
-                if name not in all_commands and not any(
-                    c.startswith(name) or name.startswith(c) for c in all_commands
+                if name not in all_skills and not any(
+                    skill.startswith(name) or name.startswith(skill)
+                    for skill in all_skills
                 ):
                     finding(
                         f"{f.relative_to(ROOT)}:{n}: references /{name} but no "
-                        f"such command file exists in any plugin"
+                        f"such skill exists in any plugin"
                     )
 
 
@@ -268,14 +253,14 @@ def main() -> int:
     for check in (
         check_descriptions,
         check_context_budgets,
-        check_command_frontmatter,
+        check_legacy_commands,
         check_frontmatter_yaml,
         check_pattern_ids,
         check_manifests,
         check_reference_orphans,
         check_private_names,
         check_hooks_stubs,
-        check_command_references,
+        check_skill_references,
     ):
         check()
     if findings:

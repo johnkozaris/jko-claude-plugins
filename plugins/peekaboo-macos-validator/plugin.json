@@ -20,5 +20,6 @@
     "ax",
     "visual-regression",
     "critique"
-  ]
+  ],
+  "skills": "./skills"
 }

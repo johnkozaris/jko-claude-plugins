@@ -18,5 +18,6 @@
     "embedded-runtime",
     "rust",
     "seam"
-  ]
+  ],
+  "skills": "./skills"
 }

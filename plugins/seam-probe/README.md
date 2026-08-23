@@ -93,9 +93,9 @@ Out of scope today (use a different tool, or extend the probe):
 ## Setup
 
 Claude Code auto-builds through a SessionStart hook. Hosts that do not run
-plugin hooks need one-time `/seam-probe:seam-probe-setup` or the Cargo command
-printed by `bin/seam-probe`. A direct skill-only install does not include the
-launcher or crate; install the binary independently.
+plugin hooks can use the Cargo fallback in the `seam-probe` skill or the
+command printed by `bin/seam-probe`. A direct skill-only install does not
+include the launcher or crate; install the binary independently.
 
 Requires **`cargo`** on `PATH`
 (<https://www.rust-lang.org/tools/install>). The bundled toolchain file pins

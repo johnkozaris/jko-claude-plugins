@@ -27,9 +27,16 @@ independently on PATH or use the full plugin.
 - `seam-probe vocab` prints the current stdin/stdout contract.
 
 Run `seam-probe vocab` as preflight. If the launcher reports that the binary is
-not built, use `/seam-probe:seam-probe-setup`. If installed behavior disagrees
-with this skill, inspect live help and request a plugin update rather than
-inventing flags.
+not built, verify `cargo` is available and build the pinned crate:
+
+```bash
+cargo build --release --locked \
+  --manifest-path "${CLAUDE_PLUGIN_ROOT}/crate/Cargo.toml" \
+  --target-dir "${CLAUDE_PLUGIN_DATA:-${XDG_CACHE_HOME:-$HOME/.cache}/seam-probe}/target"
+```
+
+Then rerun `seam-probe vocab`. If installed behavior disagrees with this skill,
+inspect live help and request a plugin update rather than inventing flags.
 
 ## Investigate progressively
 

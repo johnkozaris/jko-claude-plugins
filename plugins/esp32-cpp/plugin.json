@@ -25,5 +25,6 @@
     "esp32-c3",
     "esp32-c6",
     "esp32-p4"
-  ]
+  ],
+  "skills": "./skills"
 }

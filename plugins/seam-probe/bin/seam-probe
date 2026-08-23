@@ -4,7 +4,7 @@
 # The probe is built automatically by the plugin's SessionStart hook
 # into ${CLAUDE_PLUGIN_DATA}/target/release/seam-probe. If the build
 # is still in progress (fresh install) or failed, this wrapper prints
-# a short hint pointing at /seam-probe:seam-probe-setup.
+# the manual build fallback.
 
 set -eu
 
@@ -20,8 +20,7 @@ seam-probe is not built yet.
 The plugin auto-builds on session start; if this is a fresh install,
 the build may still be running — try again in a few seconds.
 
-If the auto-build failed, run /seam-probe:seam-probe-setup for verbose output, or
-build directly:
+If the auto-build failed, build directly:
 
   (cd "$PLUGIN_ROOT" && \\
     cargo build --release --locked \\

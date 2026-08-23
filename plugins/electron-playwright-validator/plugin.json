@@ -16,5 +16,6 @@
     "e2e",
     "cdp",
     "accessibility"
-  ]
+  ],
+  "skills": "./skills"
 }

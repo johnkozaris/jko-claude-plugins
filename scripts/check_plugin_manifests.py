@@ -144,14 +144,12 @@ def validate_skill_directory(plugin_dir: Path, errors: list[str]) -> None:
             errors.append(f"Missing SKILL.md in {format_path(skill_dir)}")
 
 
-def validate_commands_directory(plugin_dir: Path, errors: list[str]) -> None:
+def reject_legacy_commands_directory(plugin_dir: Path, errors: list[str]) -> None:
     commands_dir = plugin_dir / "commands"
-    if not commands_dir.is_dir():
-        return
-
-    if not any(commands_dir.glob("*.md")):
+    if commands_dir.is_dir():
         errors.append(
-            f"{format_path(commands_dir)} exists but does not contain any command markdown files"
+            f"{format_path(commands_dir)} uses the legacy commands layout; "
+            "move each workflow to skills/<name>/SKILL.md"
         )
 
 
@@ -159,7 +157,7 @@ def validate_plugin(plugin_dir: Path, errors: list[str]) -> None:
     plugin_name = plugin_dir.name
     ensure_kebab_case(plugin_name, f"Plugin directory {plugin_name!r}", errors)
 
-    copilot_manifest_path = plugin_dir / ".github" / "plugin" / "plugin.json"
+    copilot_manifest_path = plugin_dir / "plugin.json"
     claude_manifest_path = plugin_dir / ".claude-plugin" / "plugin.json"
 
     copilot_manifest = load_json(copilot_manifest_path, errors)
@@ -211,7 +209,6 @@ def validate_plugin(plugin_dir: Path, errors: list[str]) -> None:
     validate_component_paths(plugin_dir, copilot_manifest_path, copilot_manifest, errors)
 
     has_skills = (plugin_dir / "skills").is_dir()
-    has_commands = (plugin_dir / "commands").is_dir()
 
     if has_skills and copilot_manifest.get("skills") != "./skills":
         errors.append(
@@ -222,20 +219,27 @@ def validate_plugin(plugin_dir: Path, errors: list[str]) -> None:
             f"{format_path(copilot_manifest_path)} declares skills but {format_path(plugin_dir / 'skills')} does not exist"
         )
 
-    if has_commands and copilot_manifest.get("commands") != "./commands":
+    if "commands" in copilot_manifest:
         errors.append(
-            f"{format_path(copilot_manifest_path)} must declare \"commands\": \"./commands\" when commands/ exists"
-        )
-    if not has_commands and "commands" in copilot_manifest:
-        errors.append(
-            f"{format_path(copilot_manifest_path)} declares commands but {format_path(plugin_dir / 'commands')} does not exist"
+            f"{format_path(copilot_manifest_path)} declares the legacy commands component"
         )
 
     validate_skill_directory(plugin_dir, errors)
-    validate_commands_directory(plugin_dir, errors)
+    reject_legacy_commands_directory(plugin_dir, errors)
 
 
 def validate_marketplaces(plugin_names: list[str], errors: list[str]) -> None:
+    claude_marketplace_path = MARKETPLACE_PATHS[1]
+    expected_target = "../.github/plugin/marketplace.json"
+    if not claude_marketplace_path.is_symlink():
+        errors.append(
+            f"{format_path(claude_marketplace_path)} must be a symlink to {expected_target}"
+        )
+    elif claude_marketplace_path.readlink().as_posix() != expected_target:
+        errors.append(
+            f"{format_path(claude_marketplace_path)} must target {expected_target}"
+        )
+
     marketplace_docs = [load_json(path, errors) for path in MARKETPLACE_PATHS]
     if any(doc is None for doc in marketplace_docs):
         return

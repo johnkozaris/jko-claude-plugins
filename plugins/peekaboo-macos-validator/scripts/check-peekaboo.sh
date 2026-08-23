@@ -9,8 +9,8 @@ if ! command -v peekaboo >/dev/null 2>&1; then
   cat >&2 <<'EOF'
 peekaboo-macos-validator: `peekaboo` is missing.
 Install: brew install steipete/tap/peekaboo
-Run `/peekaboo-macos-validator:peekaboo-doctor` to identify the runtime that
-needs Screen Recording and Accessibility; it may not be the terminal.
+Use the `peekaboo` skill's setup diagnosis to identify the runtime that needs
+Screen Recording and Accessibility; it may not be the terminal.
 EOF
 fi
 

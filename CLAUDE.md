@@ -1,15 +1,16 @@
-# jko-claude-plugins
+# jko-skills
 
-Multi-CLI plugin marketplace with specialized skills and commands.
+Multi-CLI plugin marketplace with specialized skills and integrations.
 
 ## Project Structure
 
 ```
 myClaudeSkills/
 ├── .github/plugin/marketplace.json    # GitHub Copilot CLI marketplace manifest
-├── .claude-plugin/marketplace.json    # Claude Code marketplace manifest
+├── .claude-plugin/marketplace.json    # Symlink to the Copilot marketplace manifest
 ├── plugins/
 │   ├── backend-architecture/           # Small cross-stack architecture guide
+│   ├── code-cleanup/                  # Evidence-first dead-island and split-brain cleanup
 │   ├── swiftui/                       # SwiftUI-specific judgment
 │   ├── esp32-cpp/                     # ESP32 hardware/runtime judgment
 │   ├── backend-validator/             # Token acquisition + HTTP/WS validation (hurl, oauth2c, websocat)
@@ -26,14 +27,14 @@ myClaudeSkills/
 claude plugin marketplace add "$PWD"
 
 # Then install any plugin from the local checkout
-claude plugin install <plugin-name>@jko-claude-plugins
+claude plugin install <plugin-name>@jko-skills
 ```
 
 After publishing or updating the GitHub-hosted marketplace, end users should use:
 
 ```bash
 claude plugin marketplace add johnkozaris/jko-claude-plugins
-claude plugin install <plugin-name>@jko-claude-plugins
+claude plugin install <plugin-name>@jko-skills
 ```
 
 Or load a single plugin for one session:
@@ -53,12 +54,12 @@ claude --plugin-dir "$PWD/plugins/<plugin-name>"
 - When a plugin's content changes substantively, bump its version in BOTH plugin.json files and BOTH marketplace.json files (the linter catches mismatches).
 
 - Plugin names: kebab-case
-- Keep GitHub Copilot CLI component paths in `.github/plugin/plugin.json`; when both manifest styles exist, Copilot reads the `.github/plugin/*` manifests.
-- Keep `.claude-plugin/plugin.json` metadata-only unless Claude needs non-default paths; Claude Code can use default discovery for `skills/`, `commands/`, and `hooks/` without duplicating those component paths.
+- Keep GitHub Copilot CLI component paths in each plugin's root `plugin.json`.
+- Keep `.claude-plugin/plugin.json` metadata-only unless Claude needs non-default paths; Claude Code can use default discovery for `skills/` and hooks without duplicating those component paths.
 - Apply the same context discipline to Claude Code, Copilot CLI, Codex, and OpenCode.
 - Do not create generic language handbooks. A plugin must contribute hard-to-infer opinions, local/domain gotchas, or an executable interface.
 - Keep SKILL.md as the smallest sufficient trigger-time routing and opinion layer. Put detail in references and require evidence before loading it.
-- Commands are thin explicit workflows, not alternate copies of a skill.
+- Additional skills are thin explicit workflows, not alternate copies of a primary skill.
 - Prefer current tools, project evidence, and primary documentation over copied API catalogues or dated version trivia.
 - Preserve model judgment. Use hard rules only for safety invariants or observed failure modes.
 - Always use `${CLAUDE_PLUGIN_ROOT}` for portable paths

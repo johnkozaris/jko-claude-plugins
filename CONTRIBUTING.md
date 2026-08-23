@@ -1,4 +1,4 @@
-# Contributing to jko-claude-plugins
+# Contributing to jko-skills
 
 Thanks for your interest in contributing! This marketplace contains specialized multi-CLI plugins built with care, and contributions that maintain that quality bar are welcome.
 
@@ -21,7 +21,7 @@ Every plugin in this marketplace follows strict quality guidelines:
 
 - **Skills** are lightweight routing and opinion layers; generic framework knowledge does not belong in a plugin
 - **References** load only when repository evidence makes them relevant
-- **Commands** are thin explicit workflows, not duplicate skill bodies
+- **Additional skills** are thin explicit workflows, not duplicate primary skill bodies
 - **Interfaces beat prose** -- prefer executable verification, schemas, and live tool help over copied catalogues
 - **Judgment beats blanket rules** -- reserve hard constraints for safety or demonstrated failure modes
 - **All paths** use `${CLAUDE_PLUGIN_ROOT}` for portability
@@ -40,7 +40,7 @@ python3 scripts/check_plugin_manifests.py
 # Check context budgets, reference routing, versions, and stale command links
 python3 scripts/lint-plugins.py
 
-# Load plugin in a session and test commands
+# Load the plugin in a session and test its skills
 claude --plugin-dir ./plugins/<your-plugin>
 
 # Run the plugin validator agent (if you have the plugin-dev plugin installed)
