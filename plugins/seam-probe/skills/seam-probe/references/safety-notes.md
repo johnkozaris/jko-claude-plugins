@@ -13,7 +13,7 @@ Why: most embedded runtimes spawn worker threads (Tokio, libuv, GCD,
 segment (function pointers from callbacks they registered, return
 addresses on their stack). If we `dlclose` while any of those threads
 is still mid-call, the unmap silently invalidates pages they're
-executing from — segfault.
+executing from, and the process segfaults.
 
 The fix is "don't unload". Process exit reclaims everything cleanly.
 

@@ -1,4 +1,4 @@
-//! `seam-probe vocab` — print the NDJSON I/O contract verbatim.
+//! `seam-probe vocab`: print the NDJSON I/O contract verbatim.
 
 const VOCAB: &str = include_str!("../VOCAB.md");
 

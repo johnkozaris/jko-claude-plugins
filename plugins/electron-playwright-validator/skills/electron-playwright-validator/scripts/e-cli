@@ -487,7 +487,7 @@ async function launchWithLock(args) {
     }
     console.log(`Building (${mainEntry} not found): ${buildCmd}`);
     execSync(buildCmd, { cwd: PROJECT, stdio: 'inherit' });
-    if (!fs.existsSync(mainEntry)) die(`Build failed — ${mainEntry} not created`);
+    if (!fs.existsSync(mainEntry)) die(`Build failed: ${mainEntry} not created`);
   }
 
   await assertPortAvailable(port);
@@ -833,7 +833,7 @@ async function main() {
   }
   const [cmd, ...rest] = process.argv.slice(2);
   if (!cmd || cmd === 'help' || cmd === '-h' || cmd === '--help') {
-    console.log(`e-cli — Electron Playwright automation
+    console.log(`e-cli: Electron Playwright automation
 
 Commands:
   launch [--port=9222] [--entry=path] [--no-build]

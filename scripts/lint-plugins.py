@@ -201,7 +201,7 @@ def check_reference_orphans() -> None:
             if ref.name not in body:
                 finding(
                     f"{ref.relative_to(ROOT)}: never referenced from its SKILL.md "
-                    f"(orphan — unreachable via routing)"
+                    f"(orphan, unreachable via routing)"
                 )
 
 
@@ -222,7 +222,7 @@ def check_hooks_stubs() -> None:
     for hooks in PLUGINS.glob("*/hooks/hooks.json"):
         data = json.loads(hooks.read_text())
         if data.get("hooks") == {}:
-            finding(f"{hooks.relative_to(ROOT)}: empty hooks stub — delete it")
+            finding(f"{hooks.relative_to(ROOT)}: empty hooks stub, delete it")
 
 
 def check_skill_references() -> None:
@@ -264,11 +264,11 @@ def main() -> int:
     ):
         check()
     if findings:
-        print(f"FAIL — {len(findings)} finding(s):\n")
+        print(f"FAIL: {len(findings)} finding(s):\n")
         for f in findings:
             print(f"  {f}")
         return 1
-    print("PASS — all plugin lint checks clean")
+    print("PASS: all plugin lint checks clean")
     return 0
 
 

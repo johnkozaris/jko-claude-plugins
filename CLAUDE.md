@@ -49,8 +49,8 @@ claude --plugin-dir "$PWD/plugins/<plugin-name>"
 
 ## Conventions
 
-- Before committing plugin changes, run `python3 scripts/lint-plugins.py` (no CI — local only) and include its output. It checks description length limits, pattern-ID citation drift (CODE-/ARCH-/AP-/DN-), marketplace↔plugin.json version sync, orphaned reference files, private project-name leakage, empty hooks stubs, and dangling slash-command references.
-- Never name private projects in plugin content — plugins must be app-agnostic (app specifics go in env vars, manifests, or arguments). The linter's `PRIVATE_NAMES` blocklist enforces this.
+- Before committing plugin changes, run `python3 scripts/lint-plugins.py` (no CI, local only) and include its output. It checks description length limits, pattern-ID citation drift (CODE-/ARCH-/AP-/DN-), marketplace↔plugin.json version sync, orphaned reference files, private project-name leakage, empty hooks stubs, and dangling slash-command references.
+- Never name private projects in plugin content. Plugins must be app-agnostic (app specifics go in env vars, manifests, or arguments). The linter's `PRIVATE_NAMES` blocklist enforces this.
 - When a plugin's content changes substantively, bump its version in BOTH plugin.json files and BOTH marketplace.json files (the linter catches mismatches).
 
 - Plugin names: kebab-case

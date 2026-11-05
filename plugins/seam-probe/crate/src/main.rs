@@ -1,4 +1,4 @@
-//! seam-probe — generic NDJSON probe for embedded-runtime seams.
+//! seam-probe: generic NDJSON probe for embedded-runtime seams.
 //!
 //! Two real transports + symbol-table inspection + self-documentation.
 //! No app-specific knowledge in the binary; manifests describe app

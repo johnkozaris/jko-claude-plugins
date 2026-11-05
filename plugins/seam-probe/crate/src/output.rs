@@ -2,7 +2,7 @@
 //!
 //! All probe output is one JSON object per line on stdout. Writes are
 //! mutex-guarded because callbacks fire on whichever worker thread the
-//! probed runtime spawns — without serialisation, lines would interleave.
+//! probed runtime spawns. Without serialisation, lines would interleave.
 //!
 //! Every line carries `ts` (RFC3339 nano via `time` crate) and `kind`.
 

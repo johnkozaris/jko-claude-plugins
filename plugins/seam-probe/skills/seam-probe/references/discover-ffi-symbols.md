@@ -3,7 +3,7 @@
 The probe makes you write a manifest. The manifest describes **shape**:
 which symbols start/stop the runtime, the callback struct's field
 order, and the signatures of each lane and op. You discover this from
-the target app's source — the probe will not.
+the target app's source. The probe will not.
 
 ## 1. List exported symbols
 
@@ -66,18 +66,18 @@ exported visibility (`#[no_mangle]`, `#[unsafe(no_mangle)]`, or the project's
 export macro).
 
 If the runtime invokes a callback you didn't declare, the probe
-**aborts** with a loud message — that means your `callback_struct[]`
+**aborts** with a loud message. That means your `callback_struct[]`
 under-declares the runtime's actual struct. Add the missing field.
 
 ## 5. Common gotchas
 
-- **Mangled symbol names** — Rust without `#[no_mangle]` will mangle. The
+- **Mangled symbol names**: Rust without `#[no_mangle]` will mangle. The
   app's symbols should be unmangled if they're meant to be called from
   C/Swift/JS.
-- **Static vs dynamic** — packaged FFI mode takes POSIX dynamic libraries
+- **Static vs dynamic**: packaged FFI mode takes POSIX dynamic libraries
   (`.dylib`, `.so`). For staticlibs, link them into a small
   cdylib first.
-- **Calling convention** — the probe uses the platform default C ABI.
+- **Calling convention**: the probe uses the platform default C ABI.
   stdcall/fastcall require code changes.
-- **Variadics & struct-by-value args** — explicitly out of scope. Reject
+- **Variadics & struct-by-value args**: explicitly out of scope. Reject
   manifests that need them.

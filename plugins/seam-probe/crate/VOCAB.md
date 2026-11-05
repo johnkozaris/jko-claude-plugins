@@ -1,4 +1,4 @@
-# seam-probe — NDJSON I/O contract
+# seam-probe: NDJSON I/O contract
 
 Every line on stdout is one JSON object terminated by `\n`. Every line on
 stdin is one JSON object terminated by `\n`. Empty lines are ignored.
@@ -24,7 +24,7 @@ Acknowledgement of a stdin command. `rc` is the integer return value of
 the underlying call.
 - FFI mode: `rc` is whatever the manifest-declared symbol returned
   (typical convention is `0`=ok, non-zero=error code, but the probe
-  doesn't interpret it — pass it through).
+  doesn't interpret it, so pass it through).
 - Socket mode: `rc=0` on successful write, `rc=-1` on transport error.
 ```json
 {"ts":"…","kind":"rc","op":"send","name":"events","rc":0}
@@ -41,7 +41,7 @@ When callback bytes parse as JSON, `payload` is present. Otherwise
 `payload_raw` contains lossy UTF-8 text. Exactly one is present.
 
 ### `json_with_sid` (FFI, json_with_sid kind)
-Emitted for callbacks shaped `(sid, json, len, user)` — control-frame
+Emitted for callbacks shaped `(sid, json, len, user)`: control-frame
 lanes scoped to a session id (e.g. a per-tab control channel).
 ```json
 {"ts":"…","kind":"json_with_sid","callback":"on_session_control","session_id":"sess-1","payload":{…}}
@@ -85,7 +85,7 @@ lines remain.
 ```
 
 `send` lanes match a `lanes[].name` in the manifest. `call` ops match a
-`ops[].name` in the manifest (note the `name` field — the outer `op`
+`ops[].name` in the manifest (note the `name` field: the outer `op`
 discriminator already names the operation kind). Missing `arg` defaults
 to an empty C string for `kind:"handle_cstr"` and is ignored for
 `kind:"handle_only"`.

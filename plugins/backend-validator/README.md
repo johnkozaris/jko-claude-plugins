@@ -4,9 +4,9 @@ Backend API and WebSocket validation via Hurl, websocat, and oauth2c. Acquires O
 
 ## What It Does
 
-- **Hurl** for REST/HTTP validation — `.hurl` files with captures, assertions, retries
-- **websocat** for WebSocket probes — one-shot or streaming with bearer auth
-- **oauth2c** for OIDC token acquisition — auth-code + PKCE with cached refresh tokens
+- **Hurl** for REST/HTTP validation: `.hurl` files with captures, assertions, retries
+- **websocat** for WebSocket probes: one-shot or streaming with bearer auth
+- **oauth2c** for OIDC token acquisition: auth-code + PKCE with cached refresh tokens
 
 ## Installation
 
@@ -28,7 +28,7 @@ No active runtime hooks. Reserved for future command-based hooks.
 
 ## References
 
-- `validate-api/references/hurl-patterns.md` — captures, assertions, retries, parallel runs, CI output
-- `validate-ws/references/websocat-patterns.md` — subprotocols, mTLS, reconnect, debugging
-- `get-dev-token/references/oidc-token-flows.md` — grant selection, 401 diagnosis, discovery
-- `get-dev-token/references/token-script.sh` — macOS token acquisition with Keychain-backed refresh caching
+- `validate-api/references/hurl-patterns.md`: captures, assertions, retries, parallel runs, CI output
+- `validate-ws/references/websocat-patterns.md`: subprotocols, mTLS, reconnect, debugging
+- `get-dev-token/references/oidc-token-flows.md`: grant selection, 401 diagnosis, discovery
+- `get-dev-token/references/token-script.sh`: macOS token acquisition with Keychain-backed refresh caching

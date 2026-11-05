@@ -1,4 +1,4 @@
-//! Socket mode — connect to a Unix domain socket, ferry framed/raw bytes.
+//! Socket mode: connect to a Unix domain socket, ferry framed/raw bytes.
 //!
 //! Framing modes:
 //! - `be32`: 4-byte big-endian u32 length prefix (gRPC-style, matches

@@ -53,8 +53,8 @@ set `schema_version` to `2`.
 ## `callback_struct[]`
 
 An ordered list of fields in the runtime's callback struct. **Field
-order MUST match the C struct's declaration order byte-for-byte** —
-the probe passes a process-lifetime pointer to an over-allocated
+order MUST match the C struct's declaration order byte-for-byte**.
+The probe passes a process-lifetime pointer to an over-allocated
 64-pointer table, and the runtime reads from index 0 forward according
 to its own declaration. A
 mismatched order means the runtime invokes the wrong trampoline, with
@@ -95,6 +95,6 @@ Op name is the value you put in `{"op":"call","name":"…","arg":"…"}` on stdi
 
 ## Limits
 
-- `MAX_CALLBACK_FIELDS = 64` — raise the constant in
+- `MAX_CALLBACK_FIELDS = 64`: raise the constant in
   `crate/src/manifest.rs` and rebuild if you need more.
 - Command JSON is bounded at 8 MiB on the way in.

@@ -37,7 +37,7 @@ echo '{"op":"raw","hex":"0c68656c6c6f20776f726c6421"}' | \
 ## `none`
 
 Raw bytes. The probe writes whatever you give it, in order, without
-prefixing anything. Reads also pass through unbuffered — the inbound
+prefixing anything. Reads also pass through unbuffered: the inbound
 `frame` events will arrive in chunks of up to 8 KiB depending on TCP
 delivery (UDS is similar).
 

@@ -9,7 +9,7 @@ description = "Generic NDJSON probe for embedded-runtime seams (dlopen FFI + fra
 [lints.rust]
 # Override workspace `unsafe_code = "deny"`. The probe loads arbitrary
 # shared libraries via dlopen and dispatches generated extern "C"
-# trampolines — both inherently unsafe. All unsafe blocks carry SAFETY
+# trampolines, both inherently unsafe. All unsafe blocks carry SAFETY
 # comments explaining the invariants they assume.
 unsafe_code = "allow"
 dead_code_pub_in_binary = "warn"

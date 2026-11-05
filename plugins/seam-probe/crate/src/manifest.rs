@@ -36,7 +36,7 @@ pub(crate) struct Manifest {
     #[serde(default)]
     pub(crate) callback_struct: Vec<CallbackField>,
 
-    /// Send lanes — `(handle, json_ptr, json_len) -> i32`.
+    /// Send lanes: `(handle, json_ptr, json_len) -> i32`.
     #[serde(default)]
     pub(crate) lanes: Vec<Lane>,
 

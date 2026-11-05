@@ -2,7 +2,7 @@
 
 Generic NDJSON probe for embedded-runtime seams: dlopen FFI dylibs and
 length-prefixed Unix-domain sockets. Carries no app-specific
-knowledge — apps are described externally via small JSON manifests.
+knowledge. Apps are described externally via small JSON manifests.
 Manifest schema v2 uses a pointer-based callback-table ABI.
 
 Modeled after `curl`, `websocat`, and `grpcurl`: protocol-generic and
@@ -103,7 +103,7 @@ Rust **1.97.1**, and Cargo rejects older compilers through `rust-version`.
 
 ## Safety
 
-- Loaded libraries leak intentionally — never `dlclose`. See
+- Loaded libraries leak intentionally: never `dlclose`. See
   `skills/seam-probe/references/safety-notes.md` for the rationale.
 - Callback structs up to 64 pointer fields receive aborting sentinel slots
   beyond the manifest declaration. Larger structs are out of scope.

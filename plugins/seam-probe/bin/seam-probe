@@ -1,5 +1,5 @@
 #!/bin/sh
-# bin/seam-probe — thin wrapper for the bundled Rust binary.
+# bin/seam-probe: thin wrapper for the bundled Rust binary.
 #
 # The probe is built automatically by the plugin's SessionStart hook
 # into ${CLAUDE_PLUGIN_DATA}/target/release/seam-probe. If the build
@@ -18,7 +18,7 @@ if [ ! -x "$BIN" ]; then
 seam-probe is not built yet.
 
 The plugin auto-builds on session start; if this is a fresh install,
-the build may still be running — try again in a few seconds.
+the build may still be running. Try again in a few seconds.
 
 If the auto-build failed, build directly:
 

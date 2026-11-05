@@ -2,11 +2,11 @@
 
 The probe gives you four framing modes:
 
-- `be32` — 4-byte big-endian length prefix.
-- `be64` — 8-byte big-endian length prefix.
-- `varint` — protobuf-style LEB128 length prefix. **Not implemented in
+- `be32`: 4-byte big-endian length prefix.
+- `be64`: 8-byte big-endian length prefix.
+- `varint`: protobuf-style LEB128 length prefix. **Not implemented in
   the current release**; use `none` and build the prefix yourself.
-- `none` — raw bytes, no framing. socat-equivalent.
+- `none`: raw bytes, no framing. socat-equivalent.
 
 ## 1. Find where the server binds
 
@@ -51,12 +51,12 @@ at the inbound `frame` events. The probe attempts JSON decode; if
 
 ## 5. Common gotchas
 
-- **Path length on macOS** — Unix-domain socket paths are bounded at
+- **Path length on macOS**: Unix-domain socket paths are bounded at
   104 bytes. Ensure your path is short enough.
-- **Permissions** — `EACCES` means the server's socket is owned by a
+- **Permissions**: `EACCES` means the server's socket is owned by a
   different user or has restrictive mode bits. Check with `ls -la`.
-- **Header byte ordering** — if source uses `little_endian()`, the probe needs a
+- **Header byte ordering**: if source uses `little_endian()`, the probe needs a
   custom framing path.
-- **SOCK_SEQPACKET vs SOCK_STREAM** — the probe currently uses
+- **SOCK_SEQPACKET vs SOCK_STREAM**: the probe currently uses
   `SOCK_STREAM`. SEQPACKET endpoints will reject the connection with
   `EPROTOTYPE`. File a feature request if you need it.
