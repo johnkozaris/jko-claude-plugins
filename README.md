@@ -123,6 +123,8 @@ Before committing:
 python3 scripts/lint-plugins.py
 ```
 
+Made by [John Kozaris](https://johnkozaris.com).
+
 ## License
 
 [MIT](LICENSE)
